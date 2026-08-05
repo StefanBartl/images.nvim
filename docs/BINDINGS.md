@@ -9,21 +9,28 @@ completion and this table all come from the same spec.
 
 | Command | Range | Description |
 | --- | --- | --- |
-| `:Image` | — | Show the image under the cursor (bare form, no subcommand) |
+| `:Image` | yes | Show the image under the cursor; with a range, gallery of that range |
 | `:Image show [path]` | — | Show `path`; without an argument, the image under the cursor |
-| `:Image list` | yes | Pick from the image links of the buffer |
-| `:Image gallery [cols]` | — | Show every image of the buffer side by side in a grid |
+| `:Image list` | yes | Pick from the image links of the buffer (or the range) |
+| `:Image gallery [cols]` | yes | Show every image of the buffer (or the range) side by side |
 | `:Image next` | — | Jump to the next image of the buffer and show it |
 | `:Image prev` | — | Same, backwards; both wrap around |
 | `:Image info [path]` | — | Format, dimensions and file size |
 | `:Image paste` | — | Save the clipboard image next to the document and insert the link |
+| `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
+| `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
+| `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
+| `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view them side by side |
+| `:Image zen [path]` | — | Show one image full-screen in a real editable window |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | — | Report whether this terminal can display images |
-| `:Image clear` | — | Remove displayed images and release a pin |
+| `:Image clear` | — | Remove displayed images, release a pin, and close a `:Image zen` window |
 
-`:Image list` honours a visual range: `:'<,'>Image list` restricts the scan to
-the selected lines. The other subcommands operate on a single position or the
-whole buffer, where a range carries no meaning.
+`range = true` is set once at the verb level, not per route — the composer
+only honours the first `range` value it finds across the whole spec, so a mix
+would be misleading. `ctx.range.range > 0` distinguishes an actual
+`:'<,'>Image …` call from a bare one, where `line1`/`line2` would otherwise
+just point at the current line without that being the intent.
 
 The command name is configurable via `command`.
 
@@ -52,7 +59,11 @@ word selection, so the mapping never swallows a plain double-click.
 | images.keymaps | `FileType` | Registers the buffer-local keymaps |
 | images.autocmds | `VimLeavePre` | Clears a displayed image before quitting |
 | images.clear | `display.clear_events` | Clears the image after it was shown (`once`) |
+| images.zen | `WinResized`, `VimResized` | Redraws the `:Image zen` image so it follows the window's size |
+| images.zen | `WinClosed` | Clears the image when the zen window closes (`once`) |
 
 The clear group is registered only while an image is on screen, not
 permanently — it exists for the few seconds the image is visible, and
-`:Image pin` removes it again.
+`:Image pin` removes it again. The zen group is likewise scoped to the
+lifetime of an open `:Image zen` window, re-created on each `:Image zen`
+call.

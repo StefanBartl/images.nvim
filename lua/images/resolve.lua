@@ -45,6 +45,26 @@ function M.links_in_line(line)
   return out
 end
 
+--- Pfad normalisieren: konsequent `/` statt eines Mixes aus `/` und `\`.
+---
+--- `fnamemodify(p, ":p")` normalisiert auf Windows nicht durchgehend — ein mit
+--- `/` zusammengesetzter Pfad kam im Test als
+--- `C:\...\0/assets\a.png` zurück, Slash und Backslash gemischt in derselben
+--- Zeichenkette. Für `io.open`/`nvim_ui_send` ist das unerheblich, Windows
+--- akzeptiert beides; als Schlüssel in einer String-Menge (siehe
+--- `images.orphans`, das genau darüber verglichene Pfade dedupliziert) macht
+--- es zwei tatsächlich identische Dateien zu zwei verschiedenen Strings.
+---@param p string
+---@return string
+local function normalize(p)
+  local ok, utils = pcall(require, "lib.nvim.normalize.utils")
+  if ok and utils.normalize_path then
+    return utils.normalize_path(p)
+  end
+  return (p:gsub("\\", "/"))
+end
+M.normalize_path = normalize
+
 --- Relativen Pfad auflösen. Nutzt den Resolver aus markdown.nvim, falls
 --- vorhanden — der kennt bereits mehrere Basisverzeichnisse und normalisiert
 --- Windows-Pfade korrekt. Sonst Buffer-Verzeichnis, dann cwd.
@@ -60,13 +80,13 @@ function M.to_path(target, buf)
   if ok and type(path_util.resolve) == "function" then
     local resolved = path_util.resolve(target)
     if resolved and vim.uv.fs_stat(resolved) then
-      return resolved
+      return normalize(resolved)
     end
   end
 
   local expanded = vim.fn.expand(target)
   if vim.uv.fs_stat(expanded) then
-    return vim.fn.fnamemodify(expanded, ":p")
+    return normalize(vim.fn.fnamemodify(expanded, ":p"))
   end
 
   local bases = {}
@@ -80,7 +100,7 @@ function M.to_path(target, buf)
     if base and base ~= "" then
       local candidate = base .. "/" .. expanded
       if vim.uv.fs_stat(candidate) then
-        return vim.fn.fnamemodify(candidate, ":p")
+        return normalize(vim.fn.fnamemodify(candidate, ":p"))
       end
     end
   end

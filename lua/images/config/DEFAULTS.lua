@@ -19,6 +19,11 @@ return {
     -- trotzdem). Schaltet nur die Warnung ab, ändert am Zeichnen nichts.
     assume_supported = false,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
+    -- Verzeichnisnamen, die `:Image pickers` beim Scan überspringt, zusätzlich
+    -- zum immer ausgeschlossenen ".git".
+    browse_exclude = { ".deps", "node_modules" },
+    -- Größe des `:Image zen`-Fensters, als Anteil der Editorgröße.
+    zen = { width = 0.9, height = 0.85 },
   },
 
   paste = {
@@ -27,6 +32,11 @@ return {
     dir = "assets",
     name_template = "%s-%d.png",
     link_template = "![](%s)",
+    -- true fragt vor dem Einfügen nach einem Alt-Text (UI-Kit, sonst
+    -- vim.fn.input). Default false: der Alltagsfall ist Screenshot → ein
+    -- Tastendruck → fertig, ohne Unterbrechung.
+    ask_alt_text = false,
+    alt_link_template = "![%s](%s)",
   },
 
   keymaps = {

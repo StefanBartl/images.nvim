@@ -4,10 +4,24 @@
 --- Ein Verb mit Routen statt einer Familie flacher Commands: `<Tab>`-Completion,
 --- typisierte Argumente und die Doku-Generierung kommen dadurch aus derselben
 --- Spec und können nicht auseinanderlaufen.
+---
+--- Range: `range = true` steht am Verb, nicht an einer einzelnen Route — die
+--- Composer-Logik übernimmt für die ganze Spec ohnehin nur den ersten
+--- gefundenen `range`-Wert (verb- oder routenweit), ein Mix wäre also
+--- irreführend. `ctx.range.range > 0` unterscheidet einen echten Aufruf mit
+--- Bereich (`:'<,'>Image …`) von einem ohne, bei dem `line1`/`line2` sonst
+--- auf die aktuelle Zeile zeigen würden, ohne dass das der Absicht entspricht.
 
 local M = {}
 
 local composer = require("lib.nvim.usercmd.composer")
+
+--- Ob `ctx.range` einen tatsächlich angegebenen Bereich trägt.
+---@param ctx table
+---@return boolean
+local function has_range(ctx)
+  return ctx.range ~= nil and ctx.range.range > 0
+end
 
 --- `:Image …` registrieren.
 ---@param cfg ImagesNvim.Config
@@ -15,11 +29,18 @@ local composer = require("lib.nvim.usercmd.composer")
 function M.register(cfg)
   composer.verb(cfg.command, {
     desc = ":Image — Bilder im Terminal anzeigen, vergleichen und einfügen",
+    range = true,
 
-    -- Bare `:Image` zeigt das Bild unter dem Cursor: der häufigste Fall
-    -- braucht keinen Subcommand.
-    default = function()
-      require("images").hover()
+    -- Bare `:Image` zeigt das Bild unter dem Cursor — der häufigste Fall
+    -- braucht keinen Subcommand. Mit Bereich (`:'<,'>Image`) wird daraus eine
+    -- Galerie der Bilder in diesem Bereich statt einer einzelnen Anzeige.
+    default = function(ctx)
+      local images = require("images")
+      if has_range(ctx) then
+        images.gallery_range(ctx.range.line1, ctx.range.line2)
+      else
+        images.hover()
+      end
     end,
 
     routes = {
@@ -39,21 +60,34 @@ function M.register(cfg)
 
       {
         path = { "list" },
-        -- Range macht hier Sinn: `:'<,'>Image list` beschränkt die Auswahl auf
-        -- die Selektion statt den ganzen Buffer zu durchsuchen.
+        -- Bereich beschränkt die Auswahl auf die Selektion statt den ganzen
+        -- Buffer zu durchsuchen.
         desc = "Bilder im Buffer (oder in der Selektion) auflisten und eines zeigen",
         run = function(ctx)
-          local range = ctx.range or {}
-          require("images").list(range.first, range.last)
+          local images = require("images")
+          if has_range(ctx) then
+            images.list(ctx.range.line1, ctx.range.line2)
+          else
+            images.list(nil, nil)
+          end
         end,
       },
 
       {
         path = { "gallery" },
         args = { { name = "columns", type = "NUMBER", optional = true } },
-        desc = "Alle Bilder des Buffers nebeneinander zeigen",
+        -- Bereich zeigt nur die Bilder darin statt aller Bilder des Buffers —
+        -- derselbe Bezug wie bei `list`, nur direkt als Galerie statt als
+        -- Auswahl.
+        desc = "Bilder des Buffers (oder der Selektion) nebeneinander zeigen",
         run = function(ctx)
-          require("images").gallery(nil, tonumber(ctx.args.columns))
+          local images = require("images")
+          local columns = tonumber(ctx.args.columns)
+          if has_range(ctx) then
+            images.gallery_range(ctx.range.line1, ctx.range.line2, columns)
+          else
+            images.gallery(nil, columns)
+          end
         end,
       },
 
@@ -87,6 +121,56 @@ function M.register(cfg)
         desc = "Bild aus der Zwischenablage speichern und verlinken",
         run = function()
           require("images").paste()
+        end,
+      },
+
+      {
+        path = { "replace" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        desc = "Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen",
+        run = function(ctx)
+          require("images").replace(ctx.args.path)
+        end,
+      },
+
+      {
+        path = { "pickers" },
+        args = {
+          { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
+          { name = "dir", type = "DIR", optional = true },
+        },
+        desc = "Bilder unterhalb cfile/cwd/path durchsuchen (Live-Vorschau mit snacks.picker)",
+        run = function(ctx)
+          require("images").browse(ctx.args.scope, ctx.args.dir)
+        end,
+      },
+
+      {
+        path = { "orphans" },
+        desc = "Bilder im Zielverzeichnis ohne Link finden und ggf. löschen",
+        run = function()
+          require("images").orphans()
+        end,
+      },
+
+      {
+        path = { "compare" },
+        args = {
+          { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
+          { name = "dir", type = "DIR", optional = true },
+        },
+        desc = "Zwei Bilder unterhalb cfile/cwd/path auswählen und nebeneinander vergleichen",
+        run = function(ctx)
+          require("images").compare(ctx.args.scope, ctx.args.dir)
+        end,
+      },
+
+      {
+        path = { "zen" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        desc = "Bild groß anzeigen, in einem editierbaren Fenster (kein Preview-Fenster)",
+        run = function(ctx)
+          require("images").zen(ctx.args.path)
         end,
       },
 

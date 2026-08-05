@@ -26,10 +26,15 @@ dependency.
 
 ```
 :Image                     show the image under the cursor
+:'<,'>Image                gallery of just the selected lines
 :Image gallery             every image in the buffer, side by side
 :Image paste               clipboard screenshot → file next to the document + link
 :Image next / prev         walk through the images of the buffer
 :'<,'>Image list           pick from the images in the selection
+:Image orphans             images in paste.dir that nothing links to anymore
+:Image pickers cwd         browse every image under cwd, live preview with snacks.picker
+:Image zen                 the image under the cursor, full-screen, in a real window
+:Image compare cwd         pick two images and view them side by side
 ```
 
 ## Why not snacks.image or image.nvim
@@ -96,14 +101,22 @@ dependencies are in place.
 | `:Image next` / `prev` | Jump to the next/previous image and show it |
 | `:Image info [path]` | Format, dimensions and file size |
 | `:Image paste` | Save the clipboard image next to the document and insert the link |
+| `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
+| `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
+| `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
+| `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
+| `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan and view them side by side |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | Report whether this terminal can display images |
-| `:Image clear` | Remove displayed images |
+| `:Image clear` | Remove displayed images (and a `:Image zen` window, if open) |
 
 In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
 opens the gallery, `<leader>in`/`<leader>ip` walk through the images,
 `<leader>iv` pastes from the clipboard, and a double-click on a link shows the
-image. A double-click that does not hit an
+image. With [which-key](https://github.com/folke/which-key.nvim) installed,
+`<leader>i` shows up as a named group — detected from whichever of the above
+keys share a common prefix, so a fully remapped set of keys still groups
+correctly. A double-click that does not hit an
 image link falls through to the normal word selection.
 
 `:Image paste` is the everyday case for documentation: take a screenshot, run
@@ -122,6 +135,8 @@ require("images").setup({
     gallery_gap = 1, -- cells between gallery tiles
     assume_supported = false, -- true silences the "unknown terminal" warning
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
+    browse_exclude = { ".deps", "node_modules" }, -- dirs :Image pickers skips (".git" is always skipped)
+    zen = { width = 0.9, height = 0.85 },          -- :Image zen window size, as a fraction of the editor
   },
   paste = {
     dir = "assets",              -- "" puts the file next to the document
@@ -140,14 +155,32 @@ require("images").setup({
 })
 ```
 
+`paste.ask_alt_text = true` prompts for alt text before inserting the link
+(via lib.nvim's UI kit when available), producing `![alt](path)` instead of
+`![](path)`. Cancelling the prompt still inserts the link, just without alt
+text — the file is already on disk by then, and a lost link would be the
+worse surprise.
+
+A statusline segment:
+
+```lua
+{ require("images").statusline }  -- "" when nothing is shown, else an icon
+```
+
 ## Integrations
 
 `markdown.nvim` is used for link resolution when present, falling back to an
 internal resolver otherwise — a soft dependency, never required.
 
-`lib.nvim` provides the `:Image` command grammar (`usercmd.composer`) and the
-picker used by `:Image list`; without its UI kit the picker falls back to
-`vim.ui.select`.
+`lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
+picker used by `:Image list`, and the `kit.compare` component behind
+`:Image compare`; without its UI kit the picker falls back to `vim.ui.select`.
+
+[snacks.nvim](https://github.com/folke/snacks.nvim)'s picker is a soft
+dependency for `:Image pickers`: with it installed, browsing shows a live
+image thumbnail per entry (a custom preview function, not snacks.image's own
+Kitty-only one — see "Why not snacks.image or image.nvim" above); without it,
+`:Image pickers` falls back to a plain list with no preview.
 
 `filetree.nvim` uses this plugin as the first backend of its preview feature,
 and `open.nvim` routes `:Open image` here. See

@@ -66,7 +66,9 @@ Calling |images.setup()| is optional when using `opts`.
 
                                                                       *:Image*
 :Image                  Show the image under the cursor. Accepts a markdown
-                        link (`![alt](path)`) or a bare filename.
+                        link (`![alt](path)`) or a bare filename. With a
+                        range (`:'<,'>Image`), shows a gallery of the images
+                        in that range instead.
 
 :Image show [{path}]    Show {path}. Without an argument, behaves like the
                         bare `:Image`.
@@ -80,7 +82,8 @@ Calling |images.setup()| is optional when using `opts`.
 :Image gallery [{cols}] Show every image of the buffer side by side in a grid.
                         Without {cols} the column count is derived from the
                         number of images, capped at four — beyond that the
-                        tiles get too small to read.
+                        tiles get too small to read. With a range, only the
+                        images in that range.
 
 :Image next             Jump to the next image link of the buffer and show it.
 :Image prev             Same, backwards. Both wrap around. The first call in a
@@ -99,13 +102,51 @@ Calling |images.setup()| is optional when using `opts`.
                         directory and the filename follow `paste.dir` and
                         `paste.name_template`.
 
+:Image replace [{path}] Overwrite {path} — or the image under the cursor —
+                        with the current clipboard content. The link stays
+                        unchanged; useful to update a stale screenshot
+                        in-place instead of pasting a new file and link.
+
+:Image orphans          Find image files in `paste.dir` that no link in the
+                        buffer points to anymore, and offer to delete one.
+                        Only considers `paste.dir`, not the whole project —
+                        the one directory this plugin itself writes into.
+                        Deletion always asks for confirmation first.
+
+:Image pickers [{scope}] [{dir}]
+                        Browse image files under {scope} ("cfile": the
+                        current file's directory, "cwd": the working
+                        directory, "path": {dir} explicitly) and show one.
+                        With snacks.picker installed, previews the
+                        highlighted file live; without it, falls back to a
+                        plain list with no preview. {scope} defaults to
+                        "cwd". With snacks, <Tab> multi-selects — confirming
+                        with more than one selected shows them all as a
+                        gallery (|images.gallery()|) instead of a single
+                        image.
+
+:Image compare [{scope}] [{dir}]
+                        Same scan as `:Image pickers`, but picks two images:
+                        mark the first (<M-c>, or <CR>), search again, then
+                        <CR> shows both side by side. `q`/<Esc> closes.
+
+:Image zen [{path}]     Show {path} — or the image under the cursor — full
+                        screen, in a real editable window rather than a
+                        transient preview float. Stays open next to a
+                        snacks hover popup, since it is not wired to close
+                        on focus loss like one.
+
 :Image check            Report whether this terminal can display images, and
                         re-run the detection (useful after setting
                         `display.assume_supported`).
 
-:Image clear            Remove displayed images and release a pin.
+:Image clear            Remove displayed images and release a pin. Also
+                        closes an open `:Image zen` window.
 
-The command name follows the `command` option.
+The command name follows the `command` option. The whole verb accepts a
+range (`range = true`): the bare form and `gallery` use it to scope to the
+given lines, `list` to filter its picker to them; the other subcommands
+ignore it.
 
 ==============================================================================
 5. KEYMAPS                                                    *images-keymaps*
@@ -124,6 +165,15 @@ word selection.
 
 Every entry accepts `false` to disable that single mapping.
 
+                                                    *images-keymaps-whichkey*
+With which-key (https://github.com/folke/which-key.nvim) installed, the
+longest common prefix of the configured keys (`<leader>i` by default) is
+registered as a named group — computed from whatever `keymaps` actually
+resolve to, so a fully remapped set of keys still groups correctly. Skipped
+when fewer than two keys share a prefix, or when the prefix would itself
+equal one of the mapped keys (which would show both an action and a group
+under the same key).
+
 ==============================================================================
 6. CONFIGURATION                                        *images-configuration*
 
@@ -140,11 +190,15 @@ Every entry accepts `false` to disable that single mapping.
           "CursorMoved", "CursorMovedI", "InsertEnter",
           "BufLeave", "WinScrolled",
         },
+        browse_exclude = { ".deps", "node_modules" },
+        zen = { width = 0.9, height = 0.85 },
       },
       paste = {
         dir = "assets",
         name_template = "%s-%d.png",
         link_template = "![](%s)",
+        ask_alt_text = false,
+        alt_link_template = "![%s](%s)",
       },
       keymaps = {
         show = "<leader>im",
@@ -162,6 +216,15 @@ Every entry accepts `false` to disable that single mapping.
 pixels. The terminal scales the image into that box while preserving the
 aspect ratio, so the pixel size of a cell never has to be known.
 
+                                                       *images-browse-config*
+`display.browse_exclude` names directories `:Image pickers`/`:Image compare`
+skip while scanning, in addition to ".git" (always skipped). The scan stops
+after 20000 visited entries as a safety net against an accidental scan of a
+huge tree — the results found up to that point are still used.
+
+`display.zen` sizes the `:Image zen` window as a fraction (0-1) of the
+editor's width/height.
+
                                                     *images-capability-config*
 Before the first draw, images.nvim checks whether the terminal is one that
 implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
@@ -177,6 +240,12 @@ that works but is not on the list. `:Image check` re-runs the detection.
 `paste.dir` is relative to the document; an empty string writes the file next
 to it. `paste.name_template` receives the document stem and a timestamp,
 `paste.link_template` the path relative to the document.
+
+`paste.ask_alt_text = true` prompts for alt text before inserting the link
+(via lib.nvim's UI kit when available, |vim.fn.input()| otherwise), using
+`paste.alt_link_template` (alt text, then path) instead of `paste.link_template`
+when the answer is non-empty. Cancelling the prompt still inserts the link
+without alt text — the file is already written by then.
 
 ==============================================================================
 7. LUA API                                                        *images-api*
@@ -218,6 +287,37 @@ images.recheck()                                           *images.recheck()*
 images.paste()                                                *images.paste()*
                 Save the clipboard image and insert the link.
 
+images.replace({path})                                      *images.replace()*
+                Overwrite {path} — or the image under the cursor when nil —
+                with the clipboard content. The link is left unchanged.
+
+images.orphans()                                             *images.orphans()*
+                Find images in `paste.dir` without a referencing link and
+                offer one for deletion (with confirmation).
+
+images.browse({scope}, {arg})                                *images.browse()*
+                Scan for images under {scope} ("cfile"|"cwd"|"path") and show
+                a picker (snacks.picker if installed, else a plain list).
+                {arg} is the directory for scope "path".
+
+images.compare({scope}, {arg})                               *images.compare()*
+                Same scan as |images.browse()|, but for picking two images to
+                view side by side. See `:Image compare`.
+
+images.zen({path})                                                *images.zen()*
+                Show {path} — or the image under the cursor when nil — full
+                screen in a real editable window. Returns boolean.
+
+images.gallery_range({first}, {last}, {columns})       *images.gallery_range()*
+                Show the images between lines {first} and {last} side by
+                side. Thin wrapper around |images.gallery()| that resolves a
+                range into a path list first.
+
+images.statusline({opts})                                 *images.statusline()*
+                A short indicator string for a statusline: empty when
+                nothing is shown, an icon otherwise, with a suffix appended
+                while pinned. {opts}: `{ icon?, pinned_suffix? }`.
+
 images.clear()                                                *images.clear()*
                 Remove a displayed image.
 
@@ -230,6 +330,16 @@ images.setup({opts})                                          *images.setup()*
 
 markdown.nvim   Used for link resolution when present, via a `pcall`. Falls
                 back to an internal resolver, so it is never required.
+
+snacks.nvim     Its picker is used by `:Image pickers`/`:Image compare` for a
+                live image thumbnail per entry, via a custom preview function
+                (not snacks.image's own, which is Kitty-only). Optional —
+                without it, both commands fall back to a plain list.
+
+lib.nvim        Provides the `:Image` command grammar, the picker behind
+                `:Image list`, and `lib.nvim.ui.kit.compare` behind
+                `:Image compare` — a reusable "pick two, view them side by
+                side" component, not images.nvim-specific.
 
 filetree.nvim   Can use images.nvim as the backend of its preview feature.
 open.nvim       Can route image targets here.

@@ -14,11 +14,19 @@
 ---@field gallery_gap integer Zellen Abstand zwischen Galerie-Kacheln
 ---@field assume_supported boolean Terminal-Erkennung übergehen (nur die Warnung)
 ---@field clear_events string[] Autocmd-Events, die das Bild wieder entfernen
+---@field browse_exclude string[] Verzeichnisnamen, die `:Image pickers` beim Scan überspringt
+---@field zen ImagesNvim.ZenConfig Größe des `:Image zen`-Fensters
+
+---@class ImagesNvim.ZenConfig
+---@field width number Anteil der Editorbreite (0–1)
+---@field height number Anteil der Editorhöhe (0–1)
 
 ---@class ImagesNvim.PasteConfig
 ---@field dir string Zielverzeichnis relativ zum Dokument ("" = daneben)
 ---@field name_template string Dateiname; %s = Dokumentname, %d = Zeitstempel
----@field link_template string Einzufügender Text; %s = relativer Pfad
+---@field link_template string Einzufügender Text ohne Alt-Text; %s = relativer Pfad
+---@field ask_alt_text boolean Vor dem Einfügen nach einem Alt-Text fragen
+---@field alt_link_template string Einzufügender Text mit Alt-Text; %s %s = Alt-Text, relativer Pfad
 
 --- Jeder Keymap-Eintrag akzeptiert `false` zum Abschalten.
 ---@class ImagesNvim.KeymapConfig

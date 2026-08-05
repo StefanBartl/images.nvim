@@ -68,6 +68,11 @@ local specs = {
   "info_spec.lua",
   "config_spec.lua",
   "capability_spec.lua",
+  "orphans_spec.lua",
+  "keymaps_spec.lua",
+  "usrcmds_spec.lua",
+  "browse_spec.lua",
+  "zen_spec.lua",
 }
 
 local failed = 0
