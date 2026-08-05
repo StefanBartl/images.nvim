@@ -46,11 +46,11 @@ word selection, so the mapping never swallows a plain double-click.
 
 ## Autocmds
 
-| Group | Event | Description |
+| Augroup | Event | Description |
 | --- | --- | --- |
-| `images.keymaps` | `FileType` | Registers the buffer-local keymaps |
-| `images.autocmds` | `VimLeavePre` | Clears a displayed image before quitting |
-| `images.clear` | `display.clear_events` | Clears the image after it was shown (`once`) |
+| images.keymaps | `FileType` | Registers the buffer-local keymaps |
+| images.autocmds | `VimLeavePre` | Clears a displayed image before quitting |
+| images.clear | `display.clear_events` | Clears the image after it was shown (`once`) |
 
 The clear group is registered only while an image is on screen, not
 permanently — it exists for the few seconds the image is visible, and

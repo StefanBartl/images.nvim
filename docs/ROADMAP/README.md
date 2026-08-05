@@ -38,6 +38,6 @@ werden, ist der Weg zurück zu `ioctl(TIOCGWINSZ)` offen — und genau daran
 scheitert `snacks.image` unter Windows.
 
 **Low-Level meldet nicht.** `terminal`, `gallery`, `info` geben `ok, err`
-zurück und rufen nie `notify`. Nur `images.init` entscheidet, was den User
+zurück und rufen nie `notify`. Nur `lua/images/init.lua` entscheidet, was den User
 erreicht. Sonst doppeln sich Meldungen, sobald ein Modul aus zwei Richtungen
 aufgerufen wird.

@@ -149,4 +149,27 @@ possible across the sibling plugins.
 
 - `:h images` — vimdoc reference
 - [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
+- [docs/map/](docs/map/) — generated module map ([documentation.nvim](https://github.com/StefanBartl/documentation.nvim))
 - [docs/ROADMAP/](docs/ROADMAP/) — planned features and cross-plugin ideas
+
+## Development
+
+```bash
+nvim --headless -u NONE -l TESTS/run.lua        # tests
+nvim --headless -l scripts/gen_map.lua          # regenerate the module map
+nvim --headless -l scripts/gen_map.lua --check  # verify it, write nothing
+luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
+```
+
+The suite covers the side-effect-free modules only — grid layout, link
+detection, metadata formatting, config merging. Anything that draws needs a
+terminal with a graphics protocol and cannot be checked headless, which is
+why those parts are separated from the rendering in the first place.
+`scripts/gen_map.lua` enforces that split as a layer rule, so it stays a
+checked invariant rather than a note in a document.
+
+Install the pre-commit hook once per clone:
+
+```bash
+git config core.hooksPath scripts/hooks
+```
