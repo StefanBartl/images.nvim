@@ -72,16 +72,34 @@ Calling |images.setup()| is optional when using `opts`.
                         bare `:Image`.
 
 :Image list             Collect every image link in the buffer and offer them
-                        in |vim.ui.select()|. With a single hit, shows it
+                        in a picker (lib.nvim's UI kit when available, else
+                        |vim.ui.select()|). With a single hit, shows it
                         directly. Accepts a range:
                         `:'<,'>Image list` scans only the selection.
+
+:Image gallery [{cols}] Show every image of the buffer side by side in a grid.
+                        Without {cols} the column count is derived from the
+                        number of images, capped at four — beyond that the
+                        tiles get too small to read.
+
+:Image next             Jump to the next image link of the buffer and show it.
+:Image prev             Same, backwards. Both wrap around. The first call in a
+                        buffer starts from the image nearest the cursor.
+
+:Image info [{path}]    Format, dimensions and file size. Dimensions require
+                        ImageMagick; without it, size and modification time
+                        are still shown.
+
+:Image pin              Keep the current image on screen instead of clearing
+                        it on the next cursor movement. `:Image clear` or a
+                        second `:Image pin` releases it.
 
 :Image paste            Save the clipboard image next to the document and
                         insert a markdown link at the cursor. The target
                         directory and the filename follow `paste.dir` and
                         `paste.name_template`.
 
-:Image clear            Remove a displayed image.
+:Image clear            Remove displayed images and release a pin.
 
 The command name follows the `command` option.
 
@@ -91,12 +109,16 @@ The command name follows the `command` option.
 Registered buffer-locally for the filetypes in `keymaps.filetypes`.
 
     <leader>im          Show the image under the cursor.
+    <leader>ig          Show all images of the buffer side by side.
+    <leader>in          Next image.
+    <leader>ip          Previous image.
+    <leader>iv          Paste the clipboard image and insert the link.
     <2-LeftMouse>       Double-click a markdown link to show the image.
 
 A double-click that does not hit an image link falls through to the normal
 word selection.
 
-Set `keymaps.show = false` or `keymaps.double_click = false` to disable them.
+Every entry accepts `false` to disable that single mapping.
 
 ==============================================================================
 6. CONFIGURATION                                        *images-configuration*
@@ -108,6 +130,7 @@ Set `keymaps.show = false` or `keymaps.double_click = false` to disable them.
       display = {
         max_cols = 60,
         max_rows = 25,
+        gallery_gap = 1,
         clear_events = {
           "CursorMoved", "CursorMovedI", "InsertEnter",
           "BufLeave", "WinScrolled",
@@ -120,6 +143,10 @@ Set `keymaps.show = false` or `keymaps.double_click = false` to disable them.
       },
       keymaps = {
         show = "<leader>im",
+        gallery = "<leader>ig",
+        next = "<leader>in",
+        prev = "<leader>ip",
+        paste = "<leader>iv",
         double_click = true,
         filetypes = { "markdown", "vimwiki", "norg", "text" },
       },
@@ -150,6 +177,23 @@ images.hover()                                                *images.hover()*
 images.list({first}, {last})                                   *images.list()*
                 Pick from the image links of the buffer, optionally limited to
                 the line range {first}..{last}.
+
+images.gallery({paths}, {columns})                         *images.gallery()*
+                Show {paths} side by side. With {paths} nil, every image of
+                the current buffer. {columns} nil derives the grid from the
+                image count. Returns boolean.
+
+images.step({delta})                                          *images.step()*
+                Move to the next ({delta} = 1) or previous ({delta} = -1)
+                image of the buffer and show it. Wraps around.
+
+images.info({path})                                           *images.info()*
+                Show metadata for {path}, or for the image under the cursor
+                when nil.
+
+images.pin({on})                                               *images.pin()*
+                Enable/disable automatic clearing. {on} nil toggles.
+                Returns the new state.
 
 images.paste()                                                *images.paste()*
                 Save the clipboard image and insert the link.

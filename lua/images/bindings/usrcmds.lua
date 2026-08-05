@@ -1,5 +1,9 @@
 ---@module 'images.bindings.usrcmds'
 ---@brief Registriert `:Image [subcommand] [options?]` über lib.nvim's composer.
+---@description
+--- Ein Verb mit Routen statt einer Familie flacher Commands: `<Tab>`-Completion,
+--- typisierte Argumente und die Doku-Generierung kommen dadurch aus derselben
+--- Spec und können nicht auseinanderlaufen.
 
 local M = {}
 
@@ -10,7 +14,7 @@ local composer = require("lib.nvim.usercmd.composer")
 ---@return nil
 function M.register(cfg)
   composer.verb(cfg.command, {
-    desc = ":Image — Bilder im Terminal anzeigen und einfügen",
+    desc = ":Image — Bilder im Terminal anzeigen, vergleichen und einfügen",
 
     -- Bare `:Image` zeigt das Bild unter dem Cursor: der häufigste Fall
     -- braucht keinen Subcommand.
@@ -45,6 +49,40 @@ function M.register(cfg)
       },
 
       {
+        path = { "gallery" },
+        args = { { name = "columns", type = "NUMBER", optional = true } },
+        desc = "Alle Bilder des Buffers nebeneinander zeigen",
+        run = function(ctx)
+          require("images").gallery(nil, tonumber(ctx.args.columns))
+        end,
+      },
+
+      {
+        path = { "next" },
+        desc = "Zum nächsten Bild des Buffers springen und es zeigen",
+        run = function()
+          require("images").step(1)
+        end,
+      },
+
+      {
+        path = { "prev" },
+        desc = "Zum vorherigen Bild des Buffers springen und es zeigen",
+        run = function()
+          require("images").step(-1)
+        end,
+      },
+
+      {
+        path = { "info" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        desc = "Format, Abmessungen und Größe eines Bildes",
+        run = function(ctx)
+          require("images").info(ctx.args.path)
+        end,
+      },
+
+      {
         path = { "paste" },
         desc = "Bild aus der Zwischenablage speichern und verlinken",
         run = function()
@@ -53,8 +91,16 @@ function M.register(cfg)
       },
 
       {
+        path = { "pin" },
+        desc = "Anzeige festhalten — kein Aufräumen bei Cursorbewegung",
+        run = function()
+          require("images").pin()
+        end,
+      },
+
+      {
         path = { "clear" },
-        desc = "Angezeigtes Bild entfernen",
+        desc = "Angezeigte Bilder entfernen",
         run = function()
           require("images").clear()
         end,

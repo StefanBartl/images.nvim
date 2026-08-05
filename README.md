@@ -26,9 +26,10 @@ dependency.
 
 ```
 :Image                     show the image under the cursor
+:Image gallery             every image in the buffer, side by side
 :Image paste               clipboard screenshot → file next to the document + link
-:Image list                every image in the buffer, in a picker
-:'<,'>Image list           …restricted to the selection
+:Image next / prev         walk through the images of the buffer
+:'<,'>Image list           pick from the images in the selection
 ```
 
 ## Why not snacks.image or image.nvim
@@ -84,11 +85,17 @@ dependencies are in place.
 | `:Image show [path]` | Show a specific file, or the one under the cursor |
 | `:Image list` | Pick from every image link in the buffer |
 | `:'<,'>Image list` | …restricted to the selected lines |
+| `:Image gallery [cols]` | Show every image of the buffer side by side in a grid |
+| `:Image next` / `prev` | Jump to the next/previous image and show it |
+| `:Image info [path]` | Format, dimensions and file size |
 | `:Image paste` | Save the clipboard image next to the document and insert the link |
-| `:Image clear` | Remove a displayed image |
+| `:Image pin` | Keep the image on screen instead of clearing on cursor move |
+| `:Image clear` | Remove displayed images |
 
-In markdown buffers, `<leader>im` shows the image under the cursor and a
-double-click on a link does the same. A double-click that does not hit an
+In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
+opens the gallery, `<leader>in`/`<leader>ip` walk through the images,
+`<leader>iv` pastes from the clipboard, and a double-click on a link shows the
+image. A double-click that does not hit an
 image link falls through to the normal word selection.
 
 `:Image paste` is the everyday case for documentation: take a screenshot, run
@@ -104,6 +111,7 @@ require("images").setup({
   display = {
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,
+    gallery_gap = 1, -- cells between gallery tiles
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
   },
   paste = {
@@ -112,7 +120,11 @@ require("images").setup({
     link_template = "![](%s)",
   },
   keymaps = {
-    show = "<leader>im",  -- false disables it
+    show = "<leader>im",  -- every entry accepts false to disable it
+    gallery = "<leader>ig",
+    next = "<leader>in",
+    prev = "<leader>ip",
+    paste = "<leader>iv",
     double_click = true,
     filetypes = { "markdown", "vimwiki", "norg", "text" },
   },
@@ -124,10 +136,17 @@ require("images").setup({
 `markdown.nvim` is used for link resolution when present, falling back to an
 internal resolver otherwise — a soft dependency, never required.
 
-`filetree.nvim` and `open.nvim` can use this plugin as their image backend.
+`lib.nvim` provides the `:Image` command grammar (`usercmd.composer`) and the
+picker used by `:Image list`; without its UI kit the picker falls back to
+`vim.ui.select`.
+
+`filetree.nvim` uses this plugin as the first backend of its preview feature,
+and `open.nvim` routes `:Open image` here. See
+[docs/ROADMAP/CROSS-PLUGIN.md](docs/ROADMAP/CROSS-PLUGIN.md) for what else is
+possible across the sibling plugins.
 
 ## Documentation
 
 - `:h images` — vimdoc reference
 - [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
-- [docs/ROADMAP.md](docs/ROADMAP.md) — planned features
+- [docs/ROADMAP/](docs/ROADMAP/) — planned features and cross-plugin ideas

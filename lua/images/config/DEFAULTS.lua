@@ -13,6 +13,7 @@ return {
     -- gebraucht — der Punkt, an dem snacks.image auf Windows scheitert.
     max_cols = 60,
     max_rows = 25,
+    gallery_gap = 1,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
   },
 
@@ -26,6 +27,10 @@ return {
 
   keymaps = {
     show = "<leader>im",
+    gallery = "<leader>ig",
+    next = "<leader>in",
+    prev = "<leader>ip",
+    paste = "<leader>iv",
     double_click = true,
     filetypes = { "markdown", "vimwiki", "norg", "text" },
   },

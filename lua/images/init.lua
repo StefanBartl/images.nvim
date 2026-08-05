@@ -7,20 +7,51 @@
 --- das Kitty-Graphics-Protokoll. Auf nativem Windows-Neovim in WezTerm wird das
 --- aus Neovim heraus nie gezeichnet — dieses Plugin nutzt stattdessen das
 --- iTerm2-Protokoll (OSC 1337), das dort zuverlässig funktioniert.
+---
+--- Alle Anzeigefunktionen geben `boolean` zurück und melden Fehler über
+--- `lib.nvim.notify`. Die Low-Level-Module (`terminal`, `gallery`, `info`)
+--- benachrichtigen nie selbst, sondern liefern `ok, err` — die Entscheidung,
+--- ob ein Fehler den User erreicht, fällt hier.
 ---@see images.terminal für die Protokoll-Details und die Fallstricke
+---@see images.gallery für die Rasteraufteilung mehrerer Bilder
 ---@see images.paste für den Zwischenablage-Workflow
 
 local M = {}
+
+--- Zuletzt angezeigtes Ziel, für `:Image next`/`prev`.
+---@type { buf: integer, index: integer }|nil
+local cursor_state = nil
+
+--- Ob das aktuelle Bild angeheftet ist (kein automatisches Aufräumen).
+---@type boolean
+local pinned = false
 
 ---@return table notify-Handle aus lib.nvim
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
+---@return ImagesNvim.Config
+local function cfg()
+  return require("images.config").get()
+end
+
+--- Optionales UI-Kit aus lib.nvim. Fehlt es, fallen die Aufrufer auf die
+--- Neovim-Bordmittel zurück — das Kit ist Komfort, keine Voraussetzung.
+---@return table|nil
+local function kit()
+  local ok, k = pcall(require, "lib.nvim.ui.kit")
+  return ok and k or nil
+end
+
 --- Autocmds registrieren, die ein angezeigtes Bild wieder entfernen.
+--- Bei angehefteten Bildern (`M.pin`) passiert nichts.
 ---@return nil
 local function arm_clear()
-  local events = require("images.config").get().display.clear_events
+  if pinned then
+    return
+  end
+  local events = cfg().display.clear_events
   if not events or #events == 0 then
     return
   end
@@ -33,28 +64,35 @@ local function arm_clear()
   })
 end
 
+--- Startzeile so wählen, dass ein Block der Höhe `rows` noch auf den Schirm
+--- passt. Ohne die Deckelung rutscht ein hohes Bild unter den unteren Rand.
+---@param rows integer
+---@return integer
+local function row_below_cursor(rows)
+  local screen_row = vim.fn.screenrow()
+  return math.max(1, math.min(screen_row + 1, vim.o.lines - rows - 1))
+end
+
+-- ── Anzeige ──────────────────────────────────────────────────────────────────
+
 --- Eine Bilddatei anzeigen.
 ---@param path string Absoluter oder relativer Pfad
 ---@return boolean ok
 function M.show(path)
-  local terminal = require("images.terminal")
-  if not terminal.available() then
-    notify().error("Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)")
-    return false
-  end
-
   local file = require("images.resolve").to_path(path)
   if not file then
-    notify().error("Bild nicht gefunden: " .. path)
+    notify().error("Bild nicht gefunden: " .. tostring(path))
     return false
   end
 
-  local display = require("images.config").get().display
-  -- Unter der Cursorzeile zeichnen, aber so weit oben, dass das Bild noch
-  -- vollständig auf den Schirm passt.
-  local row = math.min(vim.fn.screenrow() + 1, math.max(1, vim.o.lines - display.max_rows - 1))
-
-  local ok, err = terminal.draw(file, row, 1, display.max_cols, display.max_rows)
+  local display = cfg().display
+  local ok, err = require("images.terminal").draw(
+    file,
+    row_below_cursor(display.max_rows),
+    1,
+    display.max_cols,
+    display.max_rows
+  )
   if not ok then
     notify().error(err or "Anzeige fehlgeschlagen")
     return false
@@ -75,7 +113,58 @@ function M.hover()
   return M.show(target.path)
 end
 
---- Alle Bilder des Buffers auflisten und eines zur Anzeige auswählen.
+--- Mehrere Bilder nebeneinander anzeigen.
+---@param paths string[]|nil Absolute Pfade; nil = alle Bilder des Buffers
+---@param columns integer|nil Spaltenzahl; nil = automatisch
+---@return boolean ok
+function M.gallery(paths, columns)
+  if not paths then
+    local found = require("images.scan").buffer(0)
+    paths = {}
+    for _, t in ipairs(found) do
+      paths[#paths + 1] = t.path
+    end
+  end
+
+  if #paths == 0 then
+    notify().info("Keine Bilder zum Anzeigen")
+    return false
+  end
+
+  local display = cfg().display
+  -- Die Galerie darf mehr Fläche belegen als eine Einzelanzeige: sie ist der
+  -- explizite Übersichtsmodus, nicht der beiläufige Blick.
+  local height = math.max(6, math.floor(vim.o.lines * 0.7))
+  local placements, skipped = require("images.gallery").layout(paths, {
+    columns = columns,
+    gap = display.gallery_gap,
+    top = math.max(1, math.floor((vim.o.lines - height) / 2)),
+    left = 1,
+    width = vim.o.columns - 2,
+    height = height,
+  })
+
+  if #placements == 0 then
+    notify().warn("Zu wenig Platz für eine Galerie — Fenster vergrößern oder weniger Bilder")
+    return false
+  end
+
+  local drawn, errors = require("images.terminal").draw_many(placements)
+  if drawn == 0 then
+    notify().error(errors[1] or "Galerie konnte nicht gezeichnet werden")
+    return false
+  end
+
+  if skipped > 0 or #errors > 0 then
+    notify().warn(("%d von %d Bildern nicht gezeigt"):format(skipped + #errors, #paths))
+  end
+
+  arm_clear()
+  return true
+end
+
+--- Bilder des Buffers auflisten und eines zur Anzeige auswählen.
+--- Nutzt das UI-Kit aus lib.nvim, falls vorhanden, sonst `vim.ui.select`.
 ---@param first integer|nil 1-basierte Startzeile (für `:'<,'>Image list`)
 ---@param last integer|nil 1-basierte Endzeile
 ---@return nil
@@ -94,22 +183,107 @@ function M.list(first, last)
     return
   end
 
-  local items = {}
-  for _, t in ipairs(found) do
-    items[#items + 1] = t
+  ---@param item ImagesNvim.Target
+  local function format_item(item)
+    return ("%4d  %s"):format(item.lnum, item.raw)
   end
 
-  vim.ui.select(items, {
-    prompt = "Bild anzeigen",
-    ---@param item ImagesNvim.Target
-    format_item = function(item)
-      return ("%4d  %s"):format(item.lnum, item.raw)
-    end,
-  }, function(choice)
+  local k = kit()
+  if k and k.select then
+    k.select({
+      items = found,
+      title = "Bilder in diesem Buffer",
+      format_item = format_item,
+      on_select = function(choice)
+        if choice then
+          M.show(choice.path)
+        end
+      end,
+    })
+    return
+  end
+
+  vim.ui.select(found, { prompt = "Bild anzeigen", format_item = format_item }, function(choice)
     if choice then
       M.show(choice.path)
     end
   end)
+end
+
+--- Zum nächsten/vorherigen Bild des Buffers springen und es anzeigen.
+---@param delta integer 1 = weiter, -1 = zurück
+---@return boolean ok
+function M.step(delta)
+  local buf = vim.api.nvim_get_current_buf()
+  local found = require("images.scan").buffer(buf)
+  if #found == 0 then
+    notify().info("Keine Bilder in diesem Buffer")
+    return false
+  end
+
+  local index
+  if cursor_state and cursor_state.buf == buf then
+    index = cursor_state.index + delta
+  else
+    -- Erster Aufruf im Buffer: beim Bild starten, das dem Cursor am nächsten
+    -- liegt, statt stumpf bei 1 — sonst springt man aus der Mitte eines langen
+    -- Dokuments unerwartet an den Anfang.
+    local lnum = vim.api.nvim_win_get_cursor(0)[1]
+    index = 1
+    for i, t in ipairs(found) do
+      if t.lnum <= lnum then
+        index = i
+      end
+    end
+    if delta > 0 and found[index] and found[index].lnum <= lnum then
+      index = index + delta
+    end
+  end
+
+  -- Umlaufen statt an den Enden anzustoßen.
+  index = ((index - 1) % #found) + 1
+  cursor_state = { buf = buf, index = index }
+
+  local target = found[index]
+  -- Der Scan lief über den Buffer-Inhalt; die Zeile kann durch eine
+  -- zwischenzeitliche Änderung außerhalb des gültigen Bereichs liegen.
+  local line_count = vim.api.nvim_buf_line_count(buf)
+  pcall(vim.api.nvim_win_set_cursor, 0, { math.min(target.lnum, line_count), 0 })
+  return M.show(target.path)
+end
+
+-- ── Metadaten, Zwischenablage, Aufräumen ─────────────────────────────────────
+
+--- Metadaten eines Bildes anzeigen.
+---@param path string|nil nil = Bild unter dem Cursor
+---@return boolean ok
+function M.info(path)
+  local file
+  if path then
+    file = require("images.resolve").to_path(path)
+  else
+    local target = require("images.resolve").under_cursor()
+    file = target and target.path
+  end
+  if not file then
+    notify().warn("Kein Bild gefunden")
+    return false
+  end
+
+  local data, err = require("images.info").collect(file)
+  if not data then
+    notify().error(err or "Metadaten nicht lesbar")
+    return false
+  end
+
+  local lines = require("images.info").lines(data)
+  local k = kit()
+  if k and k.viewer then
+    k.viewer({ title = "Bildinfo", message = lines })
+  else
+    notify().info(table.concat(lines, "\n"))
+  end
+  return true
 end
 
 --- Bild aus der Zwischenablage speichern und verlinken.
@@ -118,9 +292,33 @@ function M.paste()
   require("images.paste").run()
 end
 
---- Ein angezeigtes Bild entfernen.
+--- Automatisches Aufräumen für das aktuelle Bild an- oder abschalten.
+---@param on boolean|nil nil = umschalten
+---@return boolean pinned neuer Zustand
+function M.pin(on)
+  if on == nil then
+    pinned = not pinned
+  else
+    pinned = on and true or false
+  end
+
+  if pinned then
+    -- Bereits scharf gestellte Aufräum-Autocmds zurücknehmen, sonst räumt der
+    -- nächste Cursorsprung das gerade angeheftete Bild trotzdem weg.
+    pcall(vim.api.nvim_del_augroup_by_name, "images.clear")
+    notify().info("Bild angeheftet — `:Image clear` entfernt es")
+  else
+    notify().info("Bild wird bei der nächsten Cursorbewegung entfernt")
+    arm_clear()
+  end
+  return pinned
+end
+
+--- Angezeigte Bilder entfernen.
 ---@return nil
 function M.clear()
+  pinned = false
+  cursor_state = nil
   require("images.terminal").clear()
 end
 
@@ -128,10 +326,10 @@ end
 ---@param opts table|nil siehe `images.config.DEFAULTS`
 ---@return nil
 function M.setup(opts)
-  local cfg = require("images.config").setup(opts)
-  require("images.bindings.usrcmds").register(cfg)
-  require("images.bindings.keymaps").register(cfg)
-  require("images.bindings.autocmds").register(cfg)
+  local conf = require("images.config").setup(opts)
+  require("images.bindings.usrcmds").register(conf)
+  require("images.bindings.keymaps").register(conf)
+  require("images.bindings.autocmds").register(conf)
 end
 
 return M

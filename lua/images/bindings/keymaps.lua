@@ -1,12 +1,52 @@
 ---@module 'images.bindings.keymaps'
 ---@brief Keymaps für images.nvim — alle abschaltbar, alle which-key-fähig.
+---@description
+--- Alle Bindungen sind buffer-lokal und hängen an den Filetypes aus
+--- `keymaps.filetypes`. Jede einzelne lässt sich über `false` deaktivieren
+--- oder auf einen anderen Tastenweg legen; ein leerer `keymaps`-Block
+--- registriert gar nichts.
 
 local M = {}
 
---- Beschreibung der Bindungen für which-key und `docs/BINDINGS.md`.
----@type { lhs_key: string, desc: string, scope: string }[]
-M.spec = {
-  { lhs_key = "show", desc = "images: Bild unter dem Cursor anzeigen", scope = "buffer" },
+--- Bindung → Aktion. Eine Tabelle statt fünf `if`-Blöcken, damit eine neue
+--- Bindung nur hier einen Eintrag braucht.
+---@type { option: string, desc: string, run: fun() }[]
+local ACTIONS = {
+  {
+    option = "show",
+    desc = "images: Bild unter dem Cursor anzeigen",
+    run = function()
+      require("images").hover()
+    end,
+  },
+  {
+    option = "gallery",
+    desc = "images: alle Bilder des Buffers nebeneinander",
+    run = function()
+      require("images").gallery()
+    end,
+  },
+  {
+    option = "next",
+    desc = "images: nächstes Bild",
+    run = function()
+      require("images").step(1)
+    end,
+  },
+  {
+    option = "prev",
+    desc = "images: vorheriges Bild",
+    run = function()
+      require("images").step(-1)
+    end,
+  },
+  {
+    option = "paste",
+    desc = "images: Bild aus der Zwischenablage einfügen",
+    run = function()
+      require("images").paste()
+    end,
+  },
 }
 
 --- Doppelklick auf einen Markdown-Link zeigt das Bild.
@@ -16,8 +56,7 @@ M.spec = {
 ---@return nil
 local function map_double_click(buf)
   vim.keymap.set("n", "<2-LeftMouse>", function()
-    local ok = require("images").hover()
-    if not ok then
+    if not require("images").hover() then
       -- Kein Bildlink getroffen: Doppelklick soll sich normal verhalten
       -- (Wortauswahl), statt stumm geschluckt zu werden.
       vim.cmd("normal! viw")
@@ -30,19 +69,21 @@ end
 ---@return nil
 function M.register(cfg)
   local keys = cfg.keymaps or {}
-  if keys.show == false and not keys.double_click then
-    return
-  end
 
   vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("images.keymaps", { clear = true }),
     pattern = keys.filetypes or { "markdown" },
+    desc = "images: buffer-lokale Keymaps setzen",
     ---@param ev { buf: integer }
     callback = function(ev)
-      if type(keys.show) == "string" and keys.show ~= "" then
-        vim.keymap.set("n", keys.show, function()
-          require("images").hover()
-        end, { buffer = ev.buf, desc = "images: Bild unter dem Cursor anzeigen" })
+      if not vim.api.nvim_buf_is_valid(ev.buf) then
+        return
+      end
+      for _, action in ipairs(ACTIONS) do
+        local lhs = keys[action.option]
+        if type(lhs) == "string" and lhs ~= "" then
+          vim.keymap.set("n", lhs, action.run, { buffer = ev.buf, desc = action.desc })
+        end
       end
       if keys.double_click then
         map_double_click(ev.buf)

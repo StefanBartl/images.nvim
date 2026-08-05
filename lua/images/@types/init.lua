@@ -11,6 +11,7 @@
 ---@class ImagesNvim.DisplayConfig
 ---@field max_cols integer Maximale Bildbreite in Terminalzellen
 ---@field max_rows integer Maximale Bildhöhe in Terminalzeilen
+---@field gallery_gap integer Zellen Abstand zwischen Galerie-Kacheln
 ---@field clear_events string[] Autocmd-Events, die das Bild wieder entfernen
 
 ---@class ImagesNvim.PasteConfig
@@ -18,8 +19,13 @@
 ---@field name_template string Dateiname; %s = Dokumentname, %d = Zeitstempel
 ---@field link_template string Einzufügender Text; %s = relativer Pfad
 
+--- Jeder Keymap-Eintrag akzeptiert `false` zum Abschalten.
 ---@class ImagesNvim.KeymapConfig
----@field show string|false Normal-Mode-Key für das Bild unter dem Cursor
+---@field show string|false Bild unter dem Cursor
+---@field gallery string|false Alle Bilder des Buffers nebeneinander
+---@field next string|false Nächstes Bild
+---@field prev string|false Vorheriges Bild
+---@field paste string|false Bild aus der Zwischenablage einfügen
 ---@field double_click boolean Doppelklick auf einen Markdown-Link zeigt das Bild
 ---@field filetypes string[] Filetypes, in denen die Bindungen gesetzt werden
 

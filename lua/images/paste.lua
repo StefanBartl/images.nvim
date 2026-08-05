@@ -121,11 +121,28 @@ function M.run()
     return
   end
 
+  -- Zwischen dem Ermitteln des Buffers und hier lag ein synchroner
+  -- Prozessaufruf. Der Buffer kann inzwischen geschlossen oder auf
+  -- `nomodifiable` gesetzt worden sein — das Bild ist dann trotzdem
+  -- geschrieben, nur der Link fehlt, und das soll der User erfahren.
+  if not vim.api.nvim_buf_is_valid(buf) then
+    notify().warn("Buffer nicht mehr vorhanden — Bild liegt unter " .. rel)
+    return
+  end
+  if not vim.bo[buf].modifiable then
+    notify().warn("Buffer nicht änderbar — Bild liegt unter " .. rel)
+    return
+  end
+
   -- Backslashes im Link vermeiden: Markdown-Pfade sind portabler mit `/`.
   local link = cfg().paste.link_template:format((rel:gsub("\\", "/")))
   local pos = vim.api.nvim_win_get_cursor(0)
-  vim.api.nvim_buf_set_text(buf, pos[1] - 1, pos[2], pos[1] - 1, pos[2], { link })
-  vim.api.nvim_win_set_cursor(0, { pos[1], pos[2] + #link })
+  local inserted = pcall(vim.api.nvim_buf_set_text, buf, pos[1] - 1, pos[2], pos[1] - 1, pos[2], { link })
+  if not inserted then
+    notify().warn("Link konnte nicht eingefügt werden — Bild liegt unter " .. rel)
+    return
+  end
+  pcall(vim.api.nvim_win_set_cursor, 0, { pos[1], pos[2] + #link })
 
   notify().info("Bild gespeichert: " .. rel)
 end

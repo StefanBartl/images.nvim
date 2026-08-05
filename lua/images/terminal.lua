@@ -18,18 +18,70 @@
 --- * `width`/`height` werden in **Zellen** angegeben, nicht in Pixeln. Zusammen
 ---   mit `preserveAspectRatio=1` skaliert das Terminal selbst, und die Zellgröße
 ---   in Pixeln muss nirgends bekannt sein.
+---
+--- Das Protokoll kennt keine Bild-IDs: Gezeichnetes lässt sich nicht einzeln
+--- entfernen, nur der ganze Schirm neu zeichnen. Deshalb hält dieses Modul
+--- lediglich ein Flag statt einer Platzierungs-Verwaltung.
 
 local M = {}
 
 local ESC, BEL = "\27", "\7"
 
---- Ob gerade ein Bild auf dem Schirm steht.
+--- Ob gerade mindestens ein Bild auf dem Schirm steht.
 ---@type boolean
 local showing = false
 
 ---@return boolean
 function M.is_showing()
   return showing
+end
+
+--- Ob die Terminalausgabe zur Verfügung steht.
+--- `nvim_ui_send` gibt es erst ab API-Level 14.
+---@return boolean
+function M.available()
+  return type(vim.api.nvim_ui_send) == "function"
+end
+
+--- Dateiinhalt lesen.
+---@param file string
+---@return string|nil data
+---@return string|nil err
+local function read_file(file)
+  if type(file) ~= "string" or file == "" then
+    return nil, "Kein Dateipfad angegeben"
+  end
+  local fd, open_err = io.open(file, "rb")
+  if not fd then
+    return nil, ("Datei nicht lesbar: %s (%s)"):format(file, open_err or "?")
+  end
+  local raw = fd:read("*a")
+  fd:close()
+  if not raw or raw == "" then
+    return nil, "Datei ist leer: " .. file
+  end
+  return raw
+end
+
+--- OSC-1337-Sequenz für einen Bilddateiinhalt bauen.
+---@param raw string Rohe Dateibytes
+---@param cols integer Breite in Zellen
+---@param rows integer Höhe in Zellen
+---@return string
+local function payload_for(raw, cols, rows)
+  -- table.concat statt wiederholter `..`-Verkettung: der Base64-Anteil ist
+  -- bei großen Bildern mehrere hundert KB groß, jede Zwischenkopie zählt.
+  return table.concat({
+    ESC,
+    "]1337;File=inline=1",
+    ";size=" .. #raw,
+    ";width=" .. cols,
+    ";height=" .. rows,
+    ";preserveAspectRatio=1",
+    ":",
+    vim.base64.encode(raw),
+    BEL,
+  })
 end
 
 --- Ein Bild an einer Terminalposition zeichnen.
@@ -41,55 +93,74 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.draw(file, row, col, cols, rows)
-  local fd, open_err = io.open(file, "rb")
-  if not fd then
-    return false, ("Datei nicht lesbar: %s (%s)"):format(file, open_err or "?")
-  end
-  local raw = fd:read("*a")
-  fd:close()
-
-  if not raw or raw == "" then
-    return false, "Datei ist leer: " .. file
+  if not M.available() then
+    return false, "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)"
   end
 
-  local payload = table.concat({
-    ESC,
-    "]1337;File=inline=1",
-    ";size=" .. #raw,
-    ";width=" .. cols,
-    ";height=" .. rows,
-    ";preserveAspectRatio=1",
-    ":",
-    vim.base64.encode(raw),
-    BEL,
-  })
+  local raw, err = read_file(file)
+  if not raw then
+    return false, err
+  end
 
   local send = vim.api.nvim_ui_send
   send(ESC .. "[s")
   send(ESC .. "[" .. row .. ";" .. col .. "H")
-  send(payload)
+  send(payload_for(raw, cols, rows))
   send(ESC .. "[u")
 
   showing = true
   return true
 end
 
---- Bild entfernen. `:mode` erzwingt einen vollständigen Repaint, der die vom
---- Bild belegten Zellen überschreibt, ohne den Bildschirm zu leeren.
+---@class Images.Placement
+---@field file string Absoluter Pfad
+---@field row integer 1-basierte Terminalzeile
+---@field col integer 1-basierte Terminalspalte
+---@field cols integer Breite in Zellen
+---@field rows integer Höhe in Zellen
+
+--- Mehrere Bilder in einem Rutsch zeichnen.
+--- Der Cursor wird einmal für den ganzen Block gesichert statt pro Bild — bei
+--- einer Galerie mit vielen Kacheln spart das die Hälfte der Sequenzen.
+---@param placements Images.Placement[]
+---@return integer drawn Anzahl tatsächlich gezeichneter Bilder
+---@return string[] errors Fehlermeldungen der übersprungenen Bilder
+function M.draw_many(placements)
+  if not M.available() then
+    return 0, { "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt)" }
+  end
+
+  local send = vim.api.nvim_ui_send
+  local drawn, errors = 0, {}
+
+  send(ESC .. "[s")
+  for _, p in ipairs(placements) do
+    local raw, err = read_file(p.file)
+    if raw then
+      send(ESC .. "[" .. p.row .. ";" .. p.col .. "H")
+      send(payload_for(raw, p.cols, p.rows))
+      drawn = drawn + 1
+    else
+      errors[#errors + 1] = err or ("Übersprungen: " .. tostring(p.file))
+    end
+  end
+  send(ESC .. "[u")
+
+  if drawn > 0 then
+    showing = true
+  end
+  return drawn, errors
+end
+
+--- Alle angezeigten Bilder entfernen. `:mode` erzwingt einen vollständigen
+--- Repaint, der die belegten Zellen überschreibt, ohne den Schirm zu leeren.
 ---@return nil
 function M.clear()
   if not showing then
     return
   end
   showing = false
-  vim.cmd("mode")
-end
-
---- Ob die Terminalausgabe überhaupt zur Verfügung steht.
---- `nvim_ui_send` gibt es erst ab API-Level 14.
----@return boolean
-function M.available()
-  return vim.api.nvim_ui_send ~= nil
+  pcall(vim.cmd, "mode")
 end
 
 return M

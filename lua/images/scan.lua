@@ -10,7 +10,10 @@ local M = {}
 ---@return ImagesNvim.Target[] gefundene Ziele
 ---@return string[] unauflösbare Ziele (für eine Warnung an den User)
 function M.buffer(buf, first, last)
-  buf = buf or 0
+  buf = buf or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(buf) then
+    return {}, {}
+  end
   local resolve = require("images.resolve")
 
   local from = (first and first > 0) and first - 1 or 0
