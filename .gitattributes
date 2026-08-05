@@ -1,0 +1,16 @@
+# LF überall, auch beim Auschecken unter Windows.
+#
+# Nicht nur Kosmetik: der Modul-Map-Generator bettet Quelltext in
+# docs/map/module_map.json und index.html ein. Ohne diese Festlegung checkt ein
+# Windows-Runner die Quellen mit CRLF aus, die Map wird daraus anders erzeugt
+# als aus der LF-Fassung, und `gen_map.lua --check` meldet sie als veraltet,
+# obwohl sich nichts geändert hat.
+* text=auto eol=lf
+
+# Binärdateien unangetastet lassen.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
