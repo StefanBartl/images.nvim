@@ -1,0 +1,199 @@
+*images.txt*  Show images inside Neovim via the iTerm2 protocol (OSC 1337)
+
+Author:  Stefan Bartl
+Repo:    https://github.com/StefanBartl/images.nvim
+
+==============================================================================
+CONTENTS                                                     *images-contents*
+
+    1. Introduction ......................... |images-introduction|
+    2. Requirements ......................... |images-requirements|
+    3. Setup ................................ |images-setup|
+    4. Commands ............................. |images-commands|
+    5. Keymaps .............................. |images-keymaps|
+    6. Configuration ........................ |images-configuration|
+    7. Lua API .............................. |images-api|
+    8. Integrations ......................... |images-integrations|
+    9. Troubleshooting ...................... |images-troubleshooting|
+
+==============================================================================
+1. INTRODUCTION                                          *images-introduction*
+
+images.nvim draws images in the terminal without leaving Neovim: hover a
+markdown link, double-click it, or paste a screenshot from the clipboard
+straight into the document.
+
+Unlike snacks.image and image.nvim, which speak only the Kitty graphics
+protocol, images.nvim uses the iTerm2 inline image protocol (OSC 1337). On
+native Windows Neovim in WezTerm, Kitty APC sequences coming from Neovim are
+never drawn, which makes those plugins unusable there. OSC 1337 works.
+
+Images are drawn over the text and cleared on the next cursor movement. True
+inline rendering inside the text flow requires Unicode placeholders, which
+only Kitty and Ghostty implement — neither ships for Windows.
+
+==============================================================================
+2. REQUIREMENTS                                          *images-requirements*
+
+    - Neovim 0.10+ for |vim.base64|
+    - API level 14 for |nvim_ui_send()|
+    - A terminal that implements OSC 1337 (WezTerm, iTerm2)
+    - lib.nvim  https://github.com/StefanBartl/lib.nvim
+
+For `:Image paste` additionally:
+
+    Windows   powershell.exe (ships with the system)
+    macOS     pngpaste
+    Linux     wl-paste (Wayland) or xclip (X11)
+
+Run `:checkhealth images` to verify all of the above.
+
+==============================================================================
+3. SETUP                                                        *images-setup*
+
+>lua
+    {
+      "StefanBartl/images.nvim",
+      ft = { "markdown", "vimwiki", "norg", "text" },
+      dependencies = { "StefanBartl/lib.nvim" },
+      opts = {},
+    }
+<
+Calling |images.setup()| is optional when using `opts`.
+
+==============================================================================
+4. COMMANDS                                                  *images-commands*
+
+                                                                      *:Image*
+:Image                  Show the image under the cursor. Accepts a markdown
+                        link (`![alt](path)`) or a bare filename.
+
+:Image show [{path}]    Show {path}. Without an argument, behaves like the
+                        bare `:Image`.
+
+:Image list             Collect every image link in the buffer and offer them
+                        in |vim.ui.select()|. With a single hit, shows it
+                        directly. Accepts a range:
+                        `:'<,'>Image list` scans only the selection.
+
+:Image paste            Save the clipboard image next to the document and
+                        insert a markdown link at the cursor. The target
+                        directory and the filename follow `paste.dir` and
+                        `paste.name_template`.
+
+:Image clear            Remove a displayed image.
+
+The command name follows the `command` option.
+
+==============================================================================
+5. KEYMAPS                                                    *images-keymaps*
+
+Registered buffer-locally for the filetypes in `keymaps.filetypes`.
+
+    <leader>im          Show the image under the cursor.
+    <2-LeftMouse>       Double-click a markdown link to show the image.
+
+A double-click that does not hit an image link falls through to the normal
+word selection.
+
+Set `keymaps.show = false` or `keymaps.double_click = false` to disable them.
+
+==============================================================================
+6. CONFIGURATION                                        *images-configuration*
+
+>lua
+    require("images").setup({
+      command = "Image",
+      extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp" },
+      display = {
+        max_cols = 60,
+        max_rows = 25,
+        clear_events = {
+          "CursorMoved", "CursorMovedI", "InsertEnter",
+          "BufLeave", "WinScrolled",
+        },
+      },
+      paste = {
+        dir = "assets",
+        name_template = "%s-%d.png",
+        link_template = "![](%s)",
+      },
+      keymaps = {
+        show = "<leader>im",
+        double_click = true,
+        filetypes = { "markdown", "vimwiki", "norg", "text" },
+      },
+    })
+<
+                                                       *images-display-config*
+`display.max_cols` and `display.max_rows` are given in terminal cells, not
+pixels. The terminal scales the image into that box while preserving the
+aspect ratio, so the pixel size of a cell never has to be known.
+
+                                                         *images-paste-config*
+`paste.dir` is relative to the document; an empty string writes the file next
+to it. `paste.name_template` receives the document stem and a timestamp,
+`paste.link_template` the path relative to the document.
+
+==============================================================================
+7. LUA API                                                        *images-api*
+
+images.show({path})                                            *images.show()*
+                Show the image at {path}. Relative paths are resolved against
+                the buffer directory and the working directory.
+                Returns boolean.
+
+images.hover()                                                *images.hover()*
+                Show the image under the cursor. Returns boolean, false when
+                no image link was found.
+
+images.list({first}, {last})                                   *images.list()*
+                Pick from the image links of the buffer, optionally limited to
+                the line range {first}..{last}.
+
+images.paste()                                                *images.paste()*
+                Save the clipboard image and insert the link.
+
+images.clear()                                                *images.clear()*
+                Remove a displayed image.
+
+images.setup({opts})                                          *images.setup()*
+                Merge {opts} over the defaults and register commands, keymaps
+                and autocmds.
+
+==============================================================================
+8. INTEGRATIONS                                          *images-integrations*
+
+markdown.nvim   Used for link resolution when present, via a `pcall`. Falls
+                back to an internal resolver, so it is never required.
+
+filetree.nvim   Can use images.nvim as the backend of its preview feature.
+open.nvim       Can route image targets here.
+
+==============================================================================
+9. TROUBLESHOOTING                                    *images-troubleshooting*
+
+Nothing is drawn ~
+    Verify the terminal itself first, outside Neovim:
+>
+    wezterm imgcat picture.png
+<
+    If that shows nothing, the terminal does not do OSC 1337 and this plugin
+    cannot help. If it works but Neovim does not, run `:checkhealth images`.
+
+The image appears below the statusline ~
+    That is what happens without cursor positioning. If you see it, the
+    positioning sequence did not reach the terminal — check for a multiplexer
+    (tmux needs `set -g allow-passthrough on`).
+
+The image does not disappear ~
+    `:Image clear` forces a repaint. If it returns on its own, an event in
+    `display.clear_events` is missing for your workflow.
+
+`:Image paste` says there is no image in the clipboard ~
+    A copied *file* is not an image in the clipboard — the clipboard must hold
+    bitmap data, as it does after a screenshot. On Windows the helper runs
+    `powershell.exe -STA`; the STA thread is required or the clipboard API
+    always returns null.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
