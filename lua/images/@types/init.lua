@@ -12,6 +12,7 @@
 ---@field max_cols integer Maximale Bildbreite in Terminalzellen
 ---@field max_rows integer Maximale Bildhöhe in Terminalzeilen
 ---@field gallery_gap integer Zellen Abstand zwischen Galerie-Kacheln
+---@field assume_supported boolean Terminal-Erkennung übergehen (nur die Warnung)
 ---@field clear_events string[] Autocmd-Events, die das Bild wieder entfernen
 
 ---@class ImagesNvim.PasteConfig

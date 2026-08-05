@@ -99,6 +99,10 @@ Calling |images.setup()| is optional when using `opts`.
                         directory and the filename follow `paste.dir` and
                         `paste.name_template`.
 
+:Image check            Report whether this terminal can display images, and
+                        re-run the detection (useful after setting
+                        `display.assume_supported`).
+
 :Image clear            Remove displayed images and release a pin.
 
 The command name follows the `command` option.
@@ -131,6 +135,7 @@ Every entry accepts `false` to disable that single mapping.
         max_cols = 60,
         max_rows = 25,
         gallery_gap = 1,
+        assume_supported = false,
         clear_events = {
           "CursorMoved", "CursorMovedI", "InsertEnter",
           "BufLeave", "WinScrolled",
@@ -156,6 +161,17 @@ Every entry accepts `false` to disable that single mapping.
 `display.max_cols` and `display.max_rows` are given in terminal cells, not
 pixels. The terminal scales the image into that box while preserving the
 aspect ratio, so the pixel size of a cell never has to be known.
+
+                                                    *images-capability-config*
+Before the first draw, images.nvim checks whether the terminal is one that
+implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
+variables. When it is not, a warning is issued **once per session** and the
+image is drawn anyway.
+
+Deliberately not a hard block: the protocol has no capability query, so the
+detection is a heuristic, and a false negative would break a working setup.
+Set `display.assume_supported = true` to silence the warning on a terminal
+that works but is not on the list. `:Image check` re-runs the detection.
 
                                                          *images-paste-config*
 `paste.dir` is relative to the document; an empty string writes the file next
@@ -194,6 +210,10 @@ images.info({path})                                           *images.info()*
 images.pin({on})                                               *images.pin()*
                 Enable/disable automatic clearing. {on} nil toggles.
                 Returns the new state.
+
+images.recheck()                                           *images.recheck()*
+                Re-run the terminal capability detection and report the
+                result. Returns the capability table.
 
 images.paste()                                                *images.paste()*
                 Save the clipboard image and insert the link.

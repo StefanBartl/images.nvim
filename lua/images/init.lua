@@ -64,6 +64,40 @@ local function arm_clear()
   })
 end
 
+--- Ob die Fähigkeitswarnung in dieser Sitzung schon erschienen ist.
+---@type boolean
+local warned = false
+
+--- Guard vor dem ersten Zeichnen: kann dieses Terminal überhaupt Bilder?
+---
+--- Warnt einmal pro Sitzung und lässt trotzdem zeichnen. Ein harter Abbruch
+--- wäre falsch — die Erkennung ist eine Heuristik über Umgebungsvariablen,
+--- weil OSC 1337 keine Fähigkeitsabfrage kennt, und ein Fehlalarm würde ein
+--- funktionierendes Setup abwürgen. Die Meldung nennt deshalb den Test, mit
+--- dem sich das klären lässt, und die Option, die sie abstellt.
+---
+--- Ohne diesen Guard passiert auf einem Terminal ohne Grafikprotokoll
+--- schlicht nichts — ohne jeden Hinweis, woran es liegt.
+---@return nil
+local function guard_capability()
+  local cap = require("images.terminal").capability(cfg().display.assume_supported)
+
+  if cap.ok then
+    -- Auch bei ok kann ein Hinweis anstehen, etwa tmux ohne passthrough.
+    if cap.hint and not warned then
+      warned = true
+      notify().warn(cap.hint)
+    end
+    return
+  end
+
+  if warned then
+    return
+  end
+  warned = true
+  notify().warn(table.concat({ cap.reason or "Terminal kann vermutlich keine Bilder", cap.hint }, "\n"))
+end
+
 --- Startzeile so wählen, dass ein Block der Höhe `rows` noch auf den Schirm
 --- passt. Ohne die Deckelung rutscht ein hohes Bild unter den unteren Rand.
 ---@param rows integer
@@ -79,6 +113,8 @@ end
 ---@param path string Absoluter oder relativer Pfad
 ---@return boolean ok
 function M.show(path)
+  guard_capability()
+
   local file = require("images.resolve").to_path(path)
   if not file then
     notify().error("Bild nicht gefunden: " .. tostring(path))
@@ -130,6 +166,8 @@ function M.gallery(paths, columns)
     notify().info("Keine Bilder zum Anzeigen")
     return false
   end
+
+  guard_capability()
 
   local display = cfg().display
   -- Die Galerie darf mehr Fläche belegen als eine Einzelanzeige: sie ist der
@@ -320,6 +358,21 @@ function M.clear()
   pinned = false
   cursor_state = nil
   require("images.terminal").clear()
+end
+
+--- Fähigkeitsprüfung erneut durchführen. Nötig, wenn `assume_supported`
+--- nachträglich gesetzt wurde — sonst gilt das gemerkte Ergebnis weiter.
+---@return Images.Capability
+function M.recheck()
+  warned = false
+  require("images.terminal").reset_capability()
+  local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
+  if cap.ok then
+    notify().info("Bildausgabe verfügbar" .. (cap.terminal and (" (" .. cap.terminal .. ")") or ""))
+  else
+    notify().warn(table.concat({ cap.reason or "", cap.hint or "" }, "\n"))
+  end
+  return cap
 end
 
 --- Plugin einrichten.

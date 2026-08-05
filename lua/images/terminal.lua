@@ -43,6 +43,105 @@ function M.available()
   return type(vim.api.nvim_ui_send) == "function"
 end
 
+---@class Images.Capability
+---@field ok boolean Ob gezeichnet werden kann
+---@field terminal string|nil Erkannter Terminalname
+---@field reason string|nil Grund, wenn `ok` false ist
+---@field hint string|nil Konkreter nächster Schritt für den User
+
+--- Ergebnis der Fähigkeitsprüfung, einmal pro Sitzung ermittelt.
+---@type Images.Capability|nil
+local capability = nil
+
+--- Terminals, die das iTerm2-Protokoll umsetzen, mit der Umgebungsvariable,
+--- an der sie erkennbar sind. Bewusst kurz: OSC 1337 kennt keine
+--- Fähigkeitsabfrage, deshalb bleibt nur eine Namensliste.
+---@type { name: string, detect: fun(): boolean }[]
+local KNOWN = {
+  {
+    name = "WezTerm",
+    detect = function()
+      return (vim.env.WEZTERM_EXECUTABLE or vim.env.WEZTERM_VERSION or vim.env.WEZTERM_PANE) ~= nil
+    end,
+  },
+  {
+    name = "iTerm2",
+    detect = function()
+      local tp = (vim.env.TERM_PROGRAM or ""):lower()
+      return tp:find("iterm", 1, true) ~= nil or (vim.env.LC_TERMINAL or ""):lower():find("iterm", 1, true) ~= nil
+    end,
+  },
+  {
+    name = "Konsole",
+    detect = function()
+      return vim.env.KONSOLE_VERSION ~= nil
+    end,
+  },
+}
+
+--- Prüfen, ob dieses Terminal Bilder darstellen kann.
+---
+--- Bewusst *keine* harte Sperre: die Erkennung ist eine Heuristik über
+--- Umgebungsvariablen, weil OSC 1337 keine Abfrage kennt. Ein Fehlalarm würde
+--- sonst ein funktionierendes Setup abwürgen. Der Aufrufer entscheidet, was
+--- mit `ok = false` geschieht — hier wird nur berichtet.
+---
+--- Das Ergebnis wird gemerkt: die Umgebung ändert sich innerhalb einer Sitzung
+--- nicht, und der Aufruf sitzt vor jedem Zeichnen.
+---@param force boolean|nil Erkennung übergehen und Unterstützung annehmen
+---@return Images.Capability
+function M.capability(force)
+  if capability then
+    return capability
+  end
+
+  if not M.available() then
+    capability = {
+      ok = false,
+      reason = "`nvim_ui_send` fehlt (benötigt API-Level 14)",
+      hint = "Neovim aktualisieren — ohne diese API kann kein Bild gezeichnet werden",
+    }
+    return capability
+  end
+
+  local detected
+  for _, term in ipairs(KNOWN) do
+    local ok_detect, hit = pcall(term.detect)
+    if ok_detect and hit then
+      detected = term.name
+      break
+    end
+  end
+
+  if detected then
+    capability = { ok = true, terminal = detected }
+  elseif force then
+    capability = { ok = true, terminal = nil }
+  else
+    capability = {
+      ok = false,
+      reason = "Terminal nicht erkannt (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "leer") .. ")",
+      hint = "Test: `wezterm imgcat bild.png` bzw. das Äquivalent. "
+        .. "Funktioniert es, `display.assume_supported = true` setzen.",
+    }
+  end
+
+  -- tmux reicht die Sequenzen nur mit allow-passthrough durch. Das gilt auch
+  -- für ein erkanntes Terminal, deshalb hier und nicht im else-Zweig.
+  if vim.env.TMUX and vim.env.TMUX ~= "" and capability.ok then
+    capability.hint = "In tmux: `set -g allow-passthrough on` nötig, sonst kommt nichts an"
+  end
+
+  return capability
+end
+
+--- Gemerktes Prüfergebnis verwerfen. Für Tests und für den Fall, dass die
+--- Konfiguration nach der ersten Prüfung geändert wurde.
+---@return nil
+function M.reset_capability()
+  capability = nil
+end
+
 --- Dateiinhalt lesen.
 ---@param file string
 ---@return string|nil data

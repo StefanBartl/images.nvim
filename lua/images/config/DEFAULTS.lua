@@ -14,6 +14,10 @@ return {
     max_cols = 60,
     max_rows = 25,
     gallery_gap = 1,
+    -- Erkennung übergehen: setzen, wenn das Terminal OSC 1337 kann, aber
+    -- nicht erkannt wird (`wezterm imgcat` funktioniert, images.nvim warnt
+    -- trotzdem). Schaltet nur die Warnung ab, ändert am Zeichnen nichts.
+    assume_supported = false,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
   },
 

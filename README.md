@@ -53,6 +53,13 @@ reliably. Three details that matter, all of them learned the hard way:
   a cell never has to be known — which is exactly where snacks.image breaks on
   Windows, since its `ioctl(TIOCGWINSZ)` path cannot work there.
 
+Before the first draw the terminal is checked against the small set that
+implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
+variables. An unknown terminal produces a warning **once per session** and the
+image is still drawn — the protocol has no capability query, so this is a
+heuristic, and a false negative must not break a working setup. Silence it
+with `display.assume_supported = true`; `:Image check` re-runs the detection.
+
 Inline images in the text flow are not possible on WezTerm: they require
 Unicode placeholders, which only Kitty and Ghostty implement and neither ships
 for Windows. images.nvim draws over the text instead, and clears on the next
@@ -90,6 +97,7 @@ dependencies are in place.
 | `:Image info [path]` | Format, dimensions and file size |
 | `:Image paste` | Save the clipboard image next to the document and insert the link |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
+| `:Image check` | Report whether this terminal can display images |
 | `:Image clear` | Remove displayed images |
 
 In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
@@ -112,6 +120,7 @@ require("images").setup({
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,
     gallery_gap = 1, -- cells between gallery tiles
+    assume_supported = false, -- true silences the "unknown terminal" warning
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
   },
   paste = {

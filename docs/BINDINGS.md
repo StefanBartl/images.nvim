@@ -18,6 +18,7 @@ completion and this table all come from the same spec.
 | `:Image info [path]` | — | Format, dimensions and file size |
 | `:Image paste` | — | Save the clipboard image next to the document and insert the link |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
+| `:Image check` | — | Report whether this terminal can display images |
 | `:Image clear` | — | Remove displayed images and release a pin |
 
 `:Image list` honours a visual range: `:'<,'>Image list` restricts the scan to

@@ -67,6 +67,7 @@ local specs = {
   "resolve_spec.lua",
   "info_spec.lua",
   "config_spec.lua",
+  "capability_spec.lua",
 }
 
 local failed = 0

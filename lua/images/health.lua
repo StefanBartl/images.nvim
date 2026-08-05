@@ -17,28 +17,23 @@ end
 
 ---@return nil
 local function check_terminal()
-  local term = vim.env.TERM_PROGRAM or ""
-  local wez = vim.env.WEZTERM_VERSION or vim.env.WEZTERM_EXECUTABLE or ""
+  -- Dieselbe Prüfung, die auch vor dem Zeichnen läuft — eine zweite Heuristik
+  -- hier würde nur auseinanderlaufen.
+  local cap = require("images.terminal").capability(false)
 
-  if wez ~= "" or term:lower():find("wezterm") then
-    vim.health.ok("WezTerm erkannt — OSC 1337 wird unterstützt")
-  elseif term:lower():find("iterm") then
-    vim.health.ok("iTerm2 erkannt — OSC 1337 wird unterstützt")
+  if cap.ok and cap.terminal then
+    vim.health.ok(("`%s` erkannt — OSC 1337 wird unterstützt"):format(cap.terminal))
+  elseif cap.ok then
+    vim.health.warn("Unterstützung wird angenommen (`display.assume_supported`)")
   else
-    vim.health.warn(
-      "Terminal nicht sicher erkannt (TERM_PROGRAM=" .. (term ~= "" and term or "leer") .. ")",
-      {
-        "images.nvim braucht ein Terminal mit iTerm2-Protokoll (OSC 1337):",
-        "WezTerm, iTerm2, oder ein anderes mit OSC-1337-Unterstützung.",
-        "Test: `wezterm imgcat bild.png` bzw. das Äquivalent des Terminals.",
-      }
-    )
+    vim.health.warn(cap.reason or "Terminal nicht erkannt", {
+      cap.hint or "",
+      "images.nvim braucht ein Terminal mit iTerm2-Protokoll (OSC 1337).",
+    })
   end
 
-  if vim.env.TMUX and vim.env.TMUX ~= "" then
-    vim.health.warn("tmux erkannt", {
-      "Bildsequenzen brauchen `set -g allow-passthrough on` in der tmux-Konfiguration",
-    })
+  if cap.hint and cap.ok then
+    vim.health.warn(cap.hint)
   end
 end
 

@@ -99,6 +99,14 @@ function M.register(cfg)
       },
 
       {
+        path = { "check" },
+        desc = "Prüfen, ob dieses Terminal Bilder darstellen kann",
+        run = function()
+          require("images").recheck()
+        end,
+      },
+
+      {
         path = { "clear" },
         desc = "Angezeigte Bilder entfernen",
         run = function()
