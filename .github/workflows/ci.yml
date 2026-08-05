@@ -34,7 +34,15 @@ jobs:
     # current and that no layer rule in scripts/gen_map.lua is violated.
     # Worth having even with the pre-commit hook installed — the hook is
     # opt-in per clone, so without this the map goes stale on main unnoticed.
-    runs-on: ubuntu-latest
+    #
+    # windows-latest, not ubuntu: documentation.nvim's output is not identical
+    # across platforms — `docs/map/index.html` and `module_map.json` come out
+    # different on Linux than on Windows, where the committed copy is
+    # generated, while `overview.md` matches. Checking on the platform the map
+    # is authored on keeps the check meaningful instead of permanently red.
+    # The real fix belongs upstream in documentation.nvim; until then this is
+    # the honest configuration rather than a disabled check.
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
