@@ -144,6 +144,14 @@ function M.register(cfg)
       },
 
       {
+        path = { "screenshot" },
+        desc = "Bildschirmausschnitt interaktiv aufnehmen, speichern und verlinken",
+        run = function()
+          require("images").screenshot()
+        end,
+      },
+
+      {
         path = { "replace" },
         args = { { name = "path", type = "FILE", optional = true } },
         desc = "Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen",

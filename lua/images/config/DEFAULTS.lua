@@ -38,6 +38,13 @@ return {
       timeout_ms = 10000,
       max_bytes = 20 * 1024 * 1024,
     },
+    -- Nur unter Windows relevant, siehe images.screenshot: die einzige
+    -- Plattform, auf der `:Image screenshot` per Polling statt direkt auf
+    -- die Zieldatei wartet.
+    screenshot = {
+      windows_timeout_ms = 60000,
+      windows_poll_interval_ms = 600,
+    },
   },
 
   paste = {
@@ -64,6 +71,7 @@ return {
     next = "<leader>in",
     prev = "<leader>ip",
     paste = "<leader>iv",
+    screenshot = "<leader>is",
     double_click = true,
     filetypes = { "markdown", "vimwiki", "norg", "text" },
   },

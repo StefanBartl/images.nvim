@@ -31,15 +31,11 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
   eines Buffers nicht N Netzwerkanfragen auslöst (siehe `images.remote`s
   Moduldoc). Diese vier Commands bewusst mit einzuschließen wäre die
   offene Arbeit, nicht das Herunterladen selbst.
-- **Bilder aus Archiven** (`.zip`, `.tar.gz`) ohne vorheriges Entpacken.
 - **PDF-Seiten als Bild** — siehe `pdfport.nvim` in
   [CROSS-PLUGIN.md](./CROSS-PLUGIN.md).
 
 ## Zwischenablage und Bearbeitung
 
-- **Screenshot direkt auslösen** statt die Zwischenablage zu lesen
-  (Windows: Snipping Tool, Linux: `grim`/`maim`, macOS: `screencapture`).
-  Für Support-Dokumentation der eigentliche Alltagsfall: ein Schritt statt drei.
 - **Zuschneiden und Annotieren** (Pfeile, Kästen, Unkenntlichmachung) direkt
   nach dem Einfügen. Für Screenshots aus Support-Fällen wäre das
   Unkenntlichmachen von Kundendaten der wichtigste Teil.

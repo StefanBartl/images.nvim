@@ -17,6 +17,7 @@ completion and this table all come from the same spec.
 | `:Image prev` | — | Same, backwards; both wrap around |
 | `:Image info [path]` | — | Format, dimensions and file size |
 | `:Image paste` | — | Save the clipboard image next to the document and insert the link |
+| `:Image screenshot` | — | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
@@ -47,6 +48,7 @@ to disable that single mapping.
 | `<leader>in` | n | Next image | `keymaps.next` |
 | `<leader>ip` | n | Previous image | `keymaps.prev` |
 | `<leader>iv` | n | Paste the clipboard image and insert the link | `keymaps.paste` |
+| `<leader>is` | n | Take a screenshot and insert the link | `keymaps.screenshot` |
 | `<2-LeftMouse>` | n | Double-click a markdown link to show the image | `keymaps.double_click` |
 
 A double-click that does not land on an image link falls through to the normal

@@ -65,6 +65,24 @@ local function check_clipboard()
 end
 
 ---@return nil
+local function check_screenshot()
+  local screenshot = require("images.screenshot")
+  if screenshot.available() then
+    if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
+      vim.health.ok("Snipping Tool (`ms-screenclip:`) verfügbar — `:Image screenshot`")
+    else
+      vim.health.ok("`:Image screenshot` verfügbar")
+    end
+  else
+    -- info statt warn: :Image paste bleibt der unveränderte Weg, ohne
+    -- screenshot-fähige Werkzeuge geht nur der eine Zusatzbefehl nicht.
+    vim.health.info(
+      screenshot.unavailable_reason() .. " — `:Image screenshot` bleibt aus, `:Image paste` funktioniert weiterhin"
+    )
+  end
+end
+
+---@return nil
 local function check_imagemagick()
   if vim.fn.executable("magick") == 1 then
     vim.health.ok(
@@ -103,6 +121,7 @@ function M.check()
   check_output()
   check_terminal()
   check_clipboard()
+  check_screenshot()
   check_imagemagick()
   check_deps()
 end

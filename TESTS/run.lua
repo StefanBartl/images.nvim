@@ -77,6 +77,7 @@ local specs = {
   "sanitize_filename_spec.lua",
   "convert_spec.lua",
   "remote_spec.lua",
+  "screenshot_spec.lua",
 }
 
 local failed = 0

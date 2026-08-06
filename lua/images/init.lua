@@ -313,6 +313,15 @@ function M.paste()
   require("images.paste").run()
 end
 
+--- Bildschirmausschnitt interaktiv aufnehmen, speichern und verlinken —
+--- derselbe Weg wie `M.paste`, nur dass die Bilddatei aus einer
+--- Bildschirmauswahl statt der Zwischenablage entsteht. Kehrt sofort
+--- zurück; das Ergebnis kommt asynchron, siehe `images.screenshot`.
+---@return nil
+function M.screenshot()
+  require("images.paste").screenshot()
+end
+
 --- Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen, ohne den Link
 --- zu ändern.
 ---@param path string|nil nil = Bild unter dem Cursor

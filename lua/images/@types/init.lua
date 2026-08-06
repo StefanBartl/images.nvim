@@ -17,6 +17,7 @@
 ---@field browse_exclude string[] Verzeichnisnamen, die `:Image pickers` beim Scan überspringt
 ---@field zen ImagesNvim.ZenConfig Größe des `:Image zen`-Fensters
 ---@field remote ImagesNvim.RemoteConfig Remote-Bilder für `:Image show`/Hover
+---@field screenshot ImagesNvim.ScreenshotConfig `:Image screenshot`, nur unter Windows relevant
 
 ---@class ImagesNvim.ZenConfig
 ---@field width number Anteil der Editorbreite (0–1)
@@ -26,6 +27,10 @@
 ---@field enabled boolean http(s)-Bilder laden; default false (Datenschutz, siehe images.remote)
 ---@field timeout_ms integer Download-Timeout
 ---@field max_bytes integer Maximale Downloadgröße
+
+---@class ImagesNvim.ScreenshotConfig
+---@field windows_timeout_ms integer Wie lange auf ein neues Zwischenablage-Bild gewartet wird
+---@field windows_poll_interval_ms integer Abstand zwischen zwei Prüfungen der Zwischenablage
 
 ---@class ImagesNvim.PasteConfig
 ---@field dir string Zielverzeichnis relativ zum Dokument ("" = daneben)
@@ -42,6 +47,7 @@
 ---@field next string|false Nächstes Bild
 ---@field prev string|false Vorheriges Bild
 ---@field paste string|false Bild aus der Zwischenablage einfügen
+---@field screenshot string|false Bildschirmausschnitt aufnehmen und einfügen
 ---@field double_click boolean Doppelklick auf einen Markdown-Link zeigt das Bild
 ---@field filetypes string[] Filetypes, in denen die Bindungen gesetzt werden
 
