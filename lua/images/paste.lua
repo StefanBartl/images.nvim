@@ -82,12 +82,42 @@ local function clipboard_to_file(out)
   return true
 end
 
+--- Vorgeschlagener Dateiname nach dem Template — Vorbelegung für die
+--- Namensabfrage und Fallback, wenn keine eigene Eingabe kommt.
+---@param buf integer
+---@return string|nil suggestion nil, falls der Buffer keinen Dateinamen hat
+local function default_filename(buf)
+  local name = vim.api.nvim_buf_get_name(buf)
+  if name == "" then return nil end
+  local doc_stem = vim.fn.fnamemodify(name, ":t:r")
+  return cfg().paste.name_template:format(doc_stem, os.time())
+end
+
+--- User-Eingabe zu einem sicheren Dateinamen machen.
+---
+--- Nur der Dateiname selbst zählt: ein eingegebener Pfadanteil (Verzeichnisse,
+--- `..`) wird über `:t` verworfen statt respektiert — sonst könnte eine
+--- Eingabe wie `../../x` außerhalb von `paste.dir` schreiben. Die Endung wird
+--- immer auf `.png` erzwungen, weil `clipboard_to_file` unabhängig vom Namen
+--- immer PNG-Bytes schreibt; eine andere Endung wäre nur falsch beschriftet.
+---@param input string Roher User-Input
+---@return string|nil bereinigter Dateiname mit `.png`, oder nil ohne brauchbaren Rest
+local function sanitize_filename(input)
+  local base = vim.fn.fnamemodify(vim.trim(input or ""), ":t")
+  local stem = vim.trim(vim.fn.fnamemodify(base, ":r"))
+  if stem == "" or stem == "." or stem == ".." then return nil end
+  return stem .. ".png"
+end
+-- Für Tests exponiert: reine Funktion, kein Terminal/Dateisystem nötig.
+M.sanitize_filename = sanitize_filename
+
 --- Zielpfad für ein neues Bild bestimmen und das Verzeichnis anlegen.
 ---@param buf integer
+---@param filename_override string|nil bereits sanitisierter Name; nil = Template
 ---@return string|nil absoluter Pfad
 ---@return string|nil relativer Pfad für den Link
 ---@return string|nil err
-local function target_paths(buf)
+local function target_paths(buf, filename_override)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then return nil, nil, "Buffer hat keinen Dateinamen — bitte zuerst speichern" end
 
@@ -102,7 +132,7 @@ local function target_paths(buf)
     if not ok then return nil, nil, "Verzeichnis konnte nicht angelegt werden: " .. dir end
   end
 
-  local file = c.name_template:format(doc_stem, os.time())
+  local file = filename_override or c.name_template:format(doc_stem, os.time())
   local abs = dir .. "/" .. file
   local rel = (sub ~= "") and (sub .. "/" .. file) or file
   return abs, rel, nil
@@ -146,13 +176,13 @@ local function insert_link(buf, rel, alt)
   notify().info("Bild gespeichert: " .. rel)
 end
 
---- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
---- einfügen.
+--- Zweiter Teil von `M.run`, nach einer optionalen Namensabfrage: Bild aus
+--- der Zwischenablage schreiben und danach optional nach Alt-Text fragen.
+---@param buf integer
+---@param filename_override string|nil bereits sanitisiert; nil = Template
 ---@return nil
-function M.run()
-  local buf = vim.api.nvim_get_current_buf()
-
-  local abs, rel, err = target_paths(buf)
+local function paste_with_name(buf, filename_override)
+  local abs, rel, err = target_paths(buf, filename_override)
   if not abs or not rel then
     notify().error(err or "Zielpfad unbestimmbar")
     return
@@ -176,13 +206,54 @@ function M.run()
       on_submit = function(alt)
         insert_link(buf, rel, alt)
       end,
-      -- Kein on_cancel: Abbrechen der Eingabe soll den Link trotzdem setzen,
-      -- nur ohne Alt-Text — das Bild liegt bereits auf der Platte, ein
-      -- verlorener Link wäre die schlechtere Überraschung.
+      -- Abbrechen soll den Link trotzdem setzen, nur ohne Alt-Text — das
+      -- Bild liegt an dieser Stelle bereits auf der Platte, ein verlorener
+      -- Link (kit.input ruft ohne on_cancel bei <Esc> gar nichts auf) wäre
+      -- die schlechtere Überraschung als ein Link ohne Alt-Text.
+      on_cancel = function()
+        insert_link(buf, rel, nil)
+      end,
     })
   else
     local alt = vim.fn.input("Alt-Text (leer = ohne): ")
     insert_link(buf, rel, alt)
+  end
+end
+
+--- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
+--- einfügen.
+---@return nil
+function M.run()
+  local buf = vim.api.nvim_get_current_buf()
+
+  if not cfg().paste.ask_filename then
+    paste_with_name(buf, nil)
+    return
+  end
+
+  local suggested = default_filename(buf)
+  local k = kit()
+  if k and k.input then
+    k.input({
+      title = "Dateiname",
+      default = suggested,
+      on_submit = function(name)
+        paste_with_name(buf, sanitize_filename(name))
+      end,
+      -- Anders als bei der Alt-Text-Abfrage: hier wurde noch nichts aus der
+      -- Zwischenablage gelesen oder geschrieben — Abbrechen heißt also
+      -- tatsächlich "nichts tun", nicht "mit Standardwerten weitermachen".
+      on_cancel = function()
+        notify().info("Abgebrochen")
+      end,
+    })
+  else
+    local name = vim.fn.input("Dateiname: ", suggested or "")
+    if name == "" then
+      notify().info("Abgebrochen")
+      return
+    end
+    paste_with_name(buf, sanitize_filename(name))
   end
 end
 

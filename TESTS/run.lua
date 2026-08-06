@@ -74,6 +74,7 @@ local specs = {
   "browse_spec.lua",
   "zen_spec.lua",
   "scale_spec.lua",
+  "sanitize_filename_spec.lua",
 }
 
 local failed = 0
