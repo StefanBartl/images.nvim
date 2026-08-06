@@ -12,10 +12,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
   eines Buffers nicht N Netzwerkanfragen auslöst (siehe `images.remote`s
   Moduldoc). Diese vier Commands bewusst mit einzuschließen wäre die
   offene Arbeit, nicht das Herunterladen selbst.
-- **PDF-Seiten als Bild** (PDF → Bild, zum Betrachten) — siehe `pdfport.nvim`
-  in [CROSS-PLUGIN.md](./CROSS-PLUGIN.md). Die Gegenrichtung, Bild → PDF zum
-  Export, ist bereits umgesetzt: `:Image export`, siehe
-  [README.md → Bereits umgesetzt](./README.md#bereits-umgesetzt).
 
 ## Zwischenablage und Bearbeitung
 

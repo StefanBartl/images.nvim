@@ -13,17 +13,6 @@ Kein Repo bekommt eine harte Abhängigkeit auf die Bildanzeige.
 
 ## Stark — konkreter Nutzen, überschaubarer Aufwand
 
-### `pdfport.nvim`
-PDF-Seiten als Bild rendern und inline zeigen. pdfport hat bereits eine
-Backend/Renderer-Architektur und Ghostscript ist ohnehin die
-Textextraktions-Abhängigkeit — `gs -sDEVICE=png16m -r150 -dFirstPage=N` liefert
-die Seite, images.nvim zeigt sie. Damit wird aus einem Textextraktor ein
-echter PDF-Betrachter, ohne externes Fenster. Für Support-Dokumentation mit
-PDF-Anhängen der wertvollste Punkt dieser Liste. Noch offen — die
-Gegenrichtung, ein Bild als PDF exportieren, ist bereits umgesetzt
-(`:Image export`, siehe [README.md → Bereits
-umgesetzt](./README.md#bereits-umgesetzt)).
-
 ### `color_my_ascii.nvim`
 Der umgekehrte Weg: ein Bild **als ASCII-Art** rendern, wenn das Terminal kein
 OSC 1337 kann. color_my_ascii kann ASCII bereits einfärben; images.nvim müsste
