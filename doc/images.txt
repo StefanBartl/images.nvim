@@ -118,6 +118,10 @@ Calling |images.setup()| is optional when using `opts`.
                         directory and the filename follow `paste.dir` and
                         `paste.name_template`.
 
+:Image screenshot       Take a screenshot interactively and insert it like
+                        `:Image paste`, without needing the clipboard as an
+                        intermediate step. See |images-screenshot-config|.
+
 :Image replace [{path}] Overwrite {path} — or the image under the cursor —
                         with the current clipboard content. The link stays
                         unchanged; useful to update a stale screenshot
@@ -181,6 +185,7 @@ Registered buffer-locally for the filetypes in `keymaps.filetypes`.
     <leader>in          Next image.
     <leader>ip          Previous image.
     <leader>iv          Paste the clipboard image and insert the link.
+    <leader>is          Take a screenshot and insert the link.
     <2-LeftMouse>       Double-click a markdown link to show the image.
 
 A double-click that does not hit an image link falls through to the normal
@@ -220,6 +225,10 @@ under the same key).
           timeout_ms = 10000,
           max_bytes = 20 * 1024 * 1024,
         },
+        screenshot = {
+          windows_timeout_ms = 60000,
+          windows_poll_interval_ms = 600,
+        },
       },
       paste = {
         dir = "assets",
@@ -235,6 +244,7 @@ under the same key).
         next = "<leader>in",
         prev = "<leader>ip",
         paste = "<leader>iv",
+        screenshot = "<leader>is",
         double_click = true,
         filetypes = { "markdown", "vimwiki", "norg", "text" },
       },
@@ -278,6 +288,20 @@ neither present is reported as an error, not a silent no-op.
 Only the single-image path resolves remote images — `:Image gallery`,
 `compare`, `pickers` and `zen` do not (yet); a remote link inside a buffer is
 simply not found when those scan for images.
+
+                                                    *images-screenshot-config*
+`display.screenshot.windows_timeout_ms`/`.windows_poll_interval_ms` only
+matter on Windows. There is no documented way to have the modern Snipping
+Tool write directly to a file, so `:Image screenshot` launches it
+(`ms-screenclip:`) and polls the clipboard for a *new* image — different
+from whatever was there before — every `windows_poll_interval_ms`, up to
+`windows_timeout_ms`. On macOS and Linux the underlying tool
+(`screencapture -i`, `grim`+`slurp`, or `maim -s`) writes to the target file
+directly and these two options do not apply.
+
+`:Image screenshot` runs asynchronously end to end — it never blocks
+Neovim's UI, even while waiting up to a minute for the Windows polling to
+finish, unlike a plain `vim.system(...):wait()` would.
 
                                                          *images-paste-config*
 `paste.dir` is relative to the document; an empty string writes the file next
@@ -339,6 +363,12 @@ images.recheck()                                           *images.recheck()*
 
 images.paste()                                                *images.paste()*
                 Save the clipboard image and insert the link.
+
+images.screenshot()                                      *images.screenshot()*
+                Take a screenshot interactively and insert the link, like
+                |images.paste()| but skipping the clipboard as an
+                intermediate step. Returns immediately; the result arrives
+                asynchronously. See |images-screenshot-config|.
 
 images.replace({path})                                      *images.replace()*
                 Overwrite {path} — or the image under the cursor when nil —
@@ -435,5 +465,18 @@ A URL says "Remote-Bilder sind deaktiviert" ~
     Expected for now — only |images.show()|/hover resolve remote images.
     A link with a URL target is treated the same as any other unresolvable
     link by the scanning commands.
+
+`:Image screenshot` times out on Windows without an obvious reason ~
+    There is no documented way to make the modern Snipping Tool write
+    directly to a file, so this plugin waits for a *new* image to appear in
+    the clipboard after launching it — this is the least certain of the
+    three platforms this plugin supports. If it keeps timing out, `:Image
+    paste` (manual screenshot, then paste) is the unchanged, proven
+    fallback. Raise `display.screenshot.windows_timeout_ms` if you just need
+    more time to make the selection.
+
+`:Image screenshot` does nothing on Linux ~
+    Needs `grim`+`slurp` (Wayland) or `maim` (X11). `:checkhealth images`
+    reports which, if either, was found.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

@@ -24,6 +24,10 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
   (`display.remote`, `images.remote`) — gallery/compare/pickers/zen noch nicht
 - Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text- und
   Dateinamen-Abfrage (`paste.ask_alt_text`, `paste.ask_filename`)
+- Interaktiver Screenshot statt Zwischenablage-Umweg (`:Image screenshot`,
+  `images.screenshot`), asynchron auf allen drei Plattformen — der
+  Windows-Weg (Zwischenablage-Polling nach `ms-screenclip:`) ist die
+  unsicherste der drei Implementierungen, siehe Moduldoc
 - Bild ersetzen, Link bleibt (`:Image replace`)
 - Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
   (`:Image orphans`)

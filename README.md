@@ -39,6 +39,7 @@ dependency.
 :'<,'>Image                gallery of just the selected lines
 :Image gallery             every image in the buffer, side by side
 :Image paste               clipboard screenshot → file next to the document + link
+:Image screenshot          take a screenshot interactively, skipping the clipboard step
 :Image next / prev         walk through the images of the buffer
 :'<,'>Image list           pick from the images in the selection
 :Image orphans             images in paste.dir that nothing links to anymore
@@ -128,6 +129,7 @@ dependencies are in place.
 | `:Image next` / `prev` | Jump to the next/previous image and show it |
 | `:Image info [path]` | Format, dimensions and file size |
 | `:Image paste` | Save the clipboard image next to the document and insert the link |
+| `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
@@ -139,16 +141,25 @@ dependencies are in place.
 
 In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
 opens the gallery, `<leader>in`/`<leader>ip` walk through the images,
-`<leader>iv` pastes from the clipboard, and a double-click on a link shows the
-image. With [which-key](https://github.com/folke/which-key.nvim) installed,
-`<leader>i` shows up as a named group — detected from whichever of the above
-keys share a common prefix, so a fully remapped set of keys still groups
-correctly. A double-click that does not hit an
-image link falls through to the normal word selection.
+`<leader>iv` pastes from the clipboard, `<leader>is` takes a screenshot, and a
+double-click on a link shows the image. With
+[which-key](https://github.com/folke/which-key.nvim) installed, `<leader>i`
+shows up as a named group — detected from whichever of the above keys share a
+common prefix, so a fully remapped set of keys still groups correctly. A
+double-click that does not hit an image link falls through to the normal word
+selection.
 
 `:Image paste` is the everyday case for documentation: take a screenshot, run
 it, and the PNG is written to `assets/<document>-<timestamp>.png` with
-`![](assets/…)` inserted at the cursor.
+`![](assets/…)` inserted at the cursor. `:Image screenshot` collapses this
+further into one step — it takes the screenshot itself instead of reading
+whatever is already on the clipboard, then continues exactly like `:Image
+paste`. Uses `screencapture -i` on macOS, `grim`+`slurp` or `maim -s` on
+Linux, and the Windows Snipping Tool (`ms-screenclip:`) on Windows — the
+least certain of the three, since there is no documented way to have it write
+directly to a file; this plugin waits for a new image to appear in the
+clipboard instead, with a timeout. `:Image paste` remains the unchanged,
+proven two-step fallback if that doesn't work for you.
 
 ## Configuration
 
@@ -169,11 +180,19 @@ require("images").setup({
       timeout_ms = 10000,
       max_bytes = 20 * 1024 * 1024,
     },
+    screenshot = {
+      -- Windows only: how long / how often :Image screenshot polls the
+      -- clipboard for a new image after launching the Snipping Tool.
+      windows_timeout_ms = 60000,
+      windows_poll_interval_ms = 600,
+    },
   },
   paste = {
     dir = "assets",              -- "" puts the file next to the document
     name_template = "%s-%d.png", -- document stem, timestamp
     link_template = "![](%s)",
+    ask_alt_text = false,        -- true prompts for alt text before inserting the link
+    alt_link_template = "![%s](%s)",
     ask_filename = false,        -- true prompts for a name, prefilled with the template
   },
   keymaps = {
@@ -182,6 +201,7 @@ require("images").setup({
     next = "<leader>in",
     prev = "<leader>ip",
     paste = "<leader>iv",
+    screenshot = "<leader>is",
     double_click = true,
     filetypes = { "markdown", "vimwiki", "norg", "text" },
   },

@@ -40,11 +40,17 @@ local function kit()
   return ok and k or nil
 end
 
---- Zwischenablage-Bild nach `out` schreiben.
+--- Zwischenablage-Bild nach `out` schreiben. Async wie `images.screenshot`s
+--- `capture`, damit beide demselben Aufruf-Vertrag folgen und
+--- `capture_with_optional_name` nicht zwischen sync/async unterscheiden muss
+--- — der Lesevorgang selbst ist aber ein einzelner, schneller Prozessaufruf
+--- (Millisekunden), kein mehrsekündiger interaktiver Vorgang wie bei einer
+--- Bildschirmauswahl; ein `:wait()` wäre hier unschädlich, die einheitliche
+--- Signatur ist trotzdem sauberer als eine Sonderregel für diesen einen Fall.
 ---@param out string Zielpfad (PNG)
----@return boolean ok
----@return string|nil err
-local function clipboard_to_file(out)
+---@param callback fun(ok: boolean, err: string|nil)
+---@return nil
+local function clipboard_to_file(out, callback)
   local cmd ---@type string[]
 
   if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
@@ -56,7 +62,10 @@ local function clipboard_to_file(out)
     }, " ")
     cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
   elseif vim.fn.has("mac") == 1 then
-    if vim.fn.executable("pngpaste") == 0 then return false, "`pngpaste` nicht gefunden (brew install pngpaste)" end
+    if vim.fn.executable("pngpaste") == 0 then
+      callback(false, "`pngpaste` nicht gefunden (brew install pngpaste)")
+      return
+    end
     cmd = { "pngpaste", out }
   else
     if vim.fn.executable("wl-paste") == 1 then
@@ -64,22 +73,34 @@ local function clipboard_to_file(out)
     elseif vim.fn.executable("xclip") == 1 then
       cmd = { "sh", "-c", ("xclip -selection clipboard -t image/png -o > '%s'"):format(out) }
     else
-      return false, "Weder `wl-paste` noch `xclip` gefunden"
+      callback(false, "Weder `wl-paste` noch `xclip` gefunden")
+      return
     end
   end
 
-  local result = vim.system(cmd, { text = true }):wait()
-  if result.code == 3 then return false, "Kein Bild in der Zwischenablage" end
-  if result.code ~= 0 then
-    return false, ("Zwischenablage konnte nicht gelesen werden (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
-  end
+  vim.system(cmd, { text = true }, function(result)
+    vim.schedule(function()
+      if result.code == 3 then
+        callback(false, "Kein Bild in der Zwischenablage")
+        return
+      end
+      if result.code ~= 0 then
+        callback(
+          false,
+          ("Zwischenablage konnte nicht gelesen werden (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
+        )
+        return
+      end
 
-  local stat = vim.uv.fs_stat(out)
-  if not stat or stat.size == 0 then
-    pcall(vim.uv.fs_unlink, out)
-    return false, "Kein Bild in der Zwischenablage"
-  end
-  return true
+      local stat = vim.uv.fs_stat(out)
+      if not stat or stat.size == 0 then
+        pcall(vim.uv.fs_unlink, out)
+        callback(false, "Kein Bild in der Zwischenablage")
+        return
+      end
+      callback(true)
+    end)
+  end)
 end
 
 --- Vorgeschlagener Dateiname nach dem Template — Vorbelegung für die
@@ -176,58 +197,69 @@ local function insert_link(buf, rel, alt)
   notify().info("Bild gespeichert: " .. rel)
 end
 
---- Zweiter Teil von `M.run`, nach einer optionalen Namensabfrage: Bild aus
---- der Zwischenablage schreiben und danach optional nach Alt-Text fragen.
+--- Zweiter Teil von `M.run`/`M.screenshot`, nach einer optionalen
+--- Namensabfrage: Bilddatei über `capture(abs, cb)` erzeugen und danach
+--- optional nach Alt-Text fragen. `capture` ist austauschbar —
+--- `clipboard_to_file` für `:Image paste`, `images.screenshot.capture` für
+--- `:Image screenshot` — alles danach (Zielpfad, Link, Alt-Text) ist für
+--- beide identisch. Async, weil eine interaktive Bildschirmauswahl
+--- Sekunden bis zu einer Minute dauern kann und ein blockierendes Warten
+--- darauf Neovim für diese ganze Zeit einfrieren würde.
 ---@param buf integer
 ---@param filename_override string|nil bereits sanitisiert; nil = Template
+---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@return nil
-local function paste_with_name(buf, filename_override)
+local function paste_with_name(buf, filename_override, capture)
   local abs, rel, err = target_paths(buf, filename_override)
   if not abs or not rel then
     notify().error(err or "Zielpfad unbestimmbar")
     return
   end
 
-  local ok, cb_err = clipboard_to_file(abs)
-  if not ok then
-    notify().warn(cb_err or "Einfügen fehlgeschlagen")
-    return
-  end
+  capture(abs, function(ok, cap_err)
+    if not ok then
+      notify().warn(cap_err or "Einfügen fehlgeschlagen")
+      return
+    end
 
-  if not cfg().paste.ask_alt_text then
-    insert_link(buf, rel, nil)
-    return
-  end
+    if not cfg().paste.ask_alt_text then
+      insert_link(buf, rel, nil)
+      return
+    end
 
-  local k = kit()
-  if k and k.input then
-    k.input({
-      title = "Alt-Text (leer = ohne)",
-      on_submit = function(alt)
-        insert_link(buf, rel, alt)
-      end,
-      -- Abbrechen soll den Link trotzdem setzen, nur ohne Alt-Text — das
-      -- Bild liegt an dieser Stelle bereits auf der Platte, ein verlorener
-      -- Link (kit.input ruft ohne on_cancel bei <Esc> gar nichts auf) wäre
-      -- die schlechtere Überraschung als ein Link ohne Alt-Text.
-      on_cancel = function()
-        insert_link(buf, rel, nil)
-      end,
-    })
-  else
-    local alt = vim.fn.input("Alt-Text (leer = ohne): ")
-    insert_link(buf, rel, alt)
-  end
+    local k = kit()
+    if k and k.input then
+      k.input({
+        title = "Alt-Text (leer = ohne)",
+        on_submit = function(alt)
+          insert_link(buf, rel, alt)
+        end,
+        -- Abbrechen soll den Link trotzdem setzen, nur ohne Alt-Text — das
+        -- Bild liegt an dieser Stelle bereits auf der Platte, ein verlorener
+        -- Link (kit.input ruft ohne on_cancel bei <Esc> gar nichts auf) wäre
+        -- die schlechtere Überraschung als ein Link ohne Alt-Text.
+        on_cancel = function()
+          insert_link(buf, rel, nil)
+        end,
+      })
+    else
+      local alt = vim.fn.input("Alt-Text (leer = ohne): ")
+      insert_link(buf, rel, alt)
+    end
+  end)
 end
 
---- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
---- einfügen.
+--- Optional nach einem Dateinamen fragen, dann `paste_with_name` mit
+--- `capture` als Aufnahmefunktion ausführen. Gemeinsamer Kern von `M.run`
+--- (Zwischenablage) und `M.screenshot` (interaktive Bildschirmauswahl) —
+--- beide unterscheiden sich nur darin, WIE die Bilddatei entsteht.
+---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@return nil
-function M.run()
+local function capture_with_optional_name(capture)
   local buf = vim.api.nvim_get_current_buf()
 
   if not cfg().paste.ask_filename then
-    paste_with_name(buf, nil)
+    paste_with_name(buf, nil, capture)
     return
   end
 
@@ -238,11 +270,11 @@ function M.run()
       title = "Dateiname",
       default = suggested,
       on_submit = function(name)
-        paste_with_name(buf, sanitize_filename(name))
+        paste_with_name(buf, sanitize_filename(name), capture)
       end,
-      -- Anders als bei der Alt-Text-Abfrage: hier wurde noch nichts aus der
-      -- Zwischenablage gelesen oder geschrieben — Abbrechen heißt also
-      -- tatsächlich "nichts tun", nicht "mit Standardwerten weitermachen".
+      -- Anders als bei der Alt-Text-Abfrage: hier wurde noch nichts
+      -- aufgenommen oder geschrieben — Abbrechen heißt also tatsächlich
+      -- "nichts tun", nicht "mit Standardwerten weitermachen".
       on_cancel = function()
         notify().info("Abgebrochen")
       end,
@@ -253,8 +285,28 @@ function M.run()
       notify().info("Abgebrochen")
       return
     end
-    paste_with_name(buf, sanitize_filename(name))
+    paste_with_name(buf, sanitize_filename(name), capture)
   end
+end
+
+--- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
+--- einfügen.
+---@return nil
+function M.run()
+  capture_with_optional_name(clipboard_to_file)
+end
+
+--- Interaktive Bildschirm-Auswahl direkt in eine Datei aufnehmen und wie
+--- `M.run` weiterverarbeiten — der Alltagsfall in einem Schritt statt drei
+--- (Screenshot-Tool von Hand starten, Zwischenablage, `:Image paste`).
+---@return nil
+function M.screenshot()
+  local screenshot = require("images.screenshot")
+  if not screenshot.available() then
+    notify().error(screenshot.unavailable_reason())
+    return
+  end
+  capture_with_optional_name(screenshot.capture)
 end
 
 --- Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen, ohne den Link
@@ -275,13 +327,13 @@ function M.replace(path)
     return
   end
 
-  local ok, err = clipboard_to_file(file)
-  if not ok then
-    notify().warn(err or "Ersetzen fehlgeschlagen")
-    return
-  end
-
-  notify().info("Ersetzt: " .. vim.fn.fnamemodify(file, ":~"))
+  clipboard_to_file(file, function(ok, err)
+    if not ok then
+      notify().warn(err or "Ersetzen fehlgeschlagen")
+      return
+    end
+    notify().info("Ersetzt: " .. vim.fn.fnamemodify(file, ":~"))
+  end)
 end
 
 return M

@@ -47,6 +47,13 @@ local ACTIONS = {
       require("images").paste()
     end,
   },
+  {
+    option = "screenshot",
+    desc = "images: Bildschirmausschnitt aufnehmen und einfügen",
+    run = function()
+      require("images").screenshot()
+    end,
+  },
 }
 
 --- Doppelklick auf einen Markdown-Link zeigt das Bild.
