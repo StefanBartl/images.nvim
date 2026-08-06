@@ -51,6 +51,12 @@ return {
       windows_timeout_ms = 60000,
       windows_poll_interval_ms = 600,
     },
+    -- `:Image redact`: Sicherheitsmarge um jede markierte Box, in Zellen —
+    -- lieber eine Zelle zu viel geschwärzt als eine zu wenig, siehe
+    -- images.scale.cell_box_to_pixels.
+    redact = {
+      padding_cells = 1,
+    },
   },
 
   paste = {

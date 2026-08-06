@@ -13,12 +13,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
   Moduldoc). Diese vier Commands bewusst mit einzuschließen wäre die
   offene Arbeit, nicht das Herunterladen selbst.
 
-## Zwischenablage und Bearbeitung
-
-- **Zuschneiden und Annotieren** (Pfeile, Kästen, Unkenntlichmachung) direkt
-  nach dem Einfügen. Für Screenshots aus Support-Fällen wäre das
-  Unkenntlichmachen von Kundendaten der wichtigste Teil.
-
 ## Bedienung
 
 - **Sitzungsübergreifend angeheftete Bilder**, siehe `sessions.nvim` in

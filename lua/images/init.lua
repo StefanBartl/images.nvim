@@ -343,9 +343,9 @@ function M.replace(path)
   require("images.paste").replace(path)
 end
 
---- Bild als PDF exportieren, neben der Quelldatei. Die Gegenrichtung von
---- `pdfport.nvim`s "PDF-Seite als Bild" (siehe docs/ROADMAP/CROSS-PLUGIN.md)
---- — hier geht es von einem vorhandenen Bild zur PDF, nicht umgekehrt.
+--- Bild als PDF exportieren, neben der Quelldatei — die Gegenrichtung von
+--- pdfports "PDF-Seite als Bild" (dort noch offen, siehe pdfport.nvims
+--- eigene docs/ROADMAP.md).
 ---@param path string|nil nil = Bild unter dem Cursor
 ---@return boolean ok
 function M.export(path)
@@ -363,6 +363,15 @@ function M.export(path)
 
   notify().info("Exportiert: " .. vim.fn.fnamemodify(out, ":~"))
   return true
+end
+
+--- Bild — oder das unter dem Cursor — in einem Zensur-Modus öffnen: Boxen
+--- markieren (Visual-Mode + `<CR>`), mit `w` schwärzen und als neue Datei
+--- speichern, Original bleibt unverändert. Siehe docs/ROADMAP/REDACT.md.
+---@param path string|nil nil = Bild unter dem Cursor
+---@return boolean ok
+function M.redact(path)
+  return require("images.redact").open(path)
 end
 
 --- Bilddateien im Zielverzeichnis finden, auf die kein Link mehr zeigt, und

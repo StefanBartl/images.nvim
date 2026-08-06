@@ -38,8 +38,9 @@ text overlay, for `:Image show`/hover only — see |images-display-config|.
 WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
 cannot, so it is rasterized to a cached PNG via ImageMagick before drawing.
 Without it, opening an .svg reports a clear error rather than failing
-silently. Together with |:Image| export, these are deliberately the only two
-places ImageMagick is a requirement instead of an improvement.
+silently. Together with |:Image| export and |:Image| redact, these are
+deliberately the only three places ImageMagick is a requirement instead of
+an improvement.
 
 Remote images (http://…, https://…) are supported by |:Image| show and by
 hovering a markdown link, but off by default — see |images-remote-config|.
@@ -134,10 +135,29 @@ Calling |images.setup()| is optional when using `opts`.
                         PDF next to the source file (`bild.png` ->
                         `bild.pdf`), overwriting an existing PDF of the same
                         name without asking. Requires ImageMagick; this is
-                        deliberately the second of only two places
+                        deliberately the second of only three places
                         ImageMagick is a hard requirement rather than an
                         improvement, alongside SVG display (see
                         |images-configuration|).
+
+:Image redact [{path}]  Open {path} — or the image under the cursor — in a
+                        censor mode: a full-screen window (like |:Image|
+                        zen) with a selection grid over the image. Enter
+                        Visual mode (`v`/<C-v>), move to the opposite
+                        corner of what needs blacking out, <CR> marks it —
+                        repeat for more boxes, `u` removes the last one,
+                        `w` burns them in (ImageMagick) and writes a new
+                        file (`photo.png` -> `photo.redacted.png`); the
+                        source file is never touched. `q`/<Esc> cancels
+                        without writing. Selection happens entirely in
+                        terminal cells (no pixel-precise mouse input exists
+                        in a terminal), so each box is grown by a
+                        configurable safety margin before burning
+                        (`display.redact.padding_cells`, default 1) —
+                        over-redacting is the safe failure mode. Requires
+                        ImageMagick, the third of only three places it is a
+                        hard requirement (see |images-configuration|). Full
+                        design rationale: docs/ROADMAP/REDACT.md.
 
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.
@@ -241,6 +261,9 @@ under the same key).
         screenshot = {
           windows_timeout_ms = 60000,
           windows_poll_interval_ms = 600,
+        },
+        redact = {
+          padding_cells = 1,
         },
       },
       paste = {
@@ -408,6 +431,13 @@ images.export({path})                                        *images.export()*
                 PDF next to the source file. Returns `true` on success,
                 `false` (with a notification) if ImageMagick is missing or
                 the export failed.
+
+images.redact({path})                                        *images.redact()*
+                Open {path} — or the image under the cursor when nil — in
+                the censor mode described under |:Image| redact. Returns
+                `true` if the window opened, `false` (with a notification)
+                if no image was found or the image's pixel dimensions
+                could not be determined (ImageMagick missing).
 
 images.orphans()                                             *images.orphans()*
                 Find images in `paste.dir` without a referencing link and

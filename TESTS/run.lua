@@ -79,6 +79,7 @@ local specs = {
   "remote_spec.lua",
   "screenshot_spec.lua",
   "hover_float_spec.lua",
+  "redact_spec.lua",
 }
 
 local failed = 0
