@@ -5,10 +5,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 
 ## Anzeige
 
-- **Zoom und Ausschnitt** — `+`/`-` zum Skalieren, `hjkl` zum Verschieben,
-  solange ein Bild angeheftet ist. Braucht einen Modus-Zustand und ein
-  Neuzeichnen pro Schritt; ohne Bild-IDs im Protokoll bedeutet jeder Schritt
-  eine vollständige Neuübertragung.
 - **Im Floating-Window statt über dem Text.** `:Image zen` macht das bereits
   für die Einzelanzeige (eigener Buffer, `q` schließt). Für die beiläufige
   Anzeige (`:Image show`/`hover`) bleibt es beim Draw-over-text-Modell, der
