@@ -127,4 +127,16 @@ function M.under_cursor()
   return resolve_target(cfile, lnum)
 end
 
+--- `path` auflösen, oder wenn `nil` das Bild unter dem Cursor — dasselbe
+--- Muster, das `:Image replace`, `:Image zen` und `:Image export` alle
+--- brauchen ("expliziter Pfad oder Cursor-Ziel"), an einer Stelle statt
+--- dreifach dupliziert.
+---@param path string|nil
+---@return string|nil absoluter Pfad
+function M.path_or_cursor(path)
+  if path then return M.to_path(path) end
+  local target = M.under_cursor()
+  return target and target.path
+end
+
 return M

@@ -29,6 +29,9 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
   Windows-Weg (Zwischenablage-Polling nach `ms-screenclip:`) ist die
   unsicherste der drei Implementierungen, siehe Moduldoc
 - Bild ersetzen, Link bleibt (`:Image replace`)
+- Bild als PDF exportieren, neben der Quelldatei (`:Image export`,
+  `images.convert.to_pdf`) — die Gegenrichtung von `pdfport.nvim`s
+  "PDF-Seite als Bild", siehe CROSS-PLUGIN.md; braucht ImageMagick zwingend
 - Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
   (`:Image orphans`)
 - Dateisystem-weite Suche mit Live-Vorschau über `snacks.picker`, Soft-Dependency
@@ -56,15 +59,16 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 
 Drei Entscheidungen, die bei jedem neuen Feature gelten sollen:
 
-**Kein ImageMagick als Pflicht — mit einer bewussten Ausnahme.** WezTerm
+**Kein ImageMagick als Pflicht — mit zwei bewussten Ausnahmen.** WezTerm
 dekodiert PNG/JPEG/GIF/WebP/BMP selbst. ImageMagick darf Features
 *verbessern* (`:Image info`, `:Image compare`s relative Skalierung), nie
 *ermöglichen* — sonst ist das Plugin auf Windows wieder von einer
 Installation abhängig, die erfahrungsgemäß der Grund ist, warum am Ende
-nichts funktioniert. Die einzige Ausnahme ist SVG: WezTerm kann es
-grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung —
-dort ist ImageMagick echte Voraussetzung, mit einer klaren Fehlermeldung statt
-eines stillen Fehlschlags, wenn es fehlt.
+nichts funktioniert. Die erste Ausnahme ist SVG: WezTerm kann es
+grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung.
+Die zweite ist `:Image export`: eine PDF entsteht nur über `magick`, es gibt
+keine Terminal-native Alternative. Beide melden eine klare Fehlermeldung statt
+eines stillen Fehlschlags, wenn ImageMagick fehlt.
 
 **Keine Zellmessung.** `width`/`height` in Zellen plus
 `preserveAspectRatio=1` erledigt das Terminal. Sobald irgendwo Pixel gerechnet

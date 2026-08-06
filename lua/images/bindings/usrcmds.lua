@@ -161,6 +161,15 @@ function M.register(cfg)
       },
 
       {
+        path = { "export" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        desc = "Bild als PDF exportieren, neben der Quelldatei",
+        run = function(ctx)
+          require("images").export(ctx.args.path)
+        end,
+      },
+
+      {
         path = { "pickers" },
         args = {
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },

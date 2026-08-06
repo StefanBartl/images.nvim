@@ -92,9 +92,10 @@ gallery keeps its own layout either way.
 SVG is the one format WezTerm cannot decode at all — everything else
 (PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
 `.svg` file is rasterized to a cached PNG before drawing; without it, opening
-one reports a clear error instead of failing silently. This is deliberately
-the *only* place ImageMagick is a requirement rather than an improvement —
-see [Configuration](#configuration).
+one reports a clear error instead of failing silently. Together with
+`:Image export` (below), these are deliberately the *only* two places
+ImageMagick is a requirement rather than an improvement — see
+[Configuration](#configuration).
 
 Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
 and by hovering a markdown link that points at one, but **off by default**:
@@ -139,6 +140,7 @@ dependencies are in place.
 | `:Image paste` | Save the clipboard image next to the document and insert the link |
 | `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
+| `:Image export [path]` | Export an image as PDF, next to the source file — requires ImageMagick |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
