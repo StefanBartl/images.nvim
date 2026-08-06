@@ -28,6 +28,16 @@ return {
     browse_exclude = { ".deps", "node_modules" },
     -- Größe des `:Image zen`-Fensters, als Anteil der Editorgröße.
     zen = { width = 0.9, height = 0.85 },
+    remote = {
+      -- Standard AUS: ein Hover über einen Remote-Bild-Link soll nicht ohne
+      -- Zustimmung eine Netzwerkanfrage auslösen — dasselbe Prinzip wie
+      -- "externe Bilder laden" in E-Mail-Clients. Siehe images.remote.
+      -- Gilt nur für `:Image show <url>`/Hover, nicht für gallery/compare/
+      -- browse/zen — die unterstützen Remote-Bilder noch nicht.
+      enabled = false,
+      timeout_ms = 10000,
+      max_bytes = 20 * 1024 * 1024,
+    },
   },
 
   paste = {

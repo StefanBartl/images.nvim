@@ -16,10 +16,16 @@
 ---@field clear_events string[] Autocmd-Events, die das Bild wieder entfernen
 ---@field browse_exclude string[] Verzeichnisnamen, die `:Image pickers` beim Scan überspringt
 ---@field zen ImagesNvim.ZenConfig Größe des `:Image zen`-Fensters
+---@field remote ImagesNvim.RemoteConfig Remote-Bilder für `:Image show`/Hover
 
 ---@class ImagesNvim.ZenConfig
 ---@field width number Anteil der Editorbreite (0–1)
 ---@field height number Anteil der Editorhöhe (0–1)
+
+---@class ImagesNvim.RemoteConfig
+---@field enabled boolean http(s)-Bilder laden; default false (Datenschutz, siehe images.remote)
+---@field timeout_ms integer Download-Timeout
+---@field max_bytes integer Maximale Downloadgröße
 
 ---@class ImagesNvim.PasteConfig
 ---@field dir string Zielverzeichnis relativ zum Dokument ("" = daneben)
@@ -41,7 +47,7 @@
 
 ---@class ImagesNvim.Target
 ---@field raw string Ziel wie im Buffer geschrieben
----@field path string Aufgelöster absoluter Pfad
+---@field path string Aufgelöster absoluter Pfad, oder bei einer Remote-URL die URL selbst (noch nicht geladen)
 ---@field lnum integer 1-basierte Zeile, in der das Ziel steht
 
 return {}

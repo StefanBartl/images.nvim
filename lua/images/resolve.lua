@@ -91,6 +91,25 @@ function M.to_path(target, buf)
   return nil
 end
 
+--- Ein rohes Ziel (Link-Text oder `<cfile>`) zu einem `Target` auflösen.
+---
+--- Eine Remote-URL wird NICHT hier heruntergeladen — `path` ist dann einfach
+--- die URL selbst. Der Download passiert erst in `images.init.M.show`, dem
+--- einzigen Ort, an dem ein einzelnes Bild tatsächlich gezeichnet wird (siehe
+--- `images.remote`s Moduldoc für den Grund: Auflösen soll nie ungefragt
+--- Netzwerkanfragen auslösen, nur Anzeigen darf das).
+---@param raw string
+---@param lnum integer
+---@return ImagesNvim.Target|nil
+---@return string|nil err
+local function resolve_target(raw, lnum)
+  if not M.is_image(raw) then return nil, "Kein Bildziel: " .. raw end
+  if require("images.remote").is_remote(raw) then return { raw = raw, path = raw, lnum = lnum } end
+  local path = M.to_path(raw)
+  if not path then return nil, "Bild nicht gefunden: " .. raw end
+  return { raw = raw, path = path, lnum = lnum }
+end
+
 --- Bildziel unter dem Cursor: erst Markdown-Links der Zeile, sonst `<cfile>`.
 ---@return ImagesNvim.Target|nil
 ---@return string|nil err
@@ -100,20 +119,12 @@ function M.under_cursor()
   local line = vim.api.nvim_get_current_line()
 
   for _, link in ipairs(M.links_in_line(line)) do
-    if col >= link.from and col <= link.to then
-      if not M.is_image(link.target) then return nil, "Kein Bildlink: " .. link.target end
-      local path = M.to_path(link.target)
-      if not path then return nil, "Bild nicht gefunden: " .. link.target end
-      return { raw = link.target, path = path, lnum = lnum }
-    end
+    if col >= link.from and col <= link.to then return resolve_target(link.target, lnum) end
   end
 
   local cfile = vim.fn.expand("<cfile>")
   if cfile == "" then return nil, "Kein Link oder Dateiname unter dem Cursor" end
-  if not M.is_image(cfile) then return nil, "Keine Bilddatei: " .. cfile end
-  local path = M.to_path(cfile)
-  if not path then return nil, "Bild nicht gefunden: " .. cfile end
-  return { raw = cfile, path = path, lnum = lnum }
+  return resolve_target(cfile, lnum)
 end
 
 return M

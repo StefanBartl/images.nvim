@@ -87,6 +87,16 @@ one reports a clear error instead of failing silently. This is deliberately
 the *only* place ImageMagick is a requirement rather than an improvement —
 see [Configuration](#configuration).
 
+Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
+and by hovering a markdown link that points at one, but **off by default**:
+set `display.remote.enabled = true` first. This mirrors what email clients
+have done for years ("load remote images") — a document merely being opened
+should not silently make an outbound network request just because it
+contains an image link. Downloads are cached by URL, with a size and time
+limit (`display.remote.max_bytes`/`timeout_ms`). `:Image gallery`, `compare`,
+`pickers` and `zen` do not resolve remote images yet — only the single-image
+path does.
+
 ## Quickstart
 
 Requires Neovim 0.10+ (for `vim.base64`) with API level 14 (for
@@ -111,7 +121,7 @@ dependencies are in place.
 | Command | What it does |
 | --- | --- |
 | `:Image` | Show the image under the cursor |
-| `:Image show [path]` | Show a specific file, or the one under the cursor |
+| `:Image show [path]` | Show a specific file, or the one under the cursor; `path` may be a URL if `display.remote.enabled` |
 | `:Image list` | Pick from every image link in the buffer |
 | `:'<,'>Image list` | …restricted to the selected lines |
 | `:Image gallery [cols]` | Show every image of the buffer side by side in a grid |
@@ -154,6 +164,11 @@ require("images").setup({
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     browse_exclude = { ".deps", "node_modules" }, -- dirs :Image pickers skips (".git" is always skipped)
     zen = { width = 0.9, height = 0.85 },          -- :Image zen window size, as a fraction of the editor
+    remote = {
+      enabled = false,             -- true allows :Image show <url> / hover to download images
+      timeout_ms = 10000,
+      max_bytes = 20 * 1024 * 1024,
+    },
   },
   paste = {
     dir = "assets",              -- "" puts the file next to the document

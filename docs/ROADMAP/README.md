@@ -20,6 +20,8 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 - Navigation durch die Bilder eines Buffers (`:Image next` / `prev`)
 - Metadaten via ImageMagick, optional (`:Image info`)
 - SVG-Anzeige über automatische PNG-Konvertierung, gecacht (`images.convert`)
+- Remote-Bilder für `:Image show`/Hover, gecacht, default aus
+  (`display.remote`, `images.remote`) — gallery/compare/pickers/zen noch nicht
 - Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text- und
   Dateinamen-Abfrage (`paste.ask_alt_text`, `paste.ask_filename`)
 - Bild ersetzen, Link bleibt (`:Image replace`)
