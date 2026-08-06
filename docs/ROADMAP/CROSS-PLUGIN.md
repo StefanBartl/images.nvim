@@ -13,12 +13,26 @@ Kein Repo bekommt eine harte Abhängigkeit auf die Bildanzeige.
 
 ## Stark — konkreter Nutzen, überschaubarer Aufwand
 
-### `color_my_ascii.nvim`
+### `color_my_ascii.nvim` — UMGESETZT, aber nicht wie hier ursprünglich gedacht
 Der umgekehrte Weg: ein Bild **als ASCII-Art** rendern, wenn das Terminal kein
-OSC 1337 kann. color_my_ascii kann ASCII bereits einfärben; images.nvim müsste
-nur Pixel zu Zeichen und Farben reduzieren. Das wäre der universelle Fallback
-für jedes Terminal ohne Grafikprotokoll — und macht das Plugin auf SSH-Sessions
-und in tmux benutzbar, wo heute nichts geht.
+OSC 1337 kann — der universelle Fallback für jedes Terminal ohne
+Grafikprotokoll, macht das Plugin auch auf SSH-Sessions und in tmux (ohne
+passthrough) benutzbar.
+
+Umgesetzt in `images.ascii` (`display.ascii_fallback`), **ohne** die hier
+angedachte color_my_ascii-Abhängigkeit: color_my_ascii färbt Muster-basiert
+bekannte ASCII-Zeichenklassen (Pfeile, Box-Drawing, …) gegen ein benanntes
+Schema, eine Farbe pro Klasse — für echte Bildfarben wird aber eine beliebige
+RGB-Farbe pro Zelle gebraucht, die aus den Pixeln selbst kommt. Das ist eine
+andere Art Färbung, die color_my_ascii architektonisch nicht anbietet und
+auch nicht anbieten will (es ist ein Syntax-Highlighter für Text, kein
+Bild-Renderer). `images.ascii` geht deshalb direkt über `nvim_set_hl`/
+Extmarks: ImageMagick sampelt das Bild auf die Zielzellenzahl herunter
+(`-resize WxH! -alpha off -depth 8 RGB:-`), jede Zelle wird ein "█" mit
+eigener Vordergrundfarbe — Truecolor-Blockgrafik wie bei chafa/viu, nicht
+ein Helligkeits-Zeichensatz. Braucht ImageMagick zwingend (vierte
+Ausnahme neben SVG/export/redact). Bisher nur der Einzelbild-Pfad
+(`:Image show`/Hover), wie bei den Remote-Bildern.
 
 ### `markdown.nvim`
 Der Pfad-Resolver wird schon genutzt. Umgekehrt fehlt: in markdowns
@@ -64,13 +78,16 @@ OCR auf einem Bild, um Text zu extrahieren und dann zu übersetzen oder zu
 prüfen. Für Screenshots von Fehlermeldungen in fremdsprachigen Systemen ein
 realer Support-Fall. Offene Frage ist die OCR-Abhängigkeit (`tesseract`), die
 unter Windows nicht selbstverständlich ist — nach der Leitplanke also
-Verbesserung, nicht Voraussetzung.
+
+Feedback con mir: Verbesserung, nicht Voraussetzung. tesseract kann ich voraussetzen dass das installiert wird ansonsten fallback chain  oder nicht anbeten des featuresohne es je nachdem!
 
 ### `runtime-analysis.nvim`
 Flamegraphs als Bild statt als Textbaum. Der Nutzen hängt daran, ob eine
 Flamegraph-Grafik in Terminalzellen noch lesbar ist; bei 60x25 Zellen
 vermutlich nur als grober Überblick, mit Zoom (siehe FEATURES.md) deutlich
 besser.
+
+Feedback von moir: Das stimt, aner ,an könnte ein normale simage erschafen undd dann im browser bzw mit mdciews.nvim aider  jedem anderen imafe app anseheen -> wäre trotzdem ei n cool er mehrwert. Außerdem i documentation.nvim kömnnte dies imahges aucch gezegt werden! (dort gibt esds bereits einen bereich für daten aus runtime-analysis.nvim)
 
 ### `github_stats.nvim`
 Statistiken als Diagramm rendern statt als Zahlenkolonne. Setzt einen
@@ -82,25 +99,35 @@ Bildoperationen als Dateioperationen: konvertieren, skalieren, optimieren.
 Passt thematisch zu „one command, all operations", braucht aber ImageMagick
 und würde images.nvim nur für die Vorschau des Ergebnisses nutzen.
 
+Feedback: imagemagick kann vorausgesetz werden ansonsten fallback chain oder disable
+
 ### `sessions.nvim`
 Angeheftete Bilder über einen Sitzungswechsel hinweg erhalten. Klein, aber nur
 sinnvoll, wenn es mehrere gleichzeitig angeheftete Bilder gibt (siehe
 FEATURES.md) — vorher lohnt der Zustand die Speicherung nicht.
+
+Feedback: Entfernen / übersrpingen / nicht umsetzen
 
 ### `reposcope.nvim`
 Beim Vorschauen eines GitHub-Repos dessen Social-Preview-Karte oder die
 README-Bilder zeigen. Nett, aber der Nutzen ist gering gegenüber dem
 Netzwerk-Aufwand — braucht zudem Remote-Bilder (siehe FEATURES.md).
 
+Feedback: Testlauf amchen, wie sehr das die snapines mindert
+
 ### `buffer-ctx.nvim`
 Fügt Pfade, Module, Zeitstempel und UUIDs ein. Ein Bildlink ist derselbe
 Vorgang mit anderem Inhalt; `:Image paste` deckt es aber bereits ab. Sinnvoll
 wäre höchstens ein gemeinsamer Einfüge-Mechanismus, keine neue Funktion.
 
+Feedback: Entfernen / übersrpingen / nicht umsetzen
+
 ### `migrate.nvim`
 Nutzt Telescope-Preview für alles über einzeilige Bereiche hinaus. Wenn ein
 Migrationsschritt Bilddateien betrifft, wäre eine Vorschau statt Binärmüll
 hilfreich — Randfall.
+
+Feedback: Entfernen / übersrpingen / nicht umsetzen
 
 ---
 
@@ -135,4 +162,4 @@ Kein Kreuzfeature, sondern die Frage, was nach oben gehört. Kandidaten:
 - **Die Rasteraufteilung aus `gallery.lua`** ist bereits generisch (reine
   Rechnung ohne Terminalbezug) und überschneidet sich mit
   `lib.nvim.ui.kit.layout`. Vor einem Transfer prüfen, ob `layout.compute`
-  den Fall nicht schon abdeckt.
+  den Fall nicht schon abdeckt und wenn ja dies implementieren.

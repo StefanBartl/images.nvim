@@ -61,6 +61,8 @@ local function arm_clear()
     callback = function()
       if require("images.hover_float").is_open() then
         require("images.hover_float").close()
+      elseif require("images.ascii").is_open() then
+        require("images.ascii").close()
       else
         require("images.terminal").clear()
       end
@@ -91,8 +93,6 @@ end
 ---@param path string Absoluter/relativer Pfad, oder eine http(s)-URL
 ---@return boolean ok
 function M.show(path)
-  guard_capability()
-
   local file
   if require("images.remote").is_remote(path) then
     local fetched, remote_err = require("images.remote").fetch(path)
@@ -111,6 +111,27 @@ function M.show(path)
   end
 
   local display = cfg().display
+  local cap = require("images.terminal").capability(display.assume_supported)
+
+  -- Terminal kann vermutlich kein OSC 1337: statt der Warnung + einem
+  -- wirkungslosen Zeichenversuch die Blockgrafik-Alternative, wenn
+  -- ImageMagick verfügbar und der Fallback nicht abgeschaltet ist.
+  if not cap.ok then
+    local ascii_cfg = display.ascii_fallback or {}
+    local ascii = require("images.ascii")
+    if ascii_cfg.enabled ~= false and ascii.available() then
+      local ok, err = ascii.open(file, display)
+      if not ok then
+        notify().error(err or "ASCII-Fallback fehlgeschlagen")
+        return false
+      end
+      arm_clear()
+      return true
+    end
+  end
+
+  guard_capability()
+
   if display.hover_mode == "float" then
     if not require("images.hover_float").open(file) then return false end
   else
@@ -500,6 +521,7 @@ function M.clear()
   cursor_state = nil
   require("images.zen").close()
   require("images.hover_float").close()
+  require("images.ascii").close()
   require("images.terminal").clear()
 end
 

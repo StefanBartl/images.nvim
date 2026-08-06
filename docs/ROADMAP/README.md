@@ -59,12 +59,20 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 - Terminal-Fähigkeitsprüfung mit einmaliger Warnung, nie hartem Abbruch
   (`:Image check`, `display.assume_supported`)
 - Backend in `filetree.nvim`, Handler `:Open image` in `open.nvim`
+- ASCII-Fallback für Terminals ohne OSC 1337: farbige Blockgrafik über
+  ImageMagick-Sampling + Extmarks statt der wirkungslosen Sequenz
+  (`display.ascii_fallback`, `images.ascii`) — nur der Einzelbild-Pfad, wie
+  bei den Remote-Bildern. Ursprünglich als color_my_ascii.nvim-Integration
+  angedacht (siehe CROSS-PLUGIN.md); dessen Highlighter färbt aber
+  Muster-basiert bekannte Zeichenklassen gegen ein Schema, nicht beliebige
+  Pixel-RGB pro Zelle — für echte Bildfarben ein Fehlgriff, deshalb eigener
+  Pfad ohne die Abhängigkeit.
 
 ## Leitplanken
 
 Drei Entscheidungen, die bei jedem neuen Feature gelten sollen:
 
-**Kein ImageMagick als Pflicht — mit drei bewussten Ausnahmen.** WezTerm
+**Kein ImageMagick als Pflicht — mit vier bewussten Ausnahmen.** WezTerm
 dekodiert PNG/JPEG/GIF/WebP/BMP selbst. ImageMagick darf Features
 *verbessern* (`:Image info`, `:Image compare`s relative Skalierung), nie
 *ermöglichen* — sonst ist das Plugin auf Windows wieder von einer
@@ -74,8 +82,10 @@ grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung.
 Die zweite ist `:Image export`: eine PDF entsteht nur über `magick`, es gibt
 keine Terminal-native Alternative. Die dritte ist `:Image redact`: das
 Schwärzen selbst (Pixel schwarz übermalen) läuft ebenfalls nur über
-`magick`. Alle drei melden eine klare Fehlermeldung statt eines stillen
-Fehlschlags, wenn ImageMagick fehlt.
+`magick`. Die vierte ist der ASCII-Fallback (`images.ascii`): Pixelfarben
+aus einer beliebigen Rasterdatei zu lesen braucht einen echten Decoder, den
+reines Lua nicht hat. Alle vier melden eine klare Fehlermeldung statt eines
+stillen Fehlschlags, wenn ImageMagick fehlt.
 
 **Keine Zellmessung.** `width`/`height` in Zellen plus
 `preserveAspectRatio=1` erledigt das Terminal. Sobald irgendwo Pixel gerechnet

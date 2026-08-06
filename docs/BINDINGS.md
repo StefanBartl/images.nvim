@@ -66,6 +66,7 @@ word selection, so the mapping never swallows a plain double-click.
 | images.zen | `WinResized`, `VimResized` | Redraws the `:Image zen` image so it follows the window's size |
 | images.zen | `WinClosed` | Clears the image when the zen window closes (`once`) |
 | images.redact | `WinClosed` | Clears the image when the redact window closes (`once`) |
+| images.ascii | `WinClosed` | Clears the ASCII-fallback window state when it closes (`once`) |
 
 The clear group is registered only while an image is on screen, not
 permanently — it exists for the few seconds the image is visible, and
