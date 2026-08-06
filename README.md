@@ -274,7 +274,12 @@ A statusline segment:
 ## Integrations
 
 `markdown.nvim` is used for link resolution when present, falling back to an
-internal resolver otherwise — a soft dependency, never required.
+internal resolver otherwise — a soft dependency, never required. The
+relationship also runs the other way: `markdown.nvim`'s `mi` prefers
+images.nvim as its in-Neovim preview provider (over snacks.nvim/image.nvim,
+both Kitty-only), and its `:Markdown links show` reuses
+`images.browse.draw_in_window()` for a live per-item image preview when
+`snacks.picker` is also installed.
 
 `lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
 picker used by `:Image list`, and the `kit.compare` component behind

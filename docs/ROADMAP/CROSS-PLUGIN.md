@@ -34,11 +34,20 @@ ein Helligkeits-Zeichensatz. Braucht ImageMagick zwingend (vierte
 Ausnahme neben SVG/export/redact). Bisher nur der Einzelbild-Pfad
 (`:Image show`/Hover), wie bei den Remote-Bildern.
 
-### `markdown.nvim`
-Der Pfad-Resolver wird schon genutzt. Umgekehrt fehlt: in markdowns
-Link-Übersicht die Bildlinks mit Vorschau statt nur als Text; und beim
-Einfügen eines Bildlinks direkt `:Image paste` anbieten. `markdown.nvim` ist
-FileType-scoped und images.nvim ebenfalls — die Kopplung wäre natürlich.
+### `markdown.nvim` — UMGESETZT
+Der Pfad-Resolver wird schon genutzt. Umgekehrt umgesetzt: `:Markdown links
+show` zeigt Bildlinks jetzt mit Live-Vorschau (über `snacks.picker` +
+`images.browse.draw_in_window` — dieselbe Funktion, die `:Image pickers`
+selbst für die Preview nutzt, kein neuer API-Aufwand hier); `:Markdown image
+paste|screenshot` delegiert direkt an `:Image paste`/`:Image screenshot`.
+
+**Nebenfund dabei:** `markdown.nvim` hatte für `mi` (Bild unter dem Cursor
+öffnen) schon einen eigenen In-Neovim-Vorschau-Pfad — aber über
+snacks.nvim/image.nvim, dieselben Kitty-only-Plugins, die auf diesem
+Windows/WezTerm-Setup nie zeichnen. images.nvim ist jetzt dort als
+bevorzugter dritter Provider eingehängt (`markdown.util.image_preview`),
+snacks/image.nvim bleiben Fallback für Setups, wo die tatsächlich
+funktionieren.
 
 ### `mdview.nvim`
 Markdown-Vorschau ohne Bilder ist eine halbe Vorschau. Beim Rendern die
