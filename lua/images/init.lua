@@ -343,6 +343,28 @@ function M.replace(path)
   require("images.paste").replace(path)
 end
 
+--- Bild als PDF exportieren, neben der Quelldatei. Die Gegenrichtung von
+--- `pdfport.nvim`s "PDF-Seite als Bild" (siehe docs/ROADMAP/CROSS-PLUGIN.md)
+--- — hier geht es von einem vorhandenen Bild zur PDF, nicht umgekehrt.
+---@param path string|nil nil = Bild unter dem Cursor
+---@return boolean ok
+function M.export(path)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
+    return false
+  end
+
+  local out, err = require("images.convert").to_pdf(file)
+  if not out then
+    notify().error(err or "Export fehlgeschlagen")
+    return false
+  end
+
+  notify().info("Exportiert: " .. vim.fn.fnamemodify(out, ":~"))
+  return true
+end
+
 --- Bilddateien im Zielverzeichnis finden, auf die kein Link mehr zeigt, und
 --- eine zum Löschen anbieten. Löscht ausschließlich nach expliziter
 --- Bestätigung — verwaiste Bilder zu *finden* soll risikofrei sein, auch

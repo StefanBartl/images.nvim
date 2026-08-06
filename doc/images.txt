@@ -36,10 +36,10 @@ is a middle ground: a small floating window under the cursor instead of the
 text overlay, for `:Image show`/hover only — see |images-display-config|.
 
 WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
-cannot, so it is rasterized to a cached PNG via ImageMagick before drawing —
-deliberately the only place ImageMagick is a requirement instead of an
-improvement. Without it, opening an .svg reports a clear error rather than
-failing silently.
+cannot, so it is rasterized to a cached PNG via ImageMagick before drawing.
+Without it, opening an .svg reports a clear error rather than failing
+silently. Together with |:Image| export, these are deliberately the only two
+places ImageMagick is a requirement instead of an improvement.
 
 Remote images (http://…, https://…) are supported by |:Image| show and by
 hovering a markdown link, but off by default — see |images-remote-config|.
@@ -129,6 +129,15 @@ Calling |images.setup()| is optional when using `opts`.
                         with the current clipboard content. The link stays
                         unchanged; useful to update a stale screenshot
                         in-place instead of pasting a new file and link.
+
+:Image export [{path}]  Export {path} — or the image under the cursor — as a
+                        PDF next to the source file (`bild.png` ->
+                        `bild.pdf`), overwriting an existing PDF of the same
+                        name without asking. Requires ImageMagick; this is
+                        deliberately the second of only two places
+                        ImageMagick is a hard requirement rather than an
+                        improvement, alongside SVG display (see
+                        |images-configuration|).
 
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.
@@ -393,6 +402,12 @@ images.screenshot()                                      *images.screenshot()*
 images.replace({path})                                      *images.replace()*
                 Overwrite {path} — or the image under the cursor when nil —
                 with the clipboard content. The link is left unchanged.
+
+images.export({path})                                        *images.export()*
+                Export {path} — or the image under the cursor when nil — as a
+                PDF next to the source file. Returns `true` on success,
+                `false` (with a notification) if ImageMagick is missing or
+                the export failed.
 
 images.orphans()                                             *images.orphans()*
                 Find images in `paste.dir` without a referencing link and

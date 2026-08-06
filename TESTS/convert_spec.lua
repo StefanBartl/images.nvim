@@ -1,9 +1,11 @@
--- TESTS/convert_spec.lua — SVG-zu-PNG-Konvertierung.
+-- TESTS/convert_spec.lua — SVG-zu-PNG-Konvertierung und Bild-zu-PDF-Export.
 --
--- `is_svg` ist reine Funktion. `to_png` braucht ein echtes Dateisystem und —
--- für den eigentlichen Konvertierungspfad — `magick`; ohne wird dieser Teil
--- übersprungen statt zu scheitern, dieselbe Haltung wie die Leitplanke
--- selbst ("ImageMagick verbessert, ermöglicht nicht").
+-- `is_svg` ist reine Funktion. `to_png`/`to_pdf` brauchen ein echtes
+-- Dateisystem und — für den eigentlichen Konvertierungspfad — `magick`; ohne
+-- wird dieser Teil übersprungen statt zu scheitern, dieselbe Haltung wie die
+-- Leitplanke selbst ("ImageMagick verbessert, ermöglicht nicht" — `to_pdf`
+-- ist die dokumentierte Ausnahme davon, aber ohne `magick` überhaupt gibt es
+-- hier nichts Sinnvolles zu prüfen).
 
 ---@param H table Harness aus TESTS/run.lua
 return function(H)
@@ -51,4 +53,16 @@ return function(H)
   local png3 = convert.to_png(svg_path)
   H.ok(png3 ~= nil, "erneute Konvertierung nach Änderung liefert einen Pfad")
   H.ok(png3 ~= png, "…aber unter einem anderen Cache-Namen als vorher")
+
+  -- ── to_pdf: fehlende Datei ───────────────────────────────────────────────
+  local pdf, pdf_err = convert.to_pdf("/definitiv/nicht/vorhanden.png")
+  H.falsy(pdf, "fehlende Datei liefert kein PDF")
+  H.contains(pdf_err or "", "nicht gefunden", "…sondern eine Begründung")
+
+  -- ── to_pdf: echte Konvertierung ──────────────────────────────────────────
+  pdf, pdf_err = convert.to_pdf(assert(png))
+  H.ok(pdf, "Export liefert einen Pfad: " .. tostring(pdf_err))
+  H.ok(pdf ~= nil and vim.uv.fs_stat(pdf) ~= nil, "…und die Datei existiert wirklich")
+  H.contains(pdf or "", ".pdf", "…mit .pdf-Endung")
+  H.eq(vim.fn.fnamemodify(pdf or "", ":r"), vim.fn.fnamemodify(png or "", ":r"), "…gleiche Basis wie die Quelldatei")
 end

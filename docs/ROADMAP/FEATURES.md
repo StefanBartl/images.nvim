@@ -3,11 +3,6 @@
 Umgesetztes steht in [README.md → Bereits umgesetzt](./README.md#bereits-umgesetzt),
 nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 
-## Anzeige
-
-- **Thumbnail-Leiste** am unteren Rand mit allen Bildern des Buffers, das
-  aktive hervorgehoben — `:Image next`/`prev` würde darin wandern.
-
 ## Quellen
 
 - **Remote-Bilder für gallery/compare/pickers/zen.** `:Image show` und Hover
@@ -17,8 +12,10 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
   eines Buffers nicht N Netzwerkanfragen auslöst (siehe `images.remote`s
   Moduldoc). Diese vier Commands bewusst mit einzuschließen wäre die
   offene Arbeit, nicht das Herunterladen selbst.
-- **PDF-Seiten als Bild** — siehe `pdfport.nvim` in
-  [CROSS-PLUGIN.md](./CROSS-PLUGIN.md).
+- **PDF-Seiten als Bild** (PDF → Bild, zum Betrachten) — siehe `pdfport.nvim`
+  in [CROSS-PLUGIN.md](./CROSS-PLUGIN.md). Die Gegenrichtung, Bild → PDF zum
+  Export, ist bereits umgesetzt: `:Image export`, siehe
+  [README.md → Bereits umgesetzt](./README.md#bereits-umgesetzt).
 
 ## Zwischenablage und Bearbeitung
 

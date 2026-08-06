@@ -1,16 +1,22 @@
 ---@module 'images.convert'
----@brief SVG zu PNG konvertieren, damit OSC 1337 es zeichnen kann.
+---@brief Formatkonvertierung über ImageMagick: SVG→PNG zum Zeichnen, Bild→PDF zum Exportieren.
 ---@description
---- WezTerm dekodiert PNG/JPEG/GIF/WebP selbst, aber kein SVG — hier ist eine
---- Konvertierung wirklich nötig, nicht nur eine Verbesserung. Das ist bewusst
---- der einzige Fall, in dem `magick` eine Voraussetzung statt einer Zugabe
---- ist (siehe die Leitplanke in docs/ROADMAP/README.md): ohne ImageMagick
---- gibt es schlicht keinen anderen Weg, SVG-Pixel zu bekommen.
+--- Zwei unabhängige Konvertierungen, ein Modul, weil beide dieselbe
+--- `magick`-Abhängigkeit und dieselbe Fehlerbehandlung teilen:
 ---
---- Ergebnisse landen in `stdpath("cache")/images.nvim/svg`, benannt nach
---- Quellpfad + Änderungszeit — ein geändertes SVG bekommt damit automatisch
---- eine neue PNG-Datei statt eine veraltete zu zeigen, ohne dass der Cache
---- je aufgeräumt werden müsste (Neovims Cache-Verzeichnis ist dafür da).
+--- `M.to_png` — WezTerm dekodiert PNG/JPEG/GIF/WebP selbst, aber kein SVG.
+--- Hier ist eine Konvertierung wirklich nötig, nicht nur eine Verbesserung —
+--- bewusst der einzige *Anzeige*-Fall, in dem `magick` Voraussetzung statt
+--- Zugabe ist (siehe die Leitplanke in docs/ROADMAP/README.md). Ergebnisse
+--- landen gecacht in `stdpath("cache")/images.nvim/svg`, benannt nach
+--- Quellpfad + Änderungszeit — ein geändertes SVG bekommt automatisch eine
+--- neue PNG-Datei statt eine veraltete zu zeigen.
+---
+--- `M.to_pdf` — die Gegenrichtung von `pdfport.nvim`s "PDF-Seite als Bild"
+--- (siehe docs/ROADMAP/CROSS-PLUGIN.md): ein vorhandenes Bild als PDF neben
+--- der Quelldatei ablegen, z.B. um einen Screenshot an ein Ticket
+--- anzuhängen, das eine PDF erwartet. Kein Cache — anders als SVG-Anzeige
+--- ist das ein einmaliger, expliziter Export, kein wiederholter Zeichenpfad.
 
 local M = {}
 
@@ -52,6 +58,27 @@ function M.to_png(path)
     return nil, "Konvertierung fehlgeschlagen: " .. vim.trim(result.stderr or "")
   end
   if not vim.uv.fs_stat(out) then return nil, "Konvertierung lieferte keine Datei" end
+  return out
+end
+
+--- Bild als PDF exportieren, neben der Quelldatei mit derselben Basis
+--- ("bild.png" → "bild.pdf"). Existiert die Zieldatei bereits, wird sie
+--- überschrieben — dieselbe Haltung wie `:Image paste`/`replace`, die
+--- Zieldateien ebenfalls ohne Rückfrage schreiben; images.nvim fragt bei
+--- Dateioperationen grundsätzlich nicht nach, sondern meldet das Ergebnis.
+---@param path string absoluter Pfad zu einer Bilddatei
+---@return string|nil pdf_path
+---@return string|nil err
+function M.to_pdf(path)
+  if vim.fn.executable("magick") == 0 then return nil, "PDF-Export braucht ImageMagick (`magick` nicht gefunden)" end
+
+  local stat = vim.uv.fs_stat(path)
+  if not stat then return nil, "Datei nicht gefunden: " .. path end
+
+  local out = vim.fn.fnamemodify(path, ":r") .. ".pdf"
+  local result = vim.system({ "magick", path, out }, { text = true }):wait()
+  if result.code ~= 0 then return nil, "Export fehlgeschlagen: " .. vim.trim(result.stderr or "") end
+  if not vim.uv.fs_stat(out) then return nil, "Export lieferte keine Datei" end
   return out
 end
 

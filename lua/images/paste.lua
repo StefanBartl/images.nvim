@@ -315,13 +315,7 @@ end
 ---@param path string|nil nil = Bild unter dem Cursor
 ---@return nil
 function M.replace(path)
-  local file
-  if path then
-    file = require("images.resolve").to_path(path)
-  else
-    local target = require("images.resolve").under_cursor()
-    file = target and target.path
-  end
+  local file = require("images.resolve").path_or_cursor(path)
   if not file then
     notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
     return

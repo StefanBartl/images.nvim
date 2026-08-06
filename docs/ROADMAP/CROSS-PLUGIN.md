@@ -19,7 +19,10 @@ Backend/Renderer-Architektur und Ghostscript ist ohnehin die
 Textextraktions-Abhängigkeit — `gs -sDEVICE=png16m -r150 -dFirstPage=N` liefert
 die Seite, images.nvim zeigt sie. Damit wird aus einem Textextraktor ein
 echter PDF-Betrachter, ohne externes Fenster. Für Support-Dokumentation mit
-PDF-Anhängen der wertvollste Punkt dieser Liste.
+PDF-Anhängen der wertvollste Punkt dieser Liste. Noch offen — die
+Gegenrichtung, ein Bild als PDF exportieren, ist bereits umgesetzt
+(`:Image export`, siehe [README.md → Bereits
+umgesetzt](./README.md#bereits-umgesetzt)).
 
 ### `color_my_ascii.nvim`
 Der umgekehrte Weg: ein Bild **als ASCII-Art** rendern, wenn das Terminal kein
