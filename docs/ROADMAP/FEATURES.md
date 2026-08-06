@@ -7,8 +7,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 
 - **Thumbnail-Leiste** am unteren Rand mit allen Bildern des Buffers, das
   aktive hervorgehoben — `:Image next`/`prev` würde darin wandern.
-- **Animierte GIFs.** WezTerm spielt sie ab; ungeklärt ist, was beim
-  Aufräumen per Repaint passiert.
 
 ## Quellen
 
