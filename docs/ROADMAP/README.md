@@ -30,8 +30,7 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
   unsicherste der drei Implementierungen, siehe Moduldoc
 - Bild ersetzen, Link bleibt (`:Image replace`)
 - Bild als PDF exportieren, neben der Quelldatei (`:Image export`,
-  `images.convert.to_pdf`) — die Gegenrichtung von `pdfport.nvim`s
-  "PDF-Seite als Bild", siehe CROSS-PLUGIN.md; braucht ImageMagick zwingend
+  `images.convert.to_pdf`); braucht ImageMagick zwingend
 - Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
   (`:Image orphans`)
 - Dateisystem-weite Suche mit Live-Vorschau über `snacks.picker`, Soft-Dependency
