@@ -76,18 +76,24 @@ Pixel-Differenzbild wäre der Ausbau davon (braucht ImageMagick, also optional).
 ### `language.nvim`
 OCR auf einem Bild, um Text zu extrahieren und dann zu übersetzen oder zu
 prüfen. Für Screenshots von Fehlermeldungen in fremdsprachigen Systemen ein
-realer Support-Fall. Offene Frage ist die OCR-Abhängigkeit (`tesseract`), die
-unter Windows nicht selbstverständlich ist — nach der Leitplanke also
+realer Support-Fall.
 
-Feedback con mir: Verbesserung, nicht Voraussetzung. tesseract kann ich voraussetzen dass das installiert wird ansonsten fallback chain  oder nicht anbeten des featuresohne es je nachdem!
+**Entschieden:** `tesseract` wird als vorhanden vorausgesetzt (Windows
+eingeschlossen) — Verbesserung, nicht Voraussetzung, dieselbe Haltung wie bei
+ImageMagick sonst im Plugin. Fehlt es, greift eine Fallback-Chain oder das
+Feature wird schlicht nicht angeboten, je nachdem was beim Bauen sinnvoller
+ist — keine offene Frage mehr, nur noch ein Umsetzungsdetail.
 
 ### `runtime-analysis.nvim`
-Flamegraphs als Bild statt als Textbaum. Der Nutzen hängt daran, ob eine
-Flamegraph-Grafik in Terminalzellen noch lesbar ist; bei 60x25 Zellen
-vermutlich nur als grober Überblick, mit Zoom (siehe FEATURES.md) deutlich
-besser.
+Flamegraphs als Bild statt als Textbaum. In 60x25 Terminalzellen vermutlich
+nur ein grober Überblick — aber das Bild landet ohnehin als normale Datei auf
+der Platte und lässt sich im Browser, mit `mdview.nvim` oder jeder anderen
+Bild-App in voller Auflösung ansehen, mit Zoom (siehe FEATURES.md) also
+weiterhin ein echter Mehrwert, nicht nur eine Terminal-Krücke.
 
-Feedback von moir: Das stimt, aner ,an könnte ein normale simage erschafen undd dann im browser bzw mit mdciews.nvim aider  jedem anderen imafe app anseheen -> wäre trotzdem ei n cool er mehrwert. Außerdem i documentation.nvim kömnnte dies imahges aucch gezegt werden! (dort gibt esds bereits einen bereich für daten aus runtime-analysis.nvim)
+**Ergänzt:** dieselbe Grafik gehört auch nach `documentation.nvim` — dort gibt
+es bereits einen Bereich für Daten aus `runtime-analysis.nvim`, der heute nur
+Text zeigt.
 
 ### `github_stats.nvim`
 Statistiken als Diagramm rendern statt als Zahlenkolonne. Setzt einen
@@ -96,38 +102,44 @@ nicht bei der Anzeige.
 
 ### `fileops.nvim`
 Bildoperationen als Dateioperationen: konvertieren, skalieren, optimieren.
-Passt thematisch zu „one command, all operations", braucht aber ImageMagick
-und würde images.nvim nur für die Vorschau des Ergebnisses nutzen.
+Passt thematisch zu „one command, all operations".
 
-Feedback: imagemagick kann vorausgesetz werden ansonsten fallback chain oder disable
+**Entschieden:** ImageMagick wird als vorhanden vorausgesetzt, wie bei
+`tesseract` oben — fehlt es, Fallback-Chain oder Feature deaktivieren.
+
+---
+
+## Verworfen — geprüft, bewusst nicht umgesetzt
 
 ### `sessions.nvim`
-Angeheftete Bilder über einen Sitzungswechsel hinweg erhalten. Klein, aber nur
-sinnvoll, wenn es mehrere gleichzeitig angeheftete Bilder gibt (siehe
-FEATURES.md) — vorher lohnt der Zustand die Speicherung nicht.
+Angeheftete Bilder über einen Sitzungswechsel hinweg erhalten.
 
-Feedback: Entfernen / übersrpingen / nicht umsetzen
+**Entschieden: nicht umsetzen.** Sinnvoll nur, wenn es mehrere gleichzeitig
+angeheftete Bilder gibt — der Zustand lohnt die Speicherung sonst nicht.
+
+### `buffer-ctx.nvim`
+Ein Bildlink als derselbe Einfüge-Vorgang wie Pfade/Module/Zeitstempel/UUIDs.
+
+**Entschieden: nicht umsetzen.** `:Image paste` deckt den Fall bereits ab; ein
+gemeinsamer Einfüge-Mechanismus wäre keine neue Funktion.
+
+### `migrate.nvim`
+Bildvorschau statt Binärmüll in der Telescope-Preview, wenn ein
+Migrationsschritt Bilddateien betrifft.
+
+**Entschieden: nicht umsetzen.** Reiner Randfall.
+
+---
+
+## Offen — braucht einen Testlauf vor der Entscheidung
 
 ### `reposcope.nvim`
 Beim Vorschauen eines GitHub-Repos dessen Social-Preview-Karte oder die
 README-Bilder zeigen. Nett, aber der Nutzen ist gering gegenüber dem
 Netzwerk-Aufwand — braucht zudem Remote-Bilder (siehe FEATURES.md).
 
-Feedback: Testlauf amchen, wie sehr das die snapines mindert
-
-### `buffer-ctx.nvim`
-Fügt Pfade, Module, Zeitstempel und UUIDs ein. Ein Bildlink ist derselbe
-Vorgang mit anderem Inhalt; `:Image paste` deckt es aber bereits ab. Sinnvoll
-wäre höchstens ein gemeinsamer Einfüge-Mechanismus, keine neue Funktion.
-
-Feedback: Entfernen / übersrpingen / nicht umsetzen
-
-### `migrate.nvim`
-Nutzt Telescope-Preview für alles über einzeilige Bereiche hinaus. Wenn ein
-Migrationsschritt Bilddateien betrifft, wäre eine Vorschau statt Binärmüll
-hilfreich — Randfall.
-
-Feedback: Entfernen / übersrpingen / nicht umsetzen
+**Nächster Schritt:** Testlauf, wie stark das die Snappiness von `:Reposcope`
+tatsächlich mindert, bevor gebaut wird — noch keine Entscheidung.
 
 ---
 
@@ -139,8 +151,9 @@ Vollständigkeitshalber, damit die Frage erledigt bleibt:
 `gopath.nvim` (Navigation), `recommender.nvim` (Wiederholungsanalyse),
 `replacer.nvim` (Suchen/Ersetzen), `spotlight.nvim` (Token in Logs),
 `sandbox.nvim` (Container-TUI), `cascade.nvim` (Zeilen-Scan/Scope),
-`lsp.nvim` und `dap.nvim`/`debugging.nvim` (Sprach- und Debug-Werkzeuge),
-`migrate.nvim` über den genannten Randfall hinaus.
+`lsp.nvim` und `dap.nvim`/`debugging.nvim` (Sprach- und Debug-Werkzeuge).
+`migrate.nvim`, `sessions.nvim` und `buffer-ctx.nvim` stehen mit Begründung
+unter "Verworfen" oben.
 
 Bei `dap.nvim`/`debugging.nvim` wäre höchstens denkbar, einen Screenshot des
 Debug-Zustands für einen Fehlerbericht abzulegen — das ist aber `:Image paste`
