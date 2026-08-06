@@ -18,6 +18,12 @@ return {
     max_cols = 60,
     max_rows = 25,
     gallery_gap = 1,
+    -- "overlay" (default) zeichnet über den Text, verschwindet bei
+    -- Cursorbewegung per Repaint — das bewährte Verhalten seit Version 1.
+    -- "float" öffnet stattdessen ein kleines, unfokussiertes Fenster unter
+    -- dem Cursor (siehe images.hover_float). Betrifft nur `:Image show`/
+    -- Hover, nicht die Galerie.
+    hover_mode = "overlay",
     -- Erkennung übergehen: setzen, wenn das Terminal OSC 1337 kann, aber
     -- nicht erkannt wird (`wezterm imgcat` funktioniert, images.nvim warnt
     -- trotzdem). Schaltet nur die Warnung ab, ändert am Zeichnen nichts.

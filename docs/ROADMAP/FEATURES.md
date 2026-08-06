@@ -5,11 +5,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 
 ## Anzeige
 
-- **Im Floating-Window statt über dem Text.** `:Image zen` macht das bereits
-  für die Einzelanzeige (eigener Buffer, `q` schließt). Für die beiläufige
-  Anzeige (`:Image show`/`hover`) bleibt es beim Draw-over-text-Modell, der
-  bei Cursorbewegung verschwindet — ein zweiter Float-Modus dafür wäre die
-  offene Arbeit hier, nicht das Grundprinzip.
 - **Thumbnail-Leiste** am unteren Rand mit allen Bildern des Buffers, das
   aktive hervorgehoben — `:Image next`/`prev` würde darin wandern.
 - **Animierte GIFs.** WezTerm spielt sie ab; ungeklärt ist, was beim

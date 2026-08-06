@@ -40,6 +40,9 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
   (`:Image compare cfile|cwd|path`)
 - Große Einzelanzeige in einem echten, editierbaren Fenster statt eines
   Preview-Floats (`:Image zen`)
+- Floating-Window statt Draw-over-text für `:Image show`/Hover, opt-in
+  (`display.hover_mode = "float"`, `images.hover_float`) — dieselbe
+  Fenster-dann-zeichnen-Technik wie `:Image zen`
 - Anzeige festhalten (`:Image pin`)
 - Statusline-Indikator (`require("images").statusline`)
 - which-key-Gruppe für den `<leader>i`-Präfix, aus den konfigurierten Keys

@@ -79,7 +79,15 @@ with `display.assume_supported = true`; `:Image check` re-runs the detection.
 Inline images in the text flow are not possible on WezTerm: they require
 Unicode placeholders, which only Kitty and Ghostty implement and neither ships
 for Windows. images.nvim draws over the text instead, and clears on the next
-cursor move.
+cursor move — this is `display.hover_mode = "overlay"`, the default.
+
+Setting `display.hover_mode = "float"` shows the same hover/`:Image show`
+image in a small, unfocused floating window under the cursor instead — a
+real window Neovim owns and repaints over, rather than an escape-sequence
+overlay drawn on top of the text. Same lifecycle (closes on the next
+`display.clear_events` event, `:Image pin` holds it), same underlying draw
+call, just a different container. Only affects the single-image path — the
+gallery keeps its own layout either way.
 
 SVG is the one format WezTerm cannot decode at all — everything else
 (PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
@@ -171,6 +179,7 @@ require("images").setup({
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,
     gallery_gap = 1, -- cells between gallery tiles
+    hover_mode = "overlay", -- "float" shows a small window instead of drawing over the text
     assume_supported = false, -- true silences the "unknown terminal" warning
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     browse_exclude = { ".deps", "node_modules" }, -- dirs :Image pickers skips (".git" is always skipped)

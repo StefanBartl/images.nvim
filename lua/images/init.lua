@@ -45,7 +45,11 @@ local function kit()
 end
 
 --- Autocmds registrieren, die ein angezeigtes Bild wieder entfernen.
---- Bei angehefteten Bildern (`M.pin`) passiert nichts.
+--- Bei angehefteten Bildern (`M.pin`) passiert nichts. Schließt ein
+--- offenes Hover-Float (`display.hover_mode = "float"`), sonst den
+--- Standard-Overlay — `M.pin`s Un-Pin-Pfad kennt nur diesen einen
+--- Augroup-Namen und muss deshalb nicht wissen, welcher Modus gerade aktiv
+--- ist.
 ---@return nil
 local function arm_clear()
   if pinned then return end
@@ -55,7 +59,11 @@ local function arm_clear()
     group = vim.api.nvim_create_augroup("images.clear", { clear = true }),
     once = true,
     callback = function()
-      require("images.terminal").clear()
+      if require("images.hover_float").is_open() then
+        require("images.hover_float").close()
+      else
+        require("images.terminal").clear()
+      end
     end,
   })
 end
@@ -103,10 +111,15 @@ function M.show(path)
   end
 
   local display = cfg().display
-  local ok, err = require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
-  if not ok then
-    notify().error(err or "Anzeige fehlgeschlagen")
-    return false
+  if display.hover_mode == "float" then
+    if not require("images.hover_float").open(file) then return false end
+  else
+    local ok, err =
+      require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
+    if not ok then
+      notify().error(err or "Anzeige fehlgeschlagen")
+      return false
+    end
   end
 
   arm_clear()
@@ -448,12 +461,14 @@ function M.pin(on)
   return pinned
 end
 
---- Angezeigte Bilder entfernen, inklusive eines offenen Zen-Fensters.
+--- Angezeigte Bilder entfernen, inklusive eines offenen Zen-Fensters oder
+--- Hover-Floats.
 ---@return nil
 function M.clear()
   pinned = false
   cursor_state = nil
   require("images.zen").close()
+  require("images.hover_float").close()
   require("images.terminal").clear()
 end
 
