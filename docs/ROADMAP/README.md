@@ -19,8 +19,8 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 - Auswahl über das UI-Kit aus lib.nvim, Fallback `vim.ui.select` (`:Image list`)
 - Navigation durch die Bilder eines Buffers (`:Image next` / `prev`)
 - Metadaten via ImageMagick, optional (`:Image info`)
-- Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text-Abfrage
-  (`paste.ask_alt_text`)
+- Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text- und
+  Dateinamen-Abfrage (`paste.ask_alt_text`, `paste.ask_filename`)
 - Bild ersetzen, Link bleibt (`:Image replace`)
 - Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
   (`:Image orphans`)

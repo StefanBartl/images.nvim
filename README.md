@@ -152,6 +152,7 @@ require("images").setup({
     dir = "assets",              -- "" puts the file next to the document
     name_template = "%s-%d.png", -- document stem, timestamp
     link_template = "![](%s)",
+    ask_filename = false,        -- true prompts for a name, prefilled with the template
   },
   keymaps = {
     show = "<leader>im",  -- every entry accepts false to disable it
@@ -170,6 +171,14 @@ require("images").setup({
 `![](path)`. Cancelling the prompt still inserts the link, just without alt
 text — the file is already on disk by then, and a lost link would be the
 worse surprise.
+
+`paste.ask_filename = true` prompts for a filename before writing the
+clipboard image, prefilled with what `paste.name_template` would have
+produced. Any path component in the answer is dropped — only the name
+itself is used — and the extension is always forced to `.png`, since that is
+what gets written regardless of what you type. Cancelling here does nothing
+at all: unlike the alt-text prompt, nothing has been read from the clipboard
+yet at this point, so cancel means cancel.
 
 A statusline segment:
 

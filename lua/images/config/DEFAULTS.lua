@@ -37,6 +37,11 @@ return {
     -- Tastendruck → fertig, ohne Unterbrechung.
     ask_alt_text = false,
     alt_link_template = "![%s](%s)",
+    -- true fragt vor dem Einfügen nach einem Dateinamen, vorbelegt mit dem
+    -- Template-Namen; ein eingegebener Pfadanteil wird verworfen, die Endung
+    -- immer auf .png erzwungen (siehe images.paste.sanitize_filename).
+    -- Default false aus demselben Grund wie ask_alt_text.
+    ask_filename = false,
   },
 
   keymaps = {

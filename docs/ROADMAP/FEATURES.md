@@ -38,8 +38,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 - **Screenshot direkt auslösen** statt die Zwischenablage zu lesen
   (Windows: Snipping Tool, Linux: `grim`/`maim`, macOS: `screencapture`).
   Für Support-Dokumentation der eigentliche Alltagsfall: ein Schritt statt drei.
-- **Dateinamen erfragen** statt des Zeitstempel-Templates, mit dem Template
-  als Vorbelegung.
 - **Zuschneiden und Annotieren** (Pfeile, Kästen, Unkenntlichmachung) direkt
   nach dem Einfügen. Für Screenshots aus Support-Fällen wäre das
   Unkenntlichmachen von Kundendaten der wichtigste Teil.

@@ -27,6 +27,7 @@
 ---@field link_template string Einzufügender Text ohne Alt-Text; %s = relativer Pfad
 ---@field ask_alt_text boolean Vor dem Einfügen nach einem Alt-Text fragen
 ---@field alt_link_template string Einzufügender Text mit Alt-Text; %s %s = Alt-Text, relativer Pfad
+---@field ask_filename boolean Vor dem Einfügen nach einem Dateinamen fragen (Endung immer .png)
 
 --- Jeder Keymap-Eintrag akzeptiert `false` zum Abschalten.
 ---@class ImagesNvim.KeymapConfig
