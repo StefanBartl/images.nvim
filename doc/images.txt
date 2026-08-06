@@ -505,7 +505,10 @@ images.setup({opts})                                          *images.setup()*
 8. INTEGRATIONS                                          *images-integrations*
 
 markdown.nvim   Used for link resolution when present, via a `pcall`. Falls
-                back to an internal resolver, so it is never required.
+                back to an internal resolver, so it is never required. Also a
+                consumer of |images.browse()|'s `draw_in_window()`: its `mi`
+                image handler and (with snacks.picker) `:Markdown links show`
+                both use it for their own in-Neovim previews.
 
 snacks.nvim     Its picker is used by `:Image pickers`/`:Image compare` for a
                 live image thumbnail per entry, via a custom preview function
