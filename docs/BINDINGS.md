@@ -20,7 +20,7 @@ completion and this table all come from the same spec.
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
-| `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view them side by side |
+| `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
 | `:Image zen [path]` | — | Show one image full-screen in a real editable window |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | — | Report whether this terminal can display images |

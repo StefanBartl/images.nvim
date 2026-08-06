@@ -41,10 +41,15 @@ der dem echten Inline-Rendering am nächsten kommt, ohne Unicode-Placeholders zu
 brauchen — weil mdview die Zeilenpositionen seiner Ausgabe selbst kennt.
 
 ### `pickers.nvim`
-Bildvorschau im Preview-Pane. Der Picker kennt die Fensterposition seines
-Vorschaubereichs, images.nvim braucht genau die — die Schnittstelle wäre ein
-`draw(file, row, col, cols, rows)`, das es bereits gibt. Gilt für alle drei
-Engines (telescope, fzf-lua, snacks), sofern sie die Position herausgeben.
+**Geprüft und bewusst nicht so gebaut.** `:Image pickers`/`:Image compare`
+binden stattdessen direkt an `snacks.picker` (Soft-Dependency, siehe
+`images.browse`s Moduldoc): `pickers.nvim`s Engine-Abstraktion vereinheitlicht
+telescope/fzf-lua/snacks, hat aber keinen engine-übergreifenden Weg, eine
+eigene Live-Vorschau über alle drei zu legen — nur snacks erlaubt eine
+custom `preview`-Funktion pro Picker, und genau die Live-Vorschau ist der
+Punkt des Features. Ohne snacks fällt `images.browse` auf eine einfache
+Auswahl ohne Vorschau zurück, statt über `pickers.nvim` eine Vorschau
+vorzutäuschen, die es dort nicht geben kann.
 
 ### `insights.nvim`
 Projektanalyse erzeugt Graphen — Abhängigkeiten, Aufrufbäume, Symbolverteilung.

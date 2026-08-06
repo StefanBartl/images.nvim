@@ -11,16 +11,35 @@ Priorisierung.
 
 ## Bereits umgesetzt
 
-Damit die Listen unten nicht mit Erledigtem vermischt werden:
+Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 
 - Anzeige über OSC 1337 mit Cursor-Positionierung (`:Image`, `:Image show`)
-- Galerie mehrerer Bilder im Raster (`:Image gallery [columns]`)
+- Galerie mehrerer Bilder im Raster (`:Image gallery [columns]`), auch über
+  einen Range (`:'<,'>Image`, `:'<,'>Image gallery`)
 - Auswahl über das UI-Kit aus lib.nvim, Fallback `vim.ui.select` (`:Image list`)
 - Navigation durch die Bilder eines Buffers (`:Image next` / `prev`)
 - Metadaten via ImageMagick, optional (`:Image info`)
-- Zwischenablage → Datei + Link (`:Image paste`)
+- Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text-Abfrage
+  (`paste.ask_alt_text`)
+- Bild ersetzen, Link bleibt (`:Image replace`)
+- Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
+  (`:Image orphans`)
+- Dateisystem-weite Suche mit Live-Vorschau über `snacks.picker`, Soft-Dependency
+  (`:Image pickers cfile|cwd|path`)
+- Vergleichsmodus mit echter relativer Skalierung: kennt `images.info` beide
+  Pixelmaße (ImageMagick), bekommt das kleinere Bild eine proportional
+  kleinere, zentrierte Box statt seine Pane zu füllen — siehe `images.scale`
+  und `lib.nvim.ui.kit.compare`'s `on_compare`-Hook, der dafür ergänzt wurde
+  (`:Image compare cfile|cwd|path`)
+- Große Einzelanzeige in einem echten, editierbaren Fenster statt eines
+  Preview-Floats (`:Image zen`)
 - Anzeige festhalten (`:Image pin`)
+- Statusline-Indikator (`require("images").statusline`)
+- which-key-Gruppe für den `<leader>i`-Präfix, aus den konfigurierten Keys
+  hergeleitet
 - Doppelklick auf einen Markdown-Link
+- Terminal-Fähigkeitsprüfung mit einmaliger Warnung, nie hartem Abbruch
+  (`:Image check`, `display.assume_supported`)
 - Backend in `filetree.nvim`, Handler `:Open image` in `open.nvim`
 
 ## Leitplanken

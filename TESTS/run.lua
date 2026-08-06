@@ -73,6 +73,7 @@ local specs = {
   "usrcmds_spec.lua",
   "browse_spec.lua",
   "zen_spec.lua",
+  "scale_spec.lua",
 }
 
 local failed = 0
