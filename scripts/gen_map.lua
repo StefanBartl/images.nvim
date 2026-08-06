@@ -25,9 +25,7 @@ vim.opt.runtimepath:prepend(root)
 ---@param modname string A module the dependency provides, used as the probe.
 ---@param dirname string Repository directory name.
 local function ensure(modname, dirname)
-  if pcall(require, modname) then
-    return
-  end
+  if pcall(require, modname) then return end
   -- Built with explicit indices, not a `{a, b, c}` literal fed to `ipairs`:
   -- the environment-variable candidate is `nil` whenever it is unset — the
   -- normal case for CI, which relies on the `.deps/<dirname>` candidate
@@ -37,25 +35,18 @@ local function ensure(modname, dirname)
   -- directory actually exists.
   local candidates = {}
   local env_dir = vim.env[dirname:upper():gsub("[.-]", "_") .. "_DIR"]
-  if env_dir and env_dir ~= "" then
-    candidates[#candidates + 1] = env_dir
-  end
+  if env_dir and env_dir ~= "" then candidates[#candidates + 1] = env_dir end
   candidates[#candidates + 1] = root .. "/.deps/" .. dirname
   candidates[#candidates + 1] = vim.fs.dirname(root) .. "/" .. dirname
   for _, dir in ipairs(candidates) do
     if vim.fn.isdirectory(dir) == 1 then
       vim.opt.runtimepath:prepend(dir)
-      if pcall(require, modname) then
-        return
-      end
+      if pcall(require, modname) then return end
     end
   end
   io.stderr:write(("gen_map: %s not found (probed require('%s')).\n"):format(dirname, modname))
   io.stderr:write(
-    ("  Set %s_DIR, clone it to .deps/%s, or check it out beside this repo.\n"):format(
-      dirname:upper():gsub("[.-]", "_"),
-      dirname
-    )
+    ("  Set %s_DIR, clone it to .deps/%s, or check it out beside this repo.\n"):format(dirname:upper():gsub("[.-]", "_"), dirname)
   )
   os.exit(1)
 end

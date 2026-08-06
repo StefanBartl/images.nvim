@@ -45,9 +45,7 @@ function M.open(scope, arg)
   ---@param item string absoluter Pfad
   ---@param surface Lib.UI.Kit.Surface
   local function render(item, surface)
-    if not browse.draw_in_window(item, surface.winid) then
-      pcall(surface.set_title, surface, "(kann nicht gezeichnet werden)")
-    end
+    if not browse.draw_in_window(item, surface.winid) then pcall(surface.set_title, surface, "(kann nicht gezeichnet werden)") end
   end
 
   require("lib.nvim.ui.kit").compare({

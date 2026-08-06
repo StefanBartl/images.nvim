@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: stylua --check
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          version: latest
+          args: --check lua/ plugin/ scripts/ TESTS/
       - name: Install luacheck
         run: sudo apt-get update && sudo apt-get install -y lua5.1 luarocks && sudo luarocks install luacheck
       - run: luacheck lua/ plugin/ scripts/ TESTS/ --globals vim

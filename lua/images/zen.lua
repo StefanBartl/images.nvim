@@ -35,17 +35,13 @@ local winid = nil
 ---@param file string
 ---@return nil
 local function redraw(file)
-  if not winid or not vim.api.nvim_win_is_valid(winid) then
-    return
-  end
+  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
   require("images.terminal").clear()
   local ok, err = require("images.terminal").draw(file, pos[1] + 1, pos[2] + 1, width, height)
-  if not ok then
-    notify().error(err or "Anzeige fehlgeschlagen")
-  end
+  if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
 end
 
 --- Fenstergröße aus der Config-Anteilsangabe berechnen. Reine Funktion (kein
@@ -70,9 +66,7 @@ end
 --- Zen-Fenster aktiv schließen (No-op, wenn keines offen ist).
 ---@return nil
 function M.close()
-  if winid and vim.api.nvim_win_is_valid(winid) then
-    pcall(vim.api.nvim_win_close, winid, true)
-  end
+  if winid and vim.api.nvim_win_is_valid(winid) then pcall(vim.api.nvim_win_close, winid, true) end
   if winid then
     winid = nil
     require("images.terminal").clear()

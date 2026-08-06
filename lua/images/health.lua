@@ -32,9 +32,7 @@ local function check_terminal()
     })
   end
 
-  if cap.hint and cap.ok then
-    vim.health.warn(cap.hint)
-  end
+  if cap.hint and cap.ok then vim.health.warn(cap.hint) end
 end
 
 ---@return nil

@@ -58,23 +58,17 @@ local function walk(root, exclude, extensions)
     if handle then
       while true do
         local name, kind = vim.uv.fs_scandir_next(handle)
-        if not name then
-          break
-        end
+        if not name then break end
         visited = visited + 1
         if visited > MAX_ENTRIES then
           table.sort(found)
           return found
         end
         if kind == "directory" then
-          if not exclude_set[name] then
-            stack[#stack + 1] = dir .. "/" .. name
-          end
+          if not exclude_set[name] then stack[#stack + 1] = dir .. "/" .. name end
         elseif kind == "file" then
           local ext = name:match("%.([%w]+)$")
-          if ext and ext_set[ext:lower()] then
-            found[#found + 1] = dir .. "/" .. name
-          end
+          if ext and ext_set[ext:lower()] then found[#found + 1] = dir .. "/" .. name end
         end
       end
     end
@@ -105,27 +99,19 @@ function M.roots(scope, arg)
   local resolve = require("images.resolve")
 
   if scope == "path" then
-    if not arg or arg == "" then
-      return nil, "`path`-Scope braucht ein Verzeichnis: :Image pickers path <dir>"
-    end
+    if not arg or arg == "" then return nil, "`path`-Scope braucht ein Verzeichnis: :Image pickers path <dir>" end
     local expanded = vim.fn.fnamemodify(vim.fn.expand(arg), ":p")
-    if vim.fn.isdirectory(expanded) == 0 then
-      return nil, "Kein Verzeichnis: " .. arg
-    end
+    if vim.fn.isdirectory(expanded) == 0 then return nil, "Kein Verzeichnis: " .. arg end
     return resolve.normalize_path(expanded)
   end
 
   if scope == "cfile" then
     local name = vim.api.nvim_buf_get_name(0)
-    if name == "" then
-      return nil, "Aktueller Buffer hat keinen Dateipfad"
-    end
+    if name == "" then return nil, "Aktueller Buffer hat keinen Dateipfad" end
     return resolve.normalize_path(vim.fn.fnamemodify(name, ":p:h"))
   end
 
-  if scope == "cwd" then
-    return resolve.normalize_path(vim.uv.cwd() or vim.fn.getcwd())
-  end
+  if scope == "cwd" then return resolve.normalize_path(vim.uv.cwd() or vim.fn.getcwd()) end
 
   return nil, "Unbekannter Scope: " .. tostring(scope) .. " (erwartet cfile|cwd|path)"
 end
@@ -154,9 +140,7 @@ end
 ---@param winid integer
 ---@return boolean ok
 local function draw_in_window(file, winid)
-  if not vim.api.nvim_win_is_valid(winid) then
-    return false
-  end
+  if not vim.api.nvim_win_is_valid(winid) then return false end
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
@@ -188,9 +172,7 @@ local function open_snacks(root, files)
     format = "file",
     preview = function(ctx)
       ctx.preview:reset()
-      if not draw_in_window(ctx.item.file, ctx.win) then
-        ctx.preview:notify("Bild kann hier nicht gezeichnet werden", "warn")
-      end
+      if not draw_in_window(ctx.item.file, ctx.win) then ctx.preview:notify("Bild kann hier nicht gezeichnet werden", "warn") end
     end,
     -- `<Tab>` ist snacks' eigene Multi-Select-Taste (nicht von images.nvim
     -- verdrahtet). `picker:selected({fallback=true})` liefert die markierten
@@ -229,9 +211,7 @@ local function open_select(root, files)
   end
 
   local function on_pick(choice)
-    if choice then
-      require("images").show(choice)
-    end
+    if choice then require("images").show(choice) end
   end
 
   local ok, kit = pcall(require, "lib.nvim.ui.kit")

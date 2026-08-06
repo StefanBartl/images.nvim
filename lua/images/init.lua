@@ -48,13 +48,9 @@ end
 --- Bei angehefteten Bildern (`M.pin`) passiert nichts.
 ---@return nil
 local function arm_clear()
-  if pinned then
-    return
-  end
+  if pinned then return end
   local events = cfg().display.clear_events
-  if not events or #events == 0 then
-    return
-  end
+  if not events or #events == 0 then return end
   vim.api.nvim_create_autocmd(events, {
     group = vim.api.nvim_create_augroup("images.clear", { clear = true }),
     once = true,
@@ -96,13 +92,7 @@ function M.show(path)
   end
 
   local display = cfg().display
-  local ok, err = require("images.terminal").draw(
-    file,
-    row_below_cursor(display.max_rows),
-    1,
-    display.max_cols,
-    display.max_rows
-  )
+  local ok, err = require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
   if not ok then
     notify().error(err or "Anzeige fehlgeschlagen")
     return false
@@ -167,9 +157,7 @@ function M.gallery(paths, columns)
     return false
   end
 
-  if skipped > 0 or #errors > 0 then
-    notify().warn(("%d von %d Bildern nicht gezeigt"):format(skipped + #errors, #paths))
-  end
+  if skipped > 0 or #errors > 0 then notify().warn(("%d von %d Bildern nicht gezeigt"):format(skipped + #errors, #paths)) end
 
   arm_clear()
   return true
@@ -203,9 +191,7 @@ end
 function M.list(first, last)
   local found, missing = require("images.scan").buffer(0, first, last)
 
-  if #missing > 0 then
-    notify().warn(("%d Bildlink(s) nicht auflösbar, z.B. %s"):format(#missing, missing[1]))
-  end
+  if #missing > 0 then notify().warn(("%d Bildlink(s) nicht auflösbar, z.B. %s"):format(#missing, missing[1])) end
   if #found == 0 then
     notify().info("Keine Bilder in diesem Buffer")
     return
@@ -227,18 +213,14 @@ function M.list(first, last)
       title = "Bilder in diesem Buffer",
       format_item = format_item,
       on_select = function(choice)
-        if choice then
-          M.show(choice.path)
-        end
+        if choice then M.show(choice.path) end
       end,
     })
     return
   end
 
   vim.ui.select(found, { prompt = "Bild anzeigen", format_item = format_item }, function(choice)
-    if choice then
-      M.show(choice.path)
-    end
+    if choice then M.show(choice.path) end
   end)
 end
 
@@ -263,13 +245,9 @@ function M.step(delta)
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
     index = 1
     for i, t in ipairs(found) do
-      if t.lnum <= lnum then
-        index = i
-      end
+      if t.lnum <= lnum then index = i end
     end
-    if delta > 0 and found[index] and found[index].lnum <= lnum then
-      index = index + delta
-    end
+    if delta > 0 and found[index] and found[index].lnum <= lnum then index = index + delta end
   end
 
   -- Umlaufen statt an den Enden anzustoßen.
@@ -351,15 +329,11 @@ function M.orphans()
 
   ---@param choice Images.Orphan|nil
   local function on_pick(choice)
-    if not choice then
-      return
-    end
+    if not choice then return end
 
     ---@param confirmed boolean
     local function delete_if_confirmed(confirmed)
-      if not confirmed then
-        return
-      end
+      if not confirmed then return end
       local ok = pcall(vim.uv.fs_unlink, choice.path)
       if ok then
         notify().info("Gelöscht: " .. choice.rel)
@@ -426,13 +400,9 @@ end
 ---@return string
 function M.statusline(opts)
   opts = opts or {}
-  if not require("images.terminal").is_showing() then
-    return ""
-  end
+  if not require("images.terminal").is_showing() then return "" end
   local icon = opts.icon or "🖼"
-  if pinned then
-    return icon .. (opts.pinned_suffix or "📌")
-  end
+  if pinned then return icon .. (opts.pinned_suffix or "📌") end
   return icon
 end
 

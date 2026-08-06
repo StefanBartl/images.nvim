@@ -56,9 +56,7 @@ local function clipboard_to_file(out)
     }, " ")
     cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
   elseif vim.fn.has("mac") == 1 then
-    if vim.fn.executable("pngpaste") == 0 then
-      return false, "`pngpaste` nicht gefunden (brew install pngpaste)"
-    end
+    if vim.fn.executable("pngpaste") == 0 then return false, "`pngpaste` nicht gefunden (brew install pngpaste)" end
     cmd = { "pngpaste", out }
   else
     if vim.fn.executable("wl-paste") == 1 then
@@ -71,12 +69,9 @@ local function clipboard_to_file(out)
   end
 
   local result = vim.system(cmd, { text = true }):wait()
-  if result.code == 3 then
-    return false, "Kein Bild in der Zwischenablage"
-  end
+  if result.code == 3 then return false, "Kein Bild in der Zwischenablage" end
   if result.code ~= 0 then
-    return false, ("Zwischenablage konnte nicht gelesen werden (exit %d): %s")
-      :format(result.code, vim.trim(result.stderr or ""))
+    return false, ("Zwischenablage konnte nicht gelesen werden (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
   end
 
   local stat = vim.uv.fs_stat(out)
@@ -94,9 +89,7 @@ end
 ---@return string|nil err
 local function target_paths(buf)
   local name = vim.api.nvim_buf_get_name(buf)
-  if name == "" then
-    return nil, nil, "Buffer hat keinen Dateinamen — bitte zuerst speichern"
-  end
+  if name == "" then return nil, nil, "Buffer hat keinen Dateinamen — bitte zuerst speichern" end
 
   local c = cfg().paste
   local doc_dir = vim.fn.fnamemodify(name, ":p:h")
@@ -106,9 +99,7 @@ local function target_paths(buf)
   local dir = (sub ~= "") and (doc_dir .. "/" .. sub) or doc_dir
   if vim.fn.isdirectory(dir) == 0 then
     local ok = pcall(vim.fn.mkdir, dir, "p")
-    if not ok then
-      return nil, nil, "Verzeichnis konnte nicht angelegt werden: " .. dir
-    end
+    if not ok then return nil, nil, "Verzeichnis konnte nicht angelegt werden: " .. dir end
   end
 
   local file = c.name_template:format(doc_stem, os.time())
