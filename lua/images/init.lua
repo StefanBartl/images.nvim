@@ -80,12 +80,23 @@ end
 -- ── Anzeige ──────────────────────────────────────────────────────────────────
 
 --- Eine Bilddatei anzeigen.
----@param path string Absoluter oder relativer Pfad
+---@param path string Absoluter/relativer Pfad, oder eine http(s)-URL
 ---@return boolean ok
 function M.show(path)
   guard_capability()
 
-  local file = require("images.resolve").to_path(path)
+  local file
+  if require("images.remote").is_remote(path) then
+    local fetched, remote_err = require("images.remote").fetch(path)
+    if not fetched then
+      notify().error(remote_err or "Remote-Bild konnte nicht geladen werden")
+      return false
+    end
+    file = fetched
+  else
+    file = require("images.resolve").to_path(path)
+  end
+
   if not file then
     notify().error("Bild nicht gefunden: " .. tostring(path))
     return false

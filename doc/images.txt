@@ -38,6 +38,10 @@ deliberately the only place ImageMagick is a requirement instead of an
 improvement. Without it, opening an .svg reports a clear error rather than
 failing silently.
 
+Remote images (http://…, https://…) are supported by |:Image| show and by
+hovering a markdown link, but off by default — see |images-remote-config|.
+`:Image gallery`/`compare`/`pickers`/`zen` do not resolve remote images yet.
+
 ==============================================================================
 2. REQUIREMENTS                                          *images-requirements*
 
@@ -82,7 +86,8 @@ Calling |images.setup()| is optional when using `opts`.
                         in that range instead.
 
 :Image show [{path}]    Show {path}. Without an argument, behaves like the
-                        bare `:Image`.
+                        bare `:Image`. {path} may be an http(s) URL if
+                        `display.remote.enabled` is true.
 
 :Image list             Collect every image link in the buffer and offer them
                         in a picker (lib.nvim's UI kit when available, else
@@ -210,6 +215,11 @@ under the same key).
         },
         browse_exclude = { ".deps", "node_modules" },
         zen = { width = 0.9, height = 0.85 },
+        remote = {
+          enabled = false,
+          timeout_ms = 10000,
+          max_bytes = 20 * 1024 * 1024,
+        },
       },
       paste = {
         dir = "assets",
@@ -217,6 +227,7 @@ under the same key).
         link_template = "![](%s)",
         ask_alt_text = false,
         alt_link_template = "![%s](%s)",
+        ask_filename = false,
       },
       keymaps = {
         show = "<leader>im",
@@ -254,6 +265,20 @@ detection is a heuristic, and a false negative would break a working setup.
 Set `display.assume_supported = true` to silence the warning on a terminal
 that works but is not on the list. `:Image check` re-runs the detection.
 
+                                                        *images-remote-config*
+`display.remote.enabled` (default false) allows |:Image| show and hover to
+download an http(s) image before drawing it. Off by default: opening a
+document should not silently make a network request just because it
+contains an image link, the same reasoning email clients apply to "load
+remote images". `display.remote.timeout_ms` and `.max_bytes` bound the
+download; results are cached by URL under
+`stdpath("cache")/images.nvim/remote`. Uses `curl` if found, else `wget`;
+neither present is reported as an error, not a silent no-op.
+
+Only the single-image path resolves remote images — `:Image gallery`,
+`compare`, `pickers` and `zen` do not (yet); a remote link inside a buffer is
+simply not found when those scan for images.
+
                                                          *images-paste-config*
 `paste.dir` is relative to the document; an empty string writes the file next
 to it. `paste.name_template` receives the document stem and a timestamp,
@@ -278,7 +303,9 @@ nothing: nothing has been read from the clipboard yet at this point.
 
 images.show({path})                                            *images.show()*
                 Show the image at {path}. Relative paths are resolved against
-                the buffer directory and the working directory.
+                the buffer directory and the working directory. {path} may
+                be an http(s) URL if `display.remote.enabled` is true; see
+                |images-remote-config|.
                 Returns boolean.
 
 images.hover()                                                *images.hover()*
@@ -399,5 +426,14 @@ The image does not disappear ~
 An .svg says "ImageMagick (`magick` not found)" ~
     Install ImageMagick and make sure `magick` is on PATH — WezTerm cannot
     decode SVG itself, so there is no fallback for this one format.
+
+A URL says "Remote-Bilder sind deaktiviert" ~
+    Expected: `display.remote.enabled` defaults to false, on purpose (see
+    |images-remote-config|). Set it to true to allow the download.
+
+`:Image gallery`/`compare` silently skip a remote link ~
+    Expected for now — only |images.show()|/hover resolve remote images.
+    A link with a URL target is treated the same as any other unresolvable
+    link by the scanning commands.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

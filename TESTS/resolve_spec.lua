@@ -1,8 +1,9 @@
 -- TESTS/resolve_spec.lua — Link-Erkennung und Endungsprüfung.
 --
--- Nur die reinen Anteile: `links_in_line` und `is_image` brauchen weder
--- Dateisystem noch Buffer. `to_path` und `under_cursor` greifen auf beides zu
--- und sind hier bewusst nicht abgedeckt.
+-- Vor allem die reinen Anteile: `links_in_line` und `is_image` brauchen weder
+-- Dateisystem noch Buffer. `to_path`s lokale Auflösung ist hier bewusst nicht
+-- abgedeckt (braucht ein echtes Dateisystem); `under_cursor`s Remote-Zweig
+-- am Ende ist es, weil genau der sich mit `images.remote` geändert hat.
 
 ---@param H table Harness aus TESTS/run.lua
 return function(H)
@@ -47,4 +48,18 @@ return function(H)
   links = resolve.links_in_line("![a [b] c](d.png)")
   H.eq(#links, 1, "Klammern im Alt-Text brechen die Erkennung nicht")
   H.eq(links[1].target, "d.png", "…und das Ziel stimmt trotzdem")
+
+  -- ── under_cursor: Remote-Link liefert die URL selbst, ohne Netzwerkzugriff ──
+  -- Der einzige Teil von under_cursor, der hier abgedeckt wird (siehe Kopf-
+  -- kommentar) — weil es die eine Stelle ist, an der sich das Verhalten für
+  -- images.remote geändert hat: ein Remote-Ziel wird durchgereicht statt wie
+  -- jeder andere unauflösbare Pfad als "nicht gefunden" verworfen.
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "![remote](https://example.com/foto.jpg)" })
+  vim.api.nvim_set_current_buf(buf)
+  vim.api.nvim_win_set_cursor(0, { 1, 5 })
+  local target, err = resolve.under_cursor()
+  H.ok(target ~= nil, "Remote-Link wird als Ziel erkannt: " .. tostring(err))
+  H.eq(target and target.path, "https://example.com/foto.jpg", "path ist die URL selbst, nicht nil")
+  pcall(vim.api.nvim_buf_delete, buf, { force = true })
 end

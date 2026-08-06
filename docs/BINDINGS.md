@@ -10,7 +10,7 @@ completion and this table all come from the same spec.
 | Command | Range | Description |
 | --- | --- | --- |
 | `:Image` | yes | Show the image under the cursor; with a range, gallery of that range |
-| `:Image show [path]` | — | Show `path`; without an argument, the image under the cursor |
+| `:Image show [path]` | — | Show `path` (or a URL if `display.remote.enabled`); without an argument, the image under the cursor |
 | `:Image list` | yes | Pick from the image links of the buffer (or the range) |
 | `:Image gallery [cols]` | yes | Show every image of the buffer (or the range) side by side |
 | `:Image next` | — | Jump to the next image of the buffer and show it |

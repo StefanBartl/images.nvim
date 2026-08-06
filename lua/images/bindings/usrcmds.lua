@@ -16,6 +16,25 @@ local M = {}
 
 local composer = require("lib.nvim.usercmd.composer")
 
+-- Wie das eingebaute FILE (lesbare Datei, <Tab>-Dateivervollständigung),
+-- aber zusätzlich eine http(s)-URL zulassend — für `:Image show <url>` bei
+-- aktiviertem `display.remote.enabled`. Ob Remote-Bilder tatsächlich
+-- geladen werden, entscheidet `images.remote` zur Laufzeit; hier geht es nur
+-- darum, dass eine URL das Argument überhaupt passiert statt an der
+-- Validierung als "keine lesbare Datei" abgewiesen zu werden.
+composer.register_type("IMAGE_TARGET", {
+  validate = function(raw)
+    if require("images.remote").is_remote(raw) then return true, raw, nil end
+    local expanded = vim.fn.expand(raw)
+    local p = vim.fn.fnamemodify(expanded, ":p")
+    if vim.fn.filereadable(p) ~= 1 then return false, nil, ("'%s' is not a readable file or URL"):format(raw) end
+    return true, expanded, nil
+  end,
+  complete = function(arg_lead)
+    return vim.fn.getcompletion(arg_lead, "file")
+  end,
+})
+
 --- Ob `ctx.range` einen tatsächlich angegebenen Bereich trägt.
 ---@param ctx table
 ---@return boolean
@@ -46,8 +65,8 @@ function M.register(cfg)
     routes = {
       {
         path = { "show" },
-        args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Bild anzeigen (ohne Pfad: das unter dem Cursor)",
+        args = { { name = "path", type = "IMAGE_TARGET", optional = true } },
+        desc = "Bild anzeigen (ohne Pfad: das unter dem Cursor); auch eine http(s)-URL bei display.remote.enabled",
         run = function(ctx)
           local images = require("images")
           if ctx.args.path then
