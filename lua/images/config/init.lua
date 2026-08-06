@@ -19,9 +19,7 @@ end
 --- gelaufen ist — so bleibt die Lua-API auch ohne Setup benutzbar.
 ---@return ImagesNvim.Config
 function M.get()
-  if not current then
-    return M.setup(nil)
-  end
+  if not current then return M.setup(nil) end
   return current
 end
 

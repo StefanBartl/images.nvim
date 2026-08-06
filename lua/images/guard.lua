@@ -37,9 +37,7 @@ function M.check()
     return
   end
 
-  if warned then
-    return
-  end
+  if warned then return end
   warned = true
   notify().warn(table.concat({ cap.reason or "Terminal kann vermutlich keine Bilder", cap.hint }, "\n"))
 end

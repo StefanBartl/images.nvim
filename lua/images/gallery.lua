@@ -22,9 +22,7 @@ local M = {}
 ---@param count integer
 ---@return integer
 local function auto_columns(count)
-  if count <= 1 then
-    return 1
-  end
+  if count <= 1 then return 1 end
   local cols = math.ceil(math.sqrt(count))
   return math.max(1, math.min(cols, 4))
 end
@@ -37,9 +35,7 @@ end
 function M.layout(files, opts)
   local placements = {}
   local count = #files
-  if count == 0 then
-    return placements, 0
-  end
+  if count == 0 then return placements, 0 end
 
   local columns = opts.columns or auto_columns(count)
   columns = math.max(1, math.min(columns, count))
@@ -52,9 +48,7 @@ function M.layout(files, opts)
 
   -- Unter dieser Größe ist eine Kachel nicht mehr aussagekräftig; dann lieber
   -- weniger Bilder zeigen als alle unlesbar.
-  if tile_w < 8 or tile_h < 4 then
-    return placements, count
-  end
+  if tile_w < 8 or tile_h < 4 then return placements, count end
 
   local skipped = 0
   for i, file in ipairs(files) do

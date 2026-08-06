@@ -25,9 +25,7 @@ function M.human_size(bytes)
     value = value / 1024
     unit = unit + 1
   end
-  if unit == 1 then
-    return ("%d %s"):format(value, units[unit])
-  end
+  if unit == 1 then return ("%d %s"):format(value, units[unit]) end
   return ("%.1f %s"):format(value, units[unit])
 end
 
@@ -37,9 +35,7 @@ end
 ---@return string|nil err
 function M.collect(path)
   local stat = vim.uv.fs_stat(path)
-  if not stat then
-    return nil, "Datei nicht gefunden: " .. path
-  end
+  if not stat then return nil, "Datei nicht gefunden: " .. path end
 
   ---@type Images.Info
   local info = {
@@ -77,9 +73,7 @@ function M.lines(info)
   elseif vim.fn.executable("magick") == 0 then
     out[#out + 1] = "Format:  (ImageMagick nicht installiert)"
   end
-  if info.mtime > 0 then
-    out[#out + 1] = "Geändert: " .. os.date("%Y-%m-%d %H:%M", info.mtime)
-  end
+  if info.mtime > 0 then out[#out + 1] = "Geändert: " .. os.date("%Y-%m-%d %H:%M", info.mtime) end
   return out
 end
 

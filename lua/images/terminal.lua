@@ -91,9 +91,7 @@ local KNOWN = {
 ---@param force boolean|nil Erkennung übergehen und Unterstützung annehmen
 ---@return Images.Capability
 function M.capability(force)
-  if capability then
-    return capability
-  end
+  if capability then return capability end
 
   if not M.available() then
     capability = {
@@ -147,18 +145,12 @@ end
 ---@return string|nil data
 ---@return string|nil err
 local function read_file(file)
-  if type(file) ~= "string" or file == "" then
-    return nil, "Kein Dateipfad angegeben"
-  end
+  if type(file) ~= "string" or file == "" then return nil, "Kein Dateipfad angegeben" end
   local fd, open_err = io.open(file, "rb")
-  if not fd then
-    return nil, ("Datei nicht lesbar: %s (%s)"):format(file, open_err or "?")
-  end
+  if not fd then return nil, ("Datei nicht lesbar: %s (%s)"):format(file, open_err or "?") end
   local raw = fd:read("*a")
   fd:close()
-  if not raw or raw == "" then
-    return nil, "Datei ist leer: " .. file
-  end
+  if not raw or raw == "" then return nil, "Datei ist leer: " .. file end
   return raw
 end
 
@@ -192,14 +184,10 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.draw(file, row, col, cols, rows)
-  if not M.available() then
-    return false, "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)"
-  end
+  if not M.available() then return false, "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)" end
 
   local raw, err = read_file(file)
-  if not raw then
-    return false, err
-  end
+  if not raw then return false, err end
 
   local send = vim.api.nvim_ui_send
   send(ESC .. "[s")
@@ -225,9 +213,7 @@ end
 ---@return integer drawn Anzahl tatsächlich gezeichneter Bilder
 ---@return string[] errors Fehlermeldungen der übersprungenen Bilder
 function M.draw_many(placements)
-  if not M.available() then
-    return 0, { "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt)" }
-  end
+  if not M.available() then return 0, { "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt)" } end
 
   local send = vim.api.nvim_ui_send
   local drawn, errors = 0, {}
@@ -245,9 +231,7 @@ function M.draw_many(placements)
   end
   send(ESC .. "[u")
 
-  if drawn > 0 then
-    showing = true
-  end
+  if drawn > 0 then showing = true end
   return drawn, errors
 end
 
@@ -255,9 +239,7 @@ end
 --- Repaint, der die belegten Zellen überschreibt, ohne den Schirm zu leeren.
 ---@return nil
 function M.clear()
-  if not showing then
-    return
-  end
+  if not showing then return end
   showing = false
   pcall(vim.cmd, "mode")
 end

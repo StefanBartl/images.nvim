@@ -73,13 +73,9 @@ local function common_prefix(keys)
   local lhs_list = {}
   for _, action in ipairs(ACTIONS) do
     local lhs = keys[action.option]
-    if type(lhs) == "string" and lhs ~= "" then
-      lhs_list[#lhs_list + 1] = lhs
-    end
+    if type(lhs) == "string" and lhs ~= "" then lhs_list[#lhs_list + 1] = lhs end
   end
-  if #lhs_list < 2 then
-    return nil
-  end
+  if #lhs_list < 2 then return nil end
 
   local prefix = lhs_list[1]
   for i = 2, #lhs_list do
@@ -89,17 +85,13 @@ local function common_prefix(keys)
       n = n - 1
     end
     prefix = prefix:sub(1, n)
-    if prefix == "" then
-      return nil
-    end
+    if prefix == "" then return nil end
   end
   -- Ein Präfix, das bereits eine vollständige Bindung ist, wäre als
   -- Gruppenname irreführend — which-key würde dann sowohl eine Aktion als
   -- auch eine Gruppe unter derselben Taste zeigen.
   for _, lhs in ipairs(lhs_list) do
-    if lhs == prefix then
-      return nil
-    end
+    if lhs == prefix then return nil end
   end
   return prefix
 end
@@ -111,9 +103,7 @@ function M.register(cfg)
   local keys = cfg.keymaps or {}
 
   local prefix = common_prefix(keys)
-  if prefix then
-    require("images.bindings.which_key").setup(prefix)
-  end
+  if prefix then require("images.bindings.which_key").setup(prefix) end
 
   vim.api.nvim_create_autocmd("FileType", {
     group = vim.api.nvim_create_augroup("images.keymaps", { clear = true }),
@@ -121,18 +111,14 @@ function M.register(cfg)
     desc = "images: buffer-lokale Keymaps setzen",
     ---@param ev { buf: integer }
     callback = function(ev)
-      if not vim.api.nvim_buf_is_valid(ev.buf) then
-        return
-      end
+      if not vim.api.nvim_buf_is_valid(ev.buf) then return end
       for _, action in ipairs(ACTIONS) do
         local lhs = keys[action.option]
         if type(lhs) == "string" and lhs ~= "" then
           vim.keymap.set("n", lhs, action.run, { buffer = ev.buf, desc = action.desc })
         end
       end
-      if keys.double_click then
-        map_double_click(ev.buf)
-      end
+      if keys.double_click then map_double_click(ev.buf) end
     end,
   })
 end

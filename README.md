@@ -18,6 +18,16 @@
 > [markdown.nvim](https://github.com/StefanBartl/markdown.nvim) resolves the
 > link targets that this plugin renders.
 
+## Table of Contents
+
+- [Why not snacks.image or image.nvim](#why-not-snacksimage-or-imagenvim)
+- [Quickstart](#quickstart)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Integrations](#integrations)
+- [Documentation](#documentation)
+- [Development](#development)
+
 images.nvim shows images in the terminal without leaving Neovim: hover a
 markdown link, double-click it, or paste a screenshot straight from the
 clipboard into your document. Built on

@@ -8,9 +8,7 @@ local H = {}
 ---@param b any # expected
 ---@param msg string|nil
 function H.eq(a, b, msg)
-  if a ~= b then
-    error(("FAIL %s: expected %q, got %q"):format(msg or "", tostring(b), tostring(a)), 2)
-  end
+  if a ~= b then error(("FAIL %s: expected %q, got %q"):format(msg or "", tostring(b), tostring(a)), 2) end
 end
 
 --- Assert a truthy value.

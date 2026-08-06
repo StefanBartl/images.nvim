@@ -20,9 +20,7 @@ local M = {}
 ---@return string|nil
 local function target_dir(buf)
   local name = vim.api.nvim_buf_get_name(buf)
-  if name == "" then
-    return nil
-  end
+  if name == "" then return nil end
   local resolve = require("images.resolve")
   local doc_dir = resolve.normalize_path(vim.fn.fnamemodify(name, ":p:h"))
   local sub = require("images.config").get().paste.dir or ""
@@ -37,17 +35,11 @@ local function list_images(dir)
   local out = {}
   local resolve = require("images.resolve")
   local handle = vim.uv.fs_scandir(dir)
-  if not handle then
-    return out
-  end
+  if not handle then return out end
   while true do
     local name, kind = vim.uv.fs_scandir_next(handle)
-    if not name then
-      break
-    end
-    if kind == "file" and resolve.is_image(name) then
-      out[#out + 1] = dir .. "/" .. name
-    end
+    if not name then break end
+    if kind == "file" and resolve.is_image(name) then out[#out + 1] = dir .. "/" .. name end
   end
   return out
 end
@@ -59,9 +51,7 @@ end
 function M.find(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local dir = target_dir(buf)
-  if not dir or vim.fn.isdirectory(dir) == 0 then
-    return {}
-  end
+  if not dir or vim.fn.isdirectory(dir) == 0 then return {} end
 
   local referenced = {}
   for _, target in ipairs(require("images.scan").buffer(buf)) do
@@ -70,9 +60,7 @@ function M.find(buf)
 
   local orphans = {}
   for _, path in ipairs(list_images(dir)) do
-    if not referenced[path] then
-      orphans[#orphans + 1] = { path = path, rel = path:sub(#dir + 2) }
-    end
+    if not referenced[path] then orphans[#orphans + 1] = { path = path, rel = path:sub(#dir + 2) } end
   end
   table.sort(orphans, function(a, b)
     return a.rel < b.rel

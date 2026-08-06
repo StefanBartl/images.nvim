@@ -13,14 +13,10 @@ end
 ---@return boolean
 function M.is_image(target)
   local ext = target:match("%.([%w]+)%s*$") or target:match("%.([%w]+)[?#]")
-  if not ext then
-    return false
-  end
+  if not ext then return false end
   ext = ext:lower()
   for _, e in ipairs(cfg().extensions) do
-    if e == ext then
-      return true
-    end
+    if e == ext then return true end
   end
   return false
 end
@@ -33,9 +29,7 @@ function M.links_in_line(line)
   local init = 1
   while true do
     local s, e, target = line:find("%]%(([^)]+)%)", init)
-    if not s then
-      break
-    end
+    if not s then break end
     -- Beginn des Links inklusive `![alt` bzw. `[text`, damit der Cursor
     -- irgendwo im Link genügt und nicht nur im Klammerteil stehen muss.
     local from = line:sub(1, s):find("!?%[[^%[]*$") or s
@@ -58,9 +52,7 @@ end
 ---@return string
 local function normalize(p)
   local ok, utils = pcall(require, "lib.nvim.normalize.utils")
-  if ok and utils.normalize_path then
-    return utils.normalize_path(p)
-  end
+  if ok and utils.normalize_path then return utils.normalize_path(p) end
   return (p:gsub("\\", "/"))
 end
 M.normalize_path = normalize
@@ -79,29 +71,21 @@ function M.to_path(target, buf)
   local ok, path_util = pcall(require, "markdown.util.path")
   if ok and type(path_util.resolve) == "function" then
     local resolved = path_util.resolve(target)
-    if resolved and vim.uv.fs_stat(resolved) then
-      return normalize(resolved)
-    end
+    if resolved and vim.uv.fs_stat(resolved) then return normalize(resolved) end
   end
 
   local expanded = vim.fn.expand(target)
-  if vim.uv.fs_stat(expanded) then
-    return normalize(vim.fn.fnamemodify(expanded, ":p"))
-  end
+  if vim.uv.fs_stat(expanded) then return normalize(vim.fn.fnamemodify(expanded, ":p")) end
 
   local bases = {}
   local name = vim.api.nvim_buf_get_name(buf or 0)
-  if name ~= "" then
-    bases[#bases + 1] = vim.fn.fnamemodify(name, ":p:h")
-  end
+  if name ~= "" then bases[#bases + 1] = vim.fn.fnamemodify(name, ":p:h") end
   bases[#bases + 1] = vim.uv.cwd()
 
   for _, base in ipairs(bases) do
     if base and base ~= "" then
       local candidate = base .. "/" .. expanded
-      if vim.uv.fs_stat(candidate) then
-        return normalize(vim.fn.fnamemodify(candidate, ":p"))
-      end
+      if vim.uv.fs_stat(candidate) then return normalize(vim.fn.fnamemodify(candidate, ":p")) end
     end
   end
   return nil
@@ -117,28 +101,18 @@ function M.under_cursor()
 
   for _, link in ipairs(M.links_in_line(line)) do
     if col >= link.from and col <= link.to then
-      if not M.is_image(link.target) then
-        return nil, "Kein Bildlink: " .. link.target
-      end
+      if not M.is_image(link.target) then return nil, "Kein Bildlink: " .. link.target end
       local path = M.to_path(link.target)
-      if not path then
-        return nil, "Bild nicht gefunden: " .. link.target
-      end
+      if not path then return nil, "Bild nicht gefunden: " .. link.target end
       return { raw = link.target, path = path, lnum = lnum }
     end
   end
 
   local cfile = vim.fn.expand("<cfile>")
-  if cfile == "" then
-    return nil, "Kein Link oder Dateiname unter dem Cursor"
-  end
-  if not M.is_image(cfile) then
-    return nil, "Keine Bilddatei: " .. cfile
-  end
+  if cfile == "" then return nil, "Kein Link oder Dateiname unter dem Cursor" end
+  if not M.is_image(cfile) then return nil, "Keine Bilddatei: " .. cfile end
   local path = M.to_path(cfile)
-  if not path then
-    return nil, "Bild nicht gefunden: " .. cfile
-  end
+  if not path then return nil, "Bild nicht gefunden: " .. cfile end
   return { raw = cfile, path = path, lnum = lnum }
 end
 
