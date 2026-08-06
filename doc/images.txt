@@ -28,9 +28,12 @@ protocol, images.nvim uses the iTerm2 inline image protocol (OSC 1337). On
 native Windows Neovim in WezTerm, Kitty APC sequences coming from Neovim are
 never drawn, which makes those plugins unusable there. OSC 1337 works.
 
-Images are drawn over the text and cleared on the next cursor movement. True
-inline rendering inside the text flow requires Unicode placeholders, which
-only Kitty and Ghostty implement — neither ships for Windows.
+Images are drawn over the text and cleared on the next cursor movement (this
+is `display.hover_mode = "overlay"`, the default). True inline rendering
+inside the text flow requires Unicode placeholders, which only Kitty and
+Ghostty implement — neither ships for Windows. `display.hover_mode = "float"`
+is a middle ground: a small floating window under the cursor instead of the
+text overlay, for `:Image show`/hover only — see |images-display-config|.
 
 WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
 cannot, so it is rasterized to a cached PNG via ImageMagick before drawing —
@@ -213,6 +216,7 @@ under the same key).
         max_cols = 60,
         max_rows = 25,
         gallery_gap = 1,
+        hover_mode = "overlay",
         assume_supported = false,
         clear_events = {
           "CursorMoved", "CursorMovedI", "InsertEnter",
@@ -254,6 +258,22 @@ under the same key).
 `display.max_cols` and `display.max_rows` are given in terminal cells, not
 pixels. The terminal scales the image into that box while preserving the
 aspect ratio, so the pixel size of a cell never has to be known.
+
+`display.hover_mode` controls how |images.show()|/hover displays a single
+image — not the gallery, which always uses its own grid layout:
+
+    "overlay" (default)   Draw over the text (the original behavior).
+                           Clears on the next `display.clear_events` event.
+    "float"                A small, unfocused floating window under the
+                           cursor instead. Same clear timing and `:Image
+                           pin` behavior, same underlying |images.terminal|
+                           draw call — only the container differs. Uses the
+                           same window-then-draw-at-its-geometry technique
+                           as `:Image zen`, just cursor-positioned and
+                           small instead of centered and large. The window
+                           is not focusable and does not steal focus, so it
+                           behaves like a glance rather than a view to
+                           switch into — for that, use `:Image zen` instead.
 
                                                        *images-browse-config*
 `display.browse_exclude` names directories `:Image pickers`/`:Image compare`
