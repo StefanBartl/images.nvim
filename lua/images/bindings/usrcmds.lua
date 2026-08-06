@@ -170,6 +170,15 @@ function M.register(cfg)
       },
 
       {
+        path = { "redact" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        desc = "Bild in einem Zensur-Modus öffnen: Boxen markieren und schwärzen, Original bleibt",
+        run = function(ctx)
+          require("images").redact(ctx.args.path)
+        end,
+      },
+
+      {
         path = { "pickers" },
         args = {
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },

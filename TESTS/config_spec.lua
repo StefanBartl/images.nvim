@@ -8,6 +8,7 @@ return function(H)
   local cfg = config.setup(nil)
   H.eq(cfg.command, "Image", "Default-Command")
   H.eq(cfg.display.max_cols, 60, "Default-Breite in Zellen")
+  H.eq(cfg.display.redact.padding_cells, 1, "Default-Sicherheitsmarge für :Image redact")
   H.eq(cfg.paste.dir, "assets", "Default-Zielverzeichnis")
   H.ok(#cfg.extensions > 0, "es gibt Default-Endungen")
 

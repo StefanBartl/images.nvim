@@ -19,10 +19,14 @@
 ---@field zen ImagesNvim.ZenConfig Größe des `:Image zen`-Fensters
 ---@field remote ImagesNvim.RemoteConfig Remote-Bilder für `:Image show`/Hover
 ---@field screenshot ImagesNvim.ScreenshotConfig `:Image screenshot`, nur unter Windows relevant
+---@field redact ImagesNvim.RedactConfig `:Image redact`
 
 ---@class ImagesNvim.ZenConfig
 ---@field width number Anteil der Editorbreite (0–1)
 ---@field height number Anteil der Editorhöhe (0–1)
+
+---@class ImagesNvim.RedactConfig
+---@field padding_cells integer Sicherheitsmarge um jede markierte Box, in Zellen (siehe images.scale.cell_box_to_pixels)
 
 ---@class ImagesNvim.RemoteConfig
 ---@field enabled boolean http(s)-Bilder laden; default false (Datenschutz, siehe images.remote)

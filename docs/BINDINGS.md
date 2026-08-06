@@ -20,6 +20,7 @@ completion and this table all come from the same spec.
 | `:Image screenshot` | — | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
 | `:Image export [path]` | — | Export an image as PDF next to the source file (needs ImageMagick) |
+| `:Image redact [path]` | — | Censor mode: mark boxes (Visual + `<CR>`), `w` blacks them out into a new file (needs ImageMagick) |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
@@ -64,9 +65,9 @@ word selection, so the mapping never swallows a plain double-click.
 | images.clear | `display.clear_events` | Clears the image after it was shown (`once`) |
 | images.zen | `WinResized`, `VimResized` | Redraws the `:Image zen` image so it follows the window's size |
 | images.zen | `WinClosed` | Clears the image when the zen window closes (`once`) |
+| images.redact | `WinClosed` | Clears the image when the redact window closes (`once`) |
 
 The clear group is registered only while an image is on screen, not
 permanently — it exists for the few seconds the image is visible, and
-`:Image pin` removes it again. The zen group is likewise scoped to the
-lifetime of an open `:Image zen` window, re-created on each `:Image zen`
-call.
+`:Image pin` removes it again. The zen and redact groups are likewise
+scoped to the lifetime of their own open window, re-created on each call.

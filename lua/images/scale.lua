@@ -66,4 +66,69 @@ function M.box(win_width, win_height, factor)
   return cols, rows, col_offset, row_offset
 end
 
+--- Angenommenes Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe).
+--- images.nvim fragt das Terminal dafür nie ab (siehe die "keine
+--- Zellmessung"-Leitplanke in docs/ROADMAP/README.md) — 0.5 ist eine grobe,
+--- für gängige Monospace-Schriften typische Annahme (eine Zelle ist ungefähr
+--- doppelt so hoch wie breit). Für `images.redact` reicht das: `M.fit_cells`
+--- wählt die Zeichenbox so, dass `preserveAspectRatio=1` kaum noch etwas zu
+--- letterboxen hat, und `M.cell_box_to_pixels`s Sicherheitsmarge fängt den
+--- Rest ab — lieber eine Zelle zu viel geschwärzt als eine zu wenig.
+M.CELL_ASPECT = 0.5
+
+--- Zeichenbox in Zellen bestimmen, die `image_px`s Seitenverhältnis (über
+--- `M.CELL_ASPECT` in Zellen ausgedrückt) innerhalb der Maximalgröße
+--- ausfüllt — dieselbe "an die längere Achse anpassen"-Idee wie bei jedem
+--- Seitenverhältnis-Fit, nur mit dem Zwischenschritt Pixel→Zelle.
+---@param max_cols integer
+---@param max_rows integer
+---@param image_px Images.Scale.Dims|nil
+---@return integer cols, integer rows
+function M.fit_cells(max_cols, max_rows, image_px)
+  if not (image_px and image_px.width > 0 and image_px.height > 0) then return max_cols, max_rows end
+
+  local image_aspect = image_px.width / image_px.height
+  local cols = math.floor(max_rows * image_aspect / M.CELL_ASPECT)
+  if cols <= max_cols then return math.max(1, cols), max_rows end
+
+  local rows = math.floor(max_cols * M.CELL_ASPECT / image_aspect)
+  return max_cols, math.max(1, rows)
+end
+
+--- Eine 1-basierte, einschließende Zellbox (relativ zur Zeichenbox) in eine
+--- Pixelbox der Quelldatei umrechnen. Setzt voraus, dass `draw_cols`/
+--- `draw_rows` bereits über `M.fit_cells` gewählt wurden — sonst würde die
+--- angenommene 1:1-Entsprechung zwischen Zellgitter und sichtbarem Bild
+--- spürbar danebenliegen. `padding_cells` wächst die Box vor der Umrechnung
+--- nach außen: eine Redaktion soll lieber zu groß als zu klein ausfallen.
+---@param box { row1: integer, col1: integer, row2: integer, col2: integer }
+---@param draw_cols integer
+---@param draw_rows integer
+---@param image_px Images.Scale.Dims
+---@param padding_cells integer|nil
+---@return { x1: integer, y1: integer, x2: integer, y2: integer }
+function M.cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding_cells)
+  padding_cells = padding_cells or 0
+
+  local col1 = math.max(1, box.col1 - padding_cells)
+  local row1 = math.max(1, box.row1 - padding_cells)
+  local col2 = math.min(draw_cols, box.col2 + padding_cells)
+  local row2 = math.min(draw_rows, box.row2 + padding_cells)
+
+  local scale_x = image_px.width / draw_cols
+  local scale_y = image_px.height / draw_rows
+
+  local x1 = math.floor((col1 - 1) * scale_x)
+  local y1 = math.floor((row1 - 1) * scale_y)
+  local x2 = math.ceil(col2 * scale_x)
+  local y2 = math.ceil(row2 * scale_y)
+
+  return {
+    x1 = math.max(0, math.min(x1, image_px.width)),
+    y1 = math.max(0, math.min(y1, image_px.height)),
+    x2 = math.max(0, math.min(x2, image_px.width)),
+    y2 = math.max(0, math.min(y2, image_px.height)),
+  }
+end
+
 return M

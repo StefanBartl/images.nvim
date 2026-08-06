@@ -31,6 +31,12 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 - Bild ersetzen, Link bleibt (`:Image replace`)
 - Bild als PDF exportieren, neben der Quelldatei (`:Image export`,
   `images.convert.to_pdf`); braucht ImageMagick zwingend
+- Zensur-Modus: Boxen in Zellen markieren (Visual-Mode + `<CR>`, echtes
+  Zen-artiges Fenster), schwärzen und als neue Datei speichern, Original
+  bleibt (`:Image redact`, `images.redact`, `images.convert.redact`) —
+  Geometrie über `images.scale.fit_cells`/`cell_box_to_pixels` mit einer
+  konfigurierbaren Sicherheitsmarge (`display.redact.padding_cells`);
+  braucht ImageMagick zwingend. Konzept: [REDACT.md](./REDACT.md)
 - Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
   (`:Image orphans`)
 - Dateisystem-weite Suche mit Live-Vorschau über `snacks.picker`, Soft-Dependency
@@ -58,7 +64,7 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 
 Drei Entscheidungen, die bei jedem neuen Feature gelten sollen:
 
-**Kein ImageMagick als Pflicht — mit zwei bewussten Ausnahmen.** WezTerm
+**Kein ImageMagick als Pflicht — mit drei bewussten Ausnahmen.** WezTerm
 dekodiert PNG/JPEG/GIF/WebP/BMP selbst. ImageMagick darf Features
 *verbessern* (`:Image info`, `:Image compare`s relative Skalierung), nie
 *ermöglichen* — sonst ist das Plugin auf Windows wieder von einer
@@ -66,8 +72,10 @@ Installation abhängig, die erfahrungsgemäß der Grund ist, warum am Ende
 nichts funktioniert. Die erste Ausnahme ist SVG: WezTerm kann es
 grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung.
 Die zweite ist `:Image export`: eine PDF entsteht nur über `magick`, es gibt
-keine Terminal-native Alternative. Beide melden eine klare Fehlermeldung statt
-eines stillen Fehlschlags, wenn ImageMagick fehlt.
+keine Terminal-native Alternative. Die dritte ist `:Image redact`: das
+Schwärzen selbst (Pixel schwarz übermalen) läuft ebenfalls nur über
+`magick`. Alle drei melden eine klare Fehlermeldung statt eines stillen
+Fehlschlags, wenn ImageMagick fehlt.
 
 **Keine Zellmessung.** `width`/`height` in Zellen plus
 `preserveAspectRatio=1` erledigt das Terminal. Sobald irgendwo Pixel gerechnet

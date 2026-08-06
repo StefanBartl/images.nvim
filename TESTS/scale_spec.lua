@@ -59,4 +59,51 @@ return function(H)
   cols, rows = scale.box(10, 10, 0.01)
   H.ok(cols >= 1, "cols wird nie 0")
   H.ok(rows >= 1, "rows wird nie 0")
+
+  -- ── fit_cells(): ohne Bildmaße unverändert ─────────────────────────────────
+  cols, rows = scale.fit_cells(60, 25, nil)
+  H.eq(cols, 60, "ohne Maße: max_cols unverändert")
+  H.eq(rows, 25, "…und max_rows")
+
+  -- ── fit_cells(): quadratisches Bild, Zelle 2x höher als breit (CELL_ASPECT
+  --    0.5) → cols/rows soll 2 sein, damit das Bild wirklich quadratisch
+  --    aussieht ─────────────────────────────────────────────────────────────
+  cols, rows = scale.fit_cells(60, 25, { width = 100, height = 100 })
+  H.eq(rows, 25, "Höhe bleibt am Maximum")
+  H.eq(cols, 50, "Breite wird auf image_aspect/CELL_ASPECT = 2x die Höhe gesetzt")
+
+  -- ── fit_cells(): sehr breites Bild kappt an max_cols, Höhe schrumpft ───────
+  cols, rows = scale.fit_cells(60, 25, { width = 4000, height = 1000 })
+  H.eq(cols, 60, "Breite bleibt am Maximum")
+  H.ok(rows < 25, "Höhe schrumpft, damit das Seitenverhältnis stimmt")
+
+  -- ── fit_cells(): sehr hohes Bild kappt an max_rows, Breite schrumpft ───────
+  cols, rows = scale.fit_cells(60, 25, { width = 1000, height = 4000 })
+  H.eq(rows, 25, "Höhe bleibt am Maximum")
+  H.ok(cols < 60, "Breite schrumpft, damit das Seitenverhältnis stimmt")
+
+  -- ── fit_cells(): nie kleiner als eine Zelle ─────────────────────────────────
+  cols, rows = scale.fit_cells(1, 1, { width = 1, height = 1000 })
+  H.ok(cols >= 1, "cols wird nie 0")
+  H.ok(rows >= 1, "rows wird nie 0")
+
+  -- ── cell_box_to_pixels(): lineare Umrechnung ohne Marge ────────────────────
+  local px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 5, col2 = 10 }, 50, 25, { width = 500, height = 250 }, 0)
+  H.eq(px.x1, 0, "linke obere Ecke bei Zelle 1 → Pixel 0")
+  H.eq(px.y1, 0, "…und oben")
+  H.eq(px.x2, 100, "rechte Kante: Zelle 10 von 50 → 10/50*500 = 100")
+  H.eq(px.y2, 50, "untere Kante: Zelle 5 von 25 → 5/25*250 = 50")
+
+  -- ── cell_box_to_pixels(): Sicherheitsmarge wächst die Box, aber nie über
+  --    den Bildrand hinaus ──────────────────────────────────────────────────
+  px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 5, col2 = 10 }, 50, 25, { width = 500, height = 250 }, 1)
+  H.eq(px.x1, 0, "Marge an der linken Kante bleibt bei 0, nicht negativ")
+  H.eq(px.y1, 0, "…dieselbe Deckelung oben")
+  H.eq(px.x2, 110, "Marge erweitert die rechte Kante um eine Zelle (11/50*500)")
+
+  -- ── cell_box_to_pixels(): niemals über die Bildmaße hinaus, auch bei
+  --    übertriebener Marge ────────────────────────────────────────────────────
+  px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 25, col2 = 50 }, 50, 25, { width = 500, height = 250 }, 100)
+  H.eq(px.x2, 500, "x2 wird auf die Bildbreite gedeckelt")
+  H.eq(px.y2, 250, "y2 wird auf die Bildhöhe gedeckelt")
 end

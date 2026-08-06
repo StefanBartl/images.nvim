@@ -1,11 +1,11 @@
--- TESTS/convert_spec.lua — SVG-zu-PNG-Konvertierung und Bild-zu-PDF-Export.
+-- TESTS/convert_spec.lua — SVG→PNG, Bild→PDF, Bild→geschwärzte Kopie.
 --
--- `is_svg` ist reine Funktion. `to_png`/`to_pdf` brauchen ein echtes
+-- `is_svg` ist reine Funktion. `to_png`/`to_pdf`/`redact` brauchen ein echtes
 -- Dateisystem und — für den eigentlichen Konvertierungspfad — `magick`; ohne
 -- wird dieser Teil übersprungen statt zu scheitern, dieselbe Haltung wie die
--- Leitplanke selbst ("ImageMagick verbessert, ermöglicht nicht" — `to_pdf`
--- ist die dokumentierte Ausnahme davon, aber ohne `magick` überhaupt gibt es
--- hier nichts Sinnvolles zu prüfen).
+-- Leitplanke selbst ("ImageMagick verbessert, ermöglicht nicht" — `to_pdf`/
+-- `redact` sind die dokumentierten Ausnahmen davon, aber ohne `magick`
+-- überhaupt gibt es hier nichts Sinnvolles zu prüfen).
 
 ---@param H table Harness aus TESTS/run.lua
 return function(H)
@@ -65,4 +65,22 @@ return function(H)
   H.ok(pdf ~= nil and vim.uv.fs_stat(pdf) ~= nil, "…und die Datei existiert wirklich")
   H.contains(pdf or "", ".pdf", "…mit .pdf-Endung")
   H.eq(vim.fn.fnamemodify(pdf or "", ":r"), vim.fn.fnamemodify(png or "", ":r"), "…gleiche Basis wie die Quelldatei")
+
+  -- ── redact: fehlende Datei ───────────────────────────────────────────────
+  local redacted, redact_err = convert.redact("/definitiv/nicht/vorhanden.png", { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } })
+  H.falsy(redacted, "fehlende Datei liefert kein Ergebnis")
+  H.contains(redact_err or "", "nicht gefunden", "…sondern eine Begründung")
+
+  -- ── redact: keine Box ────────────────────────────────────────────────────
+  redacted, redact_err = convert.redact(assert(png), {})
+  H.falsy(redacted, "ohne Box gibt es nichts zu schwärzen")
+  H.contains(redact_err or "", "Box", "…mit einer erklärenden Meldung")
+
+  -- ── redact: echte Schwärzung ─────────────────────────────────────────────
+  redacted, redact_err = convert.redact(assert(png), { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } })
+  H.ok(redacted, "Schwärzen liefert einen Pfad: " .. tostring(redact_err))
+  H.ok(redacted ~= nil and vim.uv.fs_stat(redacted) ~= nil, "…und die Datei existiert wirklich")
+  H.contains(redacted or "", ".redacted.png", "…mit .redacted.<Endung>")
+  H.ok(redacted ~= png, "…als eigene Datei, nicht das Original überschreibend")
+  H.ok(vim.uv.fs_stat(png) ~= nil, "…Original bleibt unangetastet")
 end

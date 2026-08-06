@@ -93,9 +93,9 @@ SVG is the one format WezTerm cannot decode at all — everything else
 (PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
 `.svg` file is rasterized to a cached PNG before drawing; without it, opening
 one reports a clear error instead of failing silently. Together with
-`:Image export` (below), these are deliberately the *only* two places
-ImageMagick is a requirement rather than an improvement — see
-[Configuration](#configuration).
+`:Image export` and `:Image redact` (below), these are deliberately the
+*only* three places ImageMagick is a requirement rather than an improvement
+— see [Configuration](#configuration).
 
 Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
 and by hovering a markdown link that points at one, but **off by default**:
@@ -141,6 +141,7 @@ dependencies are in place.
 | `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
 | `:Image export [path]` | Export an image as PDF, next to the source file — requires ImageMagick |
+| `:Image redact [path]` | Open a censor mode: mark boxes (Visual mode + `<CR>`), `w` blacks them out into a new file — requires ImageMagick |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
@@ -171,6 +172,19 @@ directly to a file; this plugin waits for a new image to appear in the
 clipboard instead, with a timeout. `:Image paste` remains the unchanged,
 proven two-step fallback if that doesn't work for you.
 
+`:Image redact` opens a censor mode: a full-screen window (like `:Image
+zen`) with a selection grid over the image. Enter Visual mode (`v`/`<C-v>`),
+move to the opposite corner of what needs blacking out, `<CR>` marks it —
+repeat for as many boxes as needed, `u` removes the last one, `w` burns them
+in (ImageMagick) and writes a new file (`photo.png` → `photo.redacted.png`);
+the source file is never touched. Selection happens entirely in terminal
+cells — a redacted image is drawn without pixel-precise mouse input being
+available in a terminal at all, so the box is sized generously on purpose
+(configurable via `display.redact.padding_cells`, default one cell of
+margin): over-redacting is the safe failure mode, under-redacting is not.
+See [docs/ROADMAP/REDACT.md](docs/ROADMAP/REDACT.md) for the full design
+rationale.
+
 ## Configuration
 
 ```lua
@@ -196,6 +210,9 @@ require("images").setup({
       -- clipboard for a new image after launching the Snipping Tool.
       windows_timeout_ms = 60000,
       windows_poll_interval_ms = 600,
+    },
+    redact = {
+      padding_cells = 1, -- safety margin around each marked box, in cells
     },
   },
   paste = {

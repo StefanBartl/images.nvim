@@ -86,7 +86,7 @@ end
 local function check_imagemagick()
   if vim.fn.executable("magick") == 1 then
     vim.health.ok(
-      "`magick` gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung, SVG-Anzeige und `:Image export` verfügbar"
+      "`magick` gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung, SVG-Anzeige, `:Image export` und `:Image redact` verfügbar"
     )
   else
     -- Kein `vim.health.warn`: ImageMagick verbessert info/compare/SVG, ist
@@ -94,10 +94,10 @@ local function check_imagemagick()
     -- docs/ROADMAP/README.md) — `info` fehlen dann nur die Abmessungen,
     -- `compare` zeigt beide Bilder gleich groß, und SVGs melden beim
     -- Zeichnen einen klaren Fehler statt eines stillen Fehlschlags.
-    -- `:Image export` ist die explizite Ausnahme von dieser Leitplanke: PDF-
-    -- Export läuft ausschließlich über `magick`, ohne Fallback.
+    -- `:Image export`/`redact` sind die explizite Ausnahme von dieser
+    -- Leitplanke: beide laufen ausschließlich über `magick`, ohne Fallback.
     vim.health.info(
-      "`magick` nicht gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung und SVG-Anzeige bleiben aus, alles andere funktioniert (`:Image export` ausgenommen, das `magick` zwingend braucht)"
+      "`magick` nicht gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung und SVG-Anzeige bleiben aus, alles andere funktioniert (`:Image export`/`redact` ausgenommen, die `magick` zwingend brauchen)"
     )
   end
 end
