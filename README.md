@@ -93,9 +93,21 @@ SVG is the one format WezTerm cannot decode at all — everything else
 (PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
 `.svg` file is rasterized to a cached PNG before drawing; without it, opening
 one reports a clear error instead of failing silently. Together with
-`:Image export` and `:Image redact` (below), these are deliberately the
-*only* three places ImageMagick is a requirement rather than an improvement
-— see [Configuration](#configuration).
+`:Image export`, `:Image redact` and the ASCII fallback (below), these are
+deliberately the *only* four places ImageMagick is a requirement rather
+than an improvement — see [Configuration](#configuration).
+
+When the terminal check fails, `:Image show`/hover fall back to a colored
+block-character rendering instead of the (silently ineffective) OSC 1337
+sequence — solid `█` cells with a per-cell true-color foreground sampled
+straight from the image, the same technique graphics-protocol-less terminal
+viewers like `chafa`/`viu` use, rather than a brightness character ramp
+(`" .:-=+*#%@"`). This needs ImageMagick to read the pixels (`display.
+ascii_fallback`, `images.ascii`) — a fourth deliberate exception alongside
+SVG/export/redact, see [Configuration](#configuration). Only the
+single-image path (`:Image show`/hover) gets it, same scope boundary as
+remote images below; set `display.ascii_fallback.enabled = false` to turn it
+off and keep the old silent-no-op-with-a-warning behavior instead.
 
 Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
 and by hovering a markdown link that points at one, but **off by default**:
@@ -213,6 +225,9 @@ require("images").setup({
     },
     redact = {
       padding_cells = 1, -- safety margin around each marked box, in cells
+    },
+    ascii_fallback = {
+      enabled = true, -- block-character rendering when the terminal check fails; needs ImageMagick
     },
   },
   paste = {

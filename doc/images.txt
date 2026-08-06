@@ -39,8 +39,12 @@ WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
 cannot, so it is rasterized to a cached PNG via ImageMagick before drawing.
 Without it, opening an .svg reports a clear error rather than failing
 silently. Together with |:Image| export and |:Image| redact, these are
-deliberately the only three places ImageMagick is a requirement instead of
-an improvement.
+deliberately three of only four places ImageMagick is a requirement instead
+of an improvement — the fourth is the ASCII fallback below.
+
+When the terminal check fails, |:Image| show/hover draw a colored
+block-character grid instead of a silently ineffective OSC 1337 sequence —
+see |images-ascii-config|.
 
 Remote images (http://…, https://…) are supported by |:Image| show and by
 hovering a markdown link, but off by default — see |images-remote-config|.
@@ -63,7 +67,8 @@ For `:Image paste` additionally:
 ImageMagick (`magick` on PATH) is optional almost everywhere — it improves
 `:Image info` (dimensions) and `:Image compare` (relative scaling) — but
 required for displaying SVG files, the one format WezTerm cannot decode
-itself.
+itself, and for the ASCII fallback (|images-ascii-config|) on a terminal
+without OSC 1337.
 
 Run `:checkhealth images` to verify all of the above.
 
@@ -135,10 +140,10 @@ Calling |images.setup()| is optional when using `opts`.
                         PDF next to the source file (`bild.png` ->
                         `bild.pdf`), overwriting an existing PDF of the same
                         name without asking. Requires ImageMagick; this is
-                        deliberately the second of only three places
+                        deliberately the second of only four places
                         ImageMagick is a hard requirement rather than an
-                        improvement, alongside SVG display (see
-                        |images-configuration|).
+                        improvement, alongside SVG display and the ASCII
+                        fallback (see |images-configuration|).
 
 :Image redact [{path}]  Open {path} — or the image under the cursor — in a
                         censor mode: a full-screen window (like |:Image|
@@ -155,7 +160,7 @@ Calling |images.setup()| is optional when using `opts`.
                         configurable safety margin before burning
                         (`display.redact.padding_cells`, default 1) —
                         over-redacting is the safe failure mode. Requires
-                        ImageMagick, the third of only three places it is a
+                        ImageMagick, the third of only four places it is a
                         hard requirement (see |images-configuration|). Full
                         design rationale: docs/ROADMAP/REDACT.md.
 
@@ -265,6 +270,9 @@ under the same key).
         redact = {
           padding_cells = 1,
         },
+        ascii_fallback = {
+          enabled = true,
+        },
       },
       paste = {
         dir = "assets",
@@ -326,6 +334,26 @@ Deliberately not a hard block: the protocol has no capability query, so the
 detection is a heuristic, and a false negative would break a working setup.
 Set `display.assume_supported = true` to silence the warning on a terminal
 that works but is not on the list. `:Image check` re-runs the detection.
+
+                                                        *images-ascii-config*
+When the capability check fails (and only then), `:Image show`/hover try
+`display.ascii_fallback` before falling back to the warning above: each
+terminal cell becomes a "█" character with its own true-color foreground,
+sampled from the image via ImageMagick (`magick … -resize COLSxROWS!
+-alpha off -depth 8 RGB:-`) and drawn with per-cell |nvim_buf_set_extmark()|
+highlights — the same solid-block technique graphics-protocol-less terminal
+viewers (chafa, viu) use, not a brightness character ramp. `images.scale.
+fit_cells()` picks the cell box, the same aspect-ratio math `:Image redact`
+uses.
+
+Requires ImageMagick — the fourth deliberate exception to "ImageMagick
+improves, never enables" (see the introduction). Without it, or with
+`display.ascii_fallback.enabled = false`, behavior is unchanged: the
+capability warning fires once per session and a draw is still attempted
+(the detection is a heuristic, see above).
+
+Scope is deliberately narrow, same boundary as remote images below: only
+`:Image show`/hover get it, not `gallery`/`compare`/`pickers`/`zen`.
 
                                                         *images-remote-config*
 `display.remote.enabled` (default false) allows |:Image| show and hover to
@@ -500,8 +528,16 @@ Nothing is drawn ~
 >
     wezterm imgcat picture.png
 <
-    If that shows nothing, the terminal does not do OSC 1337 and this plugin
-    cannot help. If it works but Neovim does not, run `:checkhealth images`.
+    If that shows nothing, the terminal does not do OSC 1337 — with
+    ImageMagick installed, `:Image show`/hover already fall back to a
+    block-character rendering instead (|images-ascii-config|); without it,
+    this plugin cannot help. If OSC 1337 works but Neovim does not, run
+    `:checkhealth images`.
+
+A colored block grid appears instead of the real image ~
+    Expected on a terminal without OSC 1337 — that is the ASCII fallback
+    (|images-ascii-config|), not a bug. `:Image check` confirms whether the
+    terminal was detected as OSC-1337-capable.
 
 The image appears below the statusline ~
     That is what happens without cursor positioning. If you see it, the

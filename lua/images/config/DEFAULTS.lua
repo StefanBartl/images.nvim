@@ -57,6 +57,14 @@ return {
     redact = {
       padding_cells = 1,
     },
+    -- Fallback für Terminals ohne OSC 1337 (SSH, tmux ohne passthrough, ein
+    -- nicht erkanntes Terminal): statt der OSC-Sequenz eine farbige
+    -- Blockgrafik über Extmarks, siehe images.ascii. Braucht ImageMagick
+    -- zwingend — vierte bewusste Ausnahme neben SVG/export/redact. Nur der
+    -- Einzelbild-Pfad (`:Image show`/Hover), wie bei den Remote-Bildern.
+    ascii_fallback = {
+      enabled = true,
+    },
   },
 
   paste = {
