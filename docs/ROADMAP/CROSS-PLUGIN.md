@@ -49,11 +49,27 @@ bevorzugter dritter Provider eingehängt (`markdown.util.image_preview`),
 snacks/image.nvim bleiben Fallback für Setups, wo die tatsächlich
 funktionieren.
 
-### `mdview.nvim`
+### `mdview.nvim` — UMGESETZT, aber die eigentliche Lücke war eine andere
 Markdown-Vorschau ohne Bilder ist eine halbe Vorschau. Beim Rendern die
-Bildlinks einsammeln und an den passenden Stellen zeichnen. Das ist der Fall,
-der dem echten Inline-Rendering am nächsten kommt, ohne Unicode-Placeholders zu
-brauchen — weil mdview die Zeilenpositionen seiner Ausgabe selbst kennt.
+Bildlinks einsammeln und an den passenden Stellen zeichnen.
+
+Beim Nachsehen zeigte sich: mdview rendert komplett anders als images.nvim —
+kein Terminal-Overlay, sondern ein echter Browser-Tab über einen Go-Relay +
+Rust/WASM-Renderer (`comrak`). Der WASM-Renderer erzeugte für
+`![alt](bild.png)` schon immer korrektes `<img>`-HTML (belegt durch einen
+bereits bestehenden, grünen Test) — "Bildlinks einsammeln und zeichnen" war
+also nie die Lücke. Die echte Lücke: der einzige `http.FileServer` des
+Relays zeigte auf das Client-Bundle, nie auf das Verzeichnis des gerade
+angezeigten Dokuments, also lief ein relativer Bildpfad serverseitig ins
+Leere — kaputtes Bild-Icon im Browser trotz korrektem HTML.
+
+Neue, token-authentifizierte `GET /asset`-Route im Go-Relay, aufgelöst
+relativ zu einem Verzeichnis, das ausschließlich vom vertrauenswürdigen
+lokalen Neovim-Prozess kommt (nie vom Browser-Tab), mit
+Pfad-Traversal-Schutz und einer Bild-Endungs-Allowlist. Client-seitig
+schreibt `resolveLocalImages` relative `<img src>` nach jedem Render auf
+diese Route um. Details, Tests: `mdview.nvim/docs/architecture.md`
+("Local image assets"), `docs/Roadmap/Roadmap.md`.
 
 ### `pickers.nvim`
 **Geprüft und bewusst nicht so gebaut.** `:Image pickers`/`:Image compare`
