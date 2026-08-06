@@ -19,6 +19,7 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 - Auswahl über das UI-Kit aus lib.nvim, Fallback `vim.ui.select` (`:Image list`)
 - Navigation durch die Bilder eines Buffers (`:Image next` / `prev`)
 - Metadaten via ImageMagick, optional (`:Image info`)
+- SVG-Anzeige über automatische PNG-Konvertierung, gecacht (`images.convert`)
 - Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text- und
   Dateinamen-Abfrage (`paste.ask_alt_text`, `paste.ask_filename`)
 - Bild ersetzen, Link bleibt (`:Image replace`)
@@ -46,10 +47,15 @@ Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
 
 Drei Entscheidungen, die bei jedem neuen Feature gelten sollen:
 
-**Kein ImageMagick als Pflicht.** WezTerm dekodiert PNG/JPEG/GIF/WebP selbst.
-ImageMagick darf Features *verbessern* (`:Image info`), nie *ermöglichen* —
-sonst ist das Plugin auf Windows wieder von einer Installation abhängig, die
-erfahrungsgemäß der Grund ist, warum am Ende nichts funktioniert.
+**Kein ImageMagick als Pflicht — mit einer bewussten Ausnahme.** WezTerm
+dekodiert PNG/JPEG/GIF/WebP/BMP selbst. ImageMagick darf Features
+*verbessern* (`:Image info`, `:Image compare`s relative Skalierung), nie
+*ermöglichen* — sonst ist das Plugin auf Windows wieder von einer
+Installation abhängig, die erfahrungsgemäß der Grund ist, warum am Ende
+nichts funktioniert. Die einzige Ausnahme ist SVG: WezTerm kann es
+grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung —
+dort ist ImageMagick echte Voraussetzung, mit einer klaren Fehlermeldung statt
+eines stillen Fehlschlags, wenn es fehlt.
 
 **Keine Zellmessung.** `width`/`height` in Zellen plus
 `preserveAspectRatio=1` erledigt das Terminal. Sobald irgendwo Pixel gerechnet

@@ -32,6 +32,12 @@ Images are drawn over the text and cleared on the next cursor movement. True
 inline rendering inside the text flow requires Unicode placeholders, which
 only Kitty and Ghostty implement — neither ships for Windows.
 
+WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
+cannot, so it is rasterized to a cached PNG via ImageMagick before drawing —
+deliberately the only place ImageMagick is a requirement instead of an
+improvement. Without it, opening an .svg reports a clear error rather than
+failing silently.
+
 ==============================================================================
 2. REQUIREMENTS                                          *images-requirements*
 
@@ -45,6 +51,11 @@ For `:Image paste` additionally:
     Windows   powershell.exe (ships with the system)
     macOS     pngpaste
     Linux     wl-paste (Wayland) or xclip (X11)
+
+ImageMagick (`magick` on PATH) is optional almost everywhere — it improves
+`:Image info` (dimensions) and `:Image compare` (relative scaling) — but
+required for displaying SVG files, the one format WezTerm cannot decode
+itself.
 
 Run `:checkhealth images` to verify all of the above.
 
@@ -187,7 +198,7 @@ under the same key).
 >lua
     require("images").setup({
       command = "Image",
-      extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp" },
+      extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" },
       display = {
         max_cols = 60,
         max_rows = 25,
@@ -384,5 +395,9 @@ The image does not disappear ~
     bitmap data, as it does after a screenshot. On Windows the helper runs
     `powershell.exe -STA`; the STA thread is required or the clipboard API
     always returns null.
+
+An .svg says "ImageMagick (`magick` not found)" ~
+    Install ImageMagick and make sure `magick` is on PATH — WezTerm cannot
+    decode SVG itself, so there is no fallback for this one format.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

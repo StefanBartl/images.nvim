@@ -65,6 +65,24 @@ local function check_clipboard()
 end
 
 ---@return nil
+local function check_imagemagick()
+  if vim.fn.executable("magick") == 1 then
+    vim.health.ok(
+      "`magick` gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung und SVG-Anzeige verfügbar"
+    )
+  else
+    -- Kein `vim.health.warn`: ImageMagick verbessert diese drei Features,
+    -- ist aber für alles andere keine Voraussetzung (siehe Leitplanke in
+    -- docs/ROADMAP/README.md) — `info` fehlen dann nur die Abmessungen,
+    -- `compare` zeigt beide Bilder gleich groß, und SVGs melden beim
+    -- Zeichnen einen klaren Fehler statt eines stillen Fehlschlags.
+    vim.health.info(
+      "`magick` nicht gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung und SVG-Anzeige bleiben aus, alles andere funktioniert"
+    )
+  end
+end
+
+---@return nil
 local function check_deps()
   if pcall(require, "lib.nvim.usercmd.composer") then
     vim.health.ok("`lib.nvim` gefunden")
@@ -85,6 +103,7 @@ function M.check()
   check_output()
   check_terminal()
   check_clipboard()
+  check_imagemagick()
   check_deps()
 end
 

@@ -140,17 +140,27 @@ function M.reset_capability()
   capability = nil
 end
 
---- Dateiinhalt lesen.
+--- Dateiinhalt lesen. SVG wird zuerst nach PNG konvertiert (siehe
+--- `images.convert`) — OSC 1337 erwartet Rasterbytes, WezTerm kann SVG selbst
+--- nicht dekodieren. Für jedes andere Format ist das ein reiner Durchreicher.
 ---@param file string
 ---@return string|nil data
 ---@return string|nil err
 local function read_file(file)
   if type(file) ~= "string" or file == "" then return nil, "Kein Dateipfad angegeben" end
-  local fd, open_err = io.open(file, "rb")
-  if not fd then return nil, ("Datei nicht lesbar: %s (%s)"):format(file, open_err or "?") end
+
+  local effective = file
+  if require("images.convert").is_svg(file) then
+    local png, conv_err = require("images.convert").to_png(file)
+    if not png then return nil, conv_err end
+    effective = png
+  end
+
+  local fd, open_err = io.open(effective, "rb")
+  if not fd then return nil, ("Datei nicht lesbar: %s (%s)"):format(effective, open_err or "?") end
   local raw = fd:read("*a")
   fd:close()
-  if not raw or raw == "" then return nil, "Datei ist leer: " .. file end
+  if not raw or raw == "" then return nil, "Datei ist leer: " .. effective end
   return raw
 end
 
