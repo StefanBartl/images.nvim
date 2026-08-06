@@ -80,6 +80,13 @@ Unicode placeholders, which only Kitty and Ghostty implement and neither ships
 for Windows. images.nvim draws over the text instead, and clears on the next
 cursor move.
 
+SVG is the one format WezTerm cannot decode at all — everything else
+(PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
+`.svg` file is rasterized to a cached PNG before drawing; without it, opening
+one reports a clear error instead of failing silently. This is deliberately
+the *only* place ImageMagick is a requirement rather than an improvement —
+see [Configuration](#configuration).
+
 ## Quickstart
 
 Requires Neovim 0.10+ (for `vim.base64`) with API level 14 (for
@@ -138,7 +145,7 @@ it, and the PNG is written to `assets/<document>-<timestamp>.png` with
 ```lua
 require("images").setup({
   command = "Image",
-  extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp" },
+  extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" }, -- svg needs ImageMagick to draw
   display = {
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,

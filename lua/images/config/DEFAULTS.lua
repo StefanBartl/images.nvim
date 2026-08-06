@@ -5,7 +5,11 @@
 return {
   command = "Image",
 
-  extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp" },
+  -- svg wird vor dem Zeichnen automatisch nach PNG konvertiert (braucht
+  -- ImageMagick, siehe images.convert) — WezTerm kann SVG nicht selbst
+  -- dekodieren. Ohne ImageMagick kommt eine klare Fehlermeldung statt eines
+  -- stillen Fehlschlags.
+  extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" },
 
   display = {
     -- Angaben in Terminalzellen, nicht in Pixeln: OSC 1337 skaliert selbst,

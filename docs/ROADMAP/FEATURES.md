@@ -27,9 +27,6 @@ nicht hier — diese Liste ist bewusst nur, was noch offen ist.
 - **Remote-Bilder** (`https://…`) über einen Download in ein Cache-Verzeichnis.
   `resolve.to_path` gibt für URLs heute bewusst `nil` zurück.
 - **Bilder aus Archiven** (`.zip`, `.tar.gz`) ohne vorheriges Entpacken.
-- **SVG** — WezTerm kann es nicht, ImageMagick schon. Wäre der erste Fall, in
-  dem eine Konvertierung wirklich nötig ist; laut Leitplanke dann als
-  *Verbesserung* mit klarer Meldung, wenn `magick` fehlt.
 - **PDF-Seiten als Bild** — siehe `pdfport.nvim` in
   [CROSS-PLUGIN.md](./CROSS-PLUGIN.md).
 
