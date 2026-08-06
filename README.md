@@ -44,7 +44,7 @@ dependency.
 :Image orphans             images in paste.dir that nothing links to anymore
 :Image pickers cwd         browse every image under cwd, live preview with snacks.picker
 :Image zen                 the image under the cursor, full-screen, in a real window
-:Image compare cwd         pick two images and view them side by side
+:Image compare cwd         pick two images, view side by side at their true relative size
 ```
 
 ## Why not snacks.image or image.nvim
@@ -115,7 +115,7 @@ dependencies are in place.
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
-| `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan and view them side by side |
+| `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan, view side by side; with ImageMagick, scaled proportionally so a small icon doesn't look the same size as a large photo |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | Report whether this terminal can display images |
 | `:Image clear` | Remove displayed images (and a `:Image zen` window, if open) |

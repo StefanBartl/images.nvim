@@ -130,6 +130,13 @@ Calling |images.setup()| is optional when using `opts`.
                         mark the first (<M-c>, or <CR>), search again, then
                         <CR> shows both side by side. `q`/<Esc> closes.
 
+                        With ImageMagick, the smaller image (by pixel
+                        diagonal) is shown proportionally smaller — centered
+                        in its half rather than stretched to fill it — so an
+                        icon next to a large photo still looks like an icon.
+                        Without ImageMagick both fill their half, same as
+                        every other command here.
+
 :Image zen [{path}]     Show {path} — or the image under the cursor — full
                         screen, in a real editable window rather than a
                         transient preview float. Stays open next to a

@@ -1,20 +1,22 @@
 # FEATURES — Ideen im Plugin selbst
 
+Umgesetztes steht in [README.md → Bereits umgesetzt](./README.md#bereits-umgesetzt),
+nicht hier — diese Liste ist bewusst nur, was noch offen ist.
+
 ## Anzeige
 
-- **Vergleichsmodus** `:Image compare a.png b.png` — zwei Bilder nebeneinander
-  mit gemeinsamer Skalierung, damit Größenunterschiede sichtbar bleiben statt
-  wegnormiert zu werden. Die Galerie skaliert heute jede Kachel für sich.
 - **Zoom und Ausschnitt** — `+`/`-` zum Skalieren, `hjkl` zum Verschieben,
   solange ein Bild angeheftet ist. Braucht einen Modus-Zustand und ein
   Neuzeichnen pro Schritt; ohne Bild-IDs im Protokoll bedeutet jeder Schritt
   eine vollständige Neuübertragung.
-- **Im Floating-Window statt über dem Text.** Heute liegt das Bild auf dem
-  Schirm und verschwindet bei der nächsten Cursorbewegung. Ein Float mit
-  eigenem Buffer würde Scrollen, Fokus und `q` zum Schließen erlauben — die
-  Positionsberechnung müsste dann dem Fenster folgen statt dem Cursor.
+- **Im Floating-Window statt über dem Text.** `:Image zen` macht das bereits
+  für die Einzelanzeige (eigener Buffer, `q` schließt). Für die beiläufige
+  Anzeige (`:Image show`/`hover`) bleibt es beim Draw-over-text-Modell, der
+  bei Cursorbewegung verschwindet — ein zweiter Float-Modus dafür wäre die
+  offene Arbeit hier, nicht das Grundprinzip.
 - **Mehrere angeheftete Bilder gleichzeitig**, jedes mit eigener Position.
-  Erfordert eine Platzierungsverwaltung, die es derzeit bewusst nicht gibt.
+  Erfordert eine Platzierungsverwaltung, die es derzeit bewusst nicht gibt —
+  `:Image pin` hält heute genau ein Bild fest.
 - **Thumbnail-Leiste** am unteren Rand mit allen Bildern des Buffers, das
   aktive hervorgehoben — `:Image next`/`prev` würde darin wandern.
 - **Animierte GIFs.** WezTerm spielt sie ab; ungeklärt ist, was beim
@@ -38,23 +40,11 @@
   Für Support-Dokumentation der eigentliche Alltagsfall: ein Schritt statt drei.
 - **Dateinamen erfragen** statt des Zeitstempel-Templates, mit dem Template
   als Vorbelegung.
-- **Alt-Text abfragen**, damit aus `![](…)` ein `![Beschreibung](…)` wird —
-  für die Barrierefreiheit der erzeugten Dokumentation relevant.
-- **Bild ersetzen**: Cursor auf einem bestehenden Link, `:Image replace`
-  überschreibt die Zieldatei mit dem Zwischenablage-Inhalt.
-- **Verwaiste Bilder finden** — Dateien im `assets`-Verzeichnis, auf die kein
-  Link mehr zeigt. Das Gegenstück zu den unauflösbaren Links, die `scan`
-  bereits meldet.
 - **Zuschneiden und Annotieren** (Pfeile, Kästen, Unkenntlichmachung) direkt
   nach dem Einfügen. Für Screenshots aus Support-Fällen wäre das
   Unkenntlichmachen von Kundendaten der wichtigste Teil.
 
 ## Bedienung
 
-- **`:Image` mit Range über einem Bereich** zeigt die Bilder dieses Bereichs
-  als Galerie, statt nur `list` zu filtern.
-- **which-key-Gruppe** für den `<leader>i`-Präfix mit sprechenden Labels.
-- **Statusline-Indikator**, solange ein Bild angeheftet ist — sonst ist nicht
-  erkennbar, warum das Bild nicht verschwindet.
 - **Sitzungsübergreifend angeheftete Bilder**, siehe `sessions.nvim` in
   [CROSS-PLUGIN.md](./CROSS-PLUGIN.md).
