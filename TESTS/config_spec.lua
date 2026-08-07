@@ -10,6 +10,8 @@ return function(H)
   H.eq(cfg.display.max_cols, 60, "Default-Breite in Zellen")
   H.eq(cfg.display.redact.padding_cells, 1, "Default-Sicherheitsmarge für :Image redact")
   H.eq(cfg.paste.dir, "assets", "Default-Zielverzeichnis")
+  H.eq(#cfg.paste.existing_dir_names, 2, "Default: zwei erkannte Ressourcen-Ordnernamen")
+  H.eq(cfg.paste.existing_dir_names[1], "Resources", "…zuerst der englische Name")
   H.ok(#cfg.extensions > 0, "es gibt Default-Endungen")
 
   -- ── Teilweise Überschreibung lässt den Rest stehen ─────────────────────────

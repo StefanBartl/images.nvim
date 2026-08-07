@@ -342,9 +342,10 @@ function M.info(path)
 end
 
 --- Bild aus der Zwischenablage speichern und verlinken.
+---@param name string|nil bereits vorgegebener Dateiname — überspringt jede Namensabfrage
 ---@return nil
-function M.paste()
-  require("images.paste").run()
+function M.paste(name)
+  require("images.paste").run(name)
 end
 
 --- Bildschirmausschnitt interaktiv aufnehmen, speichern und verlinken —

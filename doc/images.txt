@@ -122,10 +122,18 @@ Calling |images.setup()| is optional when using `opts`.
                         it on the next cursor movement. `:Image clear` or a
                         second `:Image pin` releases it.
 
-:Image paste            Save the clipboard image next to the document and
+:Image paste [{name}]   Save the clipboard image next to the document and
                         insert a markdown link at the cursor. The target
                         directory and the filename follow `paste.dir` and
-                        `paste.name_template`.
+                        `paste.name_template` — unless a "Resources" or
+                        "Ressourcen" folder already exists next to the
+                        document, in which case that one is reused instead
+                        of creating `paste.dir` (see |images-paste-config|).
+                        No image in the clipboard leaves no folder behind
+                        either way. With {name}, that filename is used
+                        directly (`.png` forced, same rules as
+                        `paste.ask_filename`) instead of asking or falling
+                        back to `paste.name_template`.
 
 :Image screenshot       Take a screenshot interactively and insert it like
                         `:Image paste`, without needing the clipboard as an
@@ -276,6 +284,7 @@ under the same key).
       },
       paste = {
         dir = "assets",
+        existing_dir_names = { "Resources", "Ressourcen" },
         name_template = "%s-%d.png",
         link_template = "![](%s)",
         ask_alt_text = false,
@@ -388,6 +397,15 @@ finish, unlike a plain `vim.system(...):wait()` would.
 to it. `paste.name_template` receives the document stem and a timestamp,
 `paste.link_template` the path relative to the document.
 
+Before using `paste.dir`, `:Image paste`/`screenshot` check the document's
+own directory for an existing folder named (case-insensitively) one of
+`paste.existing_dir_names` (default `{ "Resources", "Ressourcen" }`) and, if
+found, use that instead — so a folder you already maintain does not get a
+second, parallel `assets` next to it. Set it to `{}` to disable the check and
+always use `paste.dir`. Either way, the target directory is only created (or
+reused) once the image is actually written — a clipboard without an image, or
+a cancelled `:Image screenshot`, leaves no directory behind.
+
 `paste.ask_alt_text = true` prompts for alt text before inserting the link
 (via lib.nvim's UI kit when available, |vim.fn.input()| otherwise), using
 `paste.alt_link_template` (alt text, then path) instead of `paste.link_template`
@@ -401,6 +419,10 @@ name itself is kept — and the extension is always forced to `.png`,
 regardless of what was typed, since that is what the clipboard write
 produces either way. Unlike the alt-text prompt, cancelling here does
 nothing: nothing has been read from the clipboard yet at this point.
+
+`:Image paste {name}` sanitizes and uses {name} the same way, without
+prompting — it takes priority over `paste.ask_filename`, since a name given
+on the command line makes the prompt redundant.
 
 ==============================================================================
 7. LUA API                                                        *images-api*
@@ -441,8 +463,10 @@ images.recheck()                                           *images.recheck()*
                 Re-run the terminal capability detection and report the
                 result. Returns the capability table.
 
-images.paste()                                                *images.paste()*
-                Save the clipboard image and insert the link.
+images.paste({name})                                          *images.paste()*
+                Save the clipboard image and insert the link. With {name},
+                that filename is used directly instead of asking or falling
+                back to `paste.name_template` — see `:Image paste {name}`.
 
 images.screenshot()                                      *images.screenshot()*
                 Take a screenshot interactively and insert the link, like

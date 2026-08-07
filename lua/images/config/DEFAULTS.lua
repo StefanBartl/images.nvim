@@ -71,6 +71,11 @@ return {
     -- Leerer String legt das Bild neben das Dokument. "assets" oder "img"
     -- sind die üblichen Alternativen; das Verzeichnis wird bei Bedarf angelegt.
     dir = "assets",
+    -- Existiert im Dokumentverzeichnis bereits ein Ordner mit einem dieser
+    -- Namen (case-insensitiv), wird dieser statt `dir` verwendet und es wird
+    -- kein eigener (z.B. "assets") parallel dazu angelegt. Leere Liste
+    -- schaltet die Erkennung ab.
+    existing_dir_names = { "Resources", "Ressourcen" },
     name_template = "%s-%d.png",
     link_template = "![](%s)",
     -- true fragt vor dem Einfügen nach einem Alt-Text (UI-Kit, sonst

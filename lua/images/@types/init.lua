@@ -43,6 +43,7 @@
 
 ---@class ImagesNvim.PasteConfig
 ---@field dir string Zielverzeichnis relativ zum Dokument ("" = daneben)
+---@field existing_dir_names string[] Vorhandene Ordnernamen (case-insensitiv), die statt `dir` verwendet werden, falls im Dokumentverzeichnis vorhanden
 ---@field name_template string Dateiname; %s = Dokumentname, %d = Zeitstempel
 ---@field link_template string Einzufügender Text ohne Alt-Text; %s = relativer Pfad
 ---@field ask_alt_text boolean Vor dem Einfügen nach einem Alt-Text fragen
