@@ -82,11 +82,24 @@ Punkt des Features. Ohne snacks fällt `images.browse` auf eine einfache
 Auswahl ohne Vorschau zurück, statt über `pickers.nvim` eine Vorschau
 vorzutäuschen, die es dort nicht geben kann.
 
-### `insights.nvim`
+### `insights.nvim` — UMGESETZT, enger gefasst als ursprünglich gedacht
 Projektanalyse erzeugt Graphen — Abhängigkeiten, Aufrufbäume, Symbolverteilung.
 Als Graphviz nach PNG und dann inline gezeigt, statt eine Textbaum-Darstellung
-zu erzwingen. Dasselbe gilt für `documentation.nvim`, dessen `:DocMap`-Ausgabe
-sich ebenfalls als Graph lesen ließe.
+zu erzwingen.
+
+Beim Nachsehen zeigte sich: nur die Import/Require-Daten (`insights.imports`)
+sind tatsächlich schon graphförmig — jeder Eintrag ist bereits eine Kante
+("Datei importiert Modul"), nur nie als Graph gezeichnet. Aufrufbäume und
+Symbolverteilung existieren als Daten nirgends in insights.nvim (`symbols`
+ist eine flache, unkorrelierte Liste) — das wäre eine neue, deutlich größere
+Analysefunktion, keine neue Ansicht auf Vorhandenes. Deshalb bewusst nur der
+Abhängigkeitsgraph: `:Insights imports graph` (`insights.imports.graph`),
+Graphviz-`digraph` über `dot -Tpng`, externe Module standardmäßig
+ausgeblendet (`imports.graph.include_external`, sonst mehr Rauschen als
+Struktur), Anzeige über `images.nvim` (Soft-Dependency).
+
+`documentation.nvim`s `:DocMap`-Ausgabe bleibt offen — eigenes Repo, eigener
+Umfang, nicht in diesem Durchgang.
 
 ### `diff.nvim`
 Bild-Diff: zwei Bildversionen nebeneinander, mit gemeinsamer Skalierung. Die
