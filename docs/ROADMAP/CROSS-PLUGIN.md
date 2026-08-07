@@ -101,11 +101,26 @@ Struktur), Anzeige über `images.nvim` (Soft-Dependency).
 `documentation.nvim`s `:DocMap`-Ausgabe bleibt offen — eigenes Repo, eigener
 Umfang, nicht in diesem Durchgang.
 
-### `diff.nvim`
+### `diff.nvim` — UMGESETZT
 Bild-Diff: zwei Bildversionen nebeneinander, mit gemeinsamer Skalierung. Die
 Galerie-Aufteilung liegt vor, `diff.nvim` müsste nur erkennen, dass beide
-Seiten Bilder sind und statt eines Text-Diffs die Anzeige aufrufen. Ein
-Pixel-Differenzbild wäre der Ausbau davon (braucht ImageMagick, also optional).
+Seiten Bilder sind und statt eines Text-Diffs die Anzeige aufrufen.
+
+`diff.core.resolve` las bisher jede Datei bedingungslos über
+`vim.fn.readfile` als Text — bei zwei Bilddateien also ein bedeutungsloser
+Byte-"Diff", nicht mal ein Fehler. `lua/diff/features/image_compare.lua`
+fängt genau diesen Fall ab: beide Seiten lesbare Raster-Bildpfade (SVG
+bewusst ausgenommen, das ist Text und diffft als Text sinnvoll) →
+`images.gallery({a, b}, 2)` statt Text-Diff. Ohne installiertes images.nvim
+eine klare Warnung statt des bisherigen stillen Unsinns. **Keine relative
+Skalierung** wie bei `:Image compare` — das bräuchte
+`lib.nvim.ui.kit.compare`s Scan-und-Auswahl-Ablauf, um beide Bilder
+gleichzeitig zu kennen, was hier nicht passt: `:Diff` hat die beiden
+konkreten Pfade schon aus den eigenen Argumenten, `images.gallery` ist
+also die richtige, bereits vorhandene Grundfunktion — kein neuer API-Aufwand
+in images.nvim nötig.
+
+Damit ist dieser Durchgang durch die "Stark"-Liste komplett.
 
 ---
 
