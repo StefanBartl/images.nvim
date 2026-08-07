@@ -1,0 +1,34 @@
+{
+  "tools": [
+    {
+      "bin": "magick",
+      "required": false,
+      "why": "Enables SVG-to-PNG conversion (WezTerm/kitty can't decode SVG themselves), image-to-PDF export, and the redact feature (blacking out rectangles before sharing a screenshot).",
+      "pkg": {
+        "apt": "imagemagick",
+        "dnf": "ImageMagick",
+        "pacman": "imagemagick",
+        "zypper": "ImageMagick",
+        "apk": "imagemagick",
+        "brew": "imagemagick",
+        "winget": "ImageMagick.ImageMagick",
+        "scoop": "imagemagick",
+        "choco": "imagemagick"
+      }
+    },
+    {
+      "bin": "chafa",
+      "required": false,
+      "why": "Renders images inline in terminals without a native image protocol (Kitty graphics / iTerm2), as a fallback for the ASCII/terminal preview.",
+      "pkg": {
+        "apt": "chafa",
+        "dnf": "chafa",
+        "pacman": "chafa",
+        "zypper": "chafa",
+        "apk": "chafa",
+        "brew": "chafa",
+        "scoop": "chafa"
+      }
+    }
+  ]
+}
