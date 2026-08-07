@@ -51,16 +51,22 @@ function M.close()
 end
 
 --- Fenstergeometrie ermitteln und das Bild dort zeichnen.
+---
+--- `vim.schedule` aus demselben Grund wie in `images.zen` (dort ausführlich
+--- begründet): synchron gezeichnet läge das Bild vor Neovims Repaint des
+--- gerade geöffneten Fensters und würde davon überdeckt.
 ---@param file string
 ---@return nil
 local function redraw(file)
-  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  local pos = vim.api.nvim_win_get_position(winid)
-  local width = vim.api.nvim_win_get_width(winid)
-  local height = vim.api.nvim_win_get_height(winid)
-  require("images.terminal").clear()
-  local ok, err = require("images.terminal").draw(file, pos[1] + 1, pos[2] + 1, width, height)
-  if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+  vim.schedule(function()
+    if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+    local pos = vim.api.nvim_win_get_position(winid)
+    local width = vim.api.nvim_win_get_width(winid)
+    local height = vim.api.nvim_win_get_height(winid)
+    require("images.terminal").clear()
+    local ok, err = require("images.terminal").draw(file, pos[1] + 1, pos[2] + 1, width, height)
+    if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+  end)
 end
 
 --- Fenstergröße bestimmen: `display.max_cols`/`max_rows`, gedeckelt auf die

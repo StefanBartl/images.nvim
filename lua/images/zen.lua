@@ -32,16 +32,27 @@ local winid = nil
 
 --- Fenstergeometrie ermitteln und das Bild dort neu zeichnen. Läuft initial
 --- und erneut bei jeder Größenänderung, damit das Bild dem Fenster folgt.
+---
+--- `vim.schedule`, nicht direkt: `nvim_ui_send` schreibt sofort ans Terminal,
+--- Neovim malt aber erst, wenn die Steuerung in die Hauptschleife
+--- zurückkehrt — und zwar ALLES, was seit dem Öffnen des Fensters schmutzig
+--- geworden ist. Synchron gezeichnet lag das Bild also vor Neovims eigenem
+--- Repaint und wurde von den leeren Zellen des Fensters überdeckt. Der Flush
+--- in `images.terminal.draw` allein reicht dafür nicht: er räumt weg, was VOR
+--- dem Senden anstand, nicht den Repaint, den das Fenster-Öffnen selbst nach
+--- sich zieht. Erst der Sprung in den nächsten Tick zeichnet zuletzt.
 ---@param file string
 ---@return nil
 local function redraw(file)
-  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  local pos = vim.api.nvim_win_get_position(winid)
-  local width = vim.api.nvim_win_get_width(winid)
-  local height = vim.api.nvim_win_get_height(winid)
-  require("images.terminal").clear()
-  local ok, err = require("images.terminal").draw(file, pos[1] + 1, pos[2] + 1, width, height)
-  if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+  vim.schedule(function()
+    if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+    local pos = vim.api.nvim_win_get_position(winid)
+    local width = vim.api.nvim_win_get_width(winid)
+    local height = vim.api.nvim_win_get_height(winid)
+    require("images.terminal").clear()
+    local ok, err = require("images.terminal").draw(file, pos[1] + 1, pos[2] + 1, width, height)
+    if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+  end)
 end
 
 --- Fenstergröße aus der Config-Anteilsangabe berechnen. Reine Funktion (kein

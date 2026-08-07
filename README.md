@@ -68,13 +68,16 @@ reliably. Four details that matter, all of them learned the hard way:
   `preserveAspectRatio=1`. The terminal does the scaling, so the pixel size of
   a cell never has to be known — which is exactly where snacks.image breaks on
   Windows, since its `ioctl(TIOCGWINSZ)` path cannot work there.
-- Any pending screen update is flushed **before** the payload goes out.
-  `nvim_ui_send` writes to the terminal immediately, while Neovim's own repaint
-  only runs once control returns to the main loop. Open a window and draw into
-  it in the same tick, and Neovim paints that window's empty cells over the
-  image right after it was sent — popup visible, image gone. That was the
-  `:Image zen` bug; the flush lives in `images.terminal.draw`, so every drawing
-  path inherits it.
+- Drawing is ordered against Neovim's own repaint, in two places.
+  `nvim_ui_send` writes to the terminal immediately, while Neovim only paints
+  once control returns to the main loop. Open a window and draw into it in the
+  same tick, and Neovim paints that window's cells over the image right after
+  it was sent — popup visible, image gone or half gone. So `images.terminal.
+  draw` flushes anything already pending before the payload goes out, **and**
+  every path that opens a window first (`zen`, `hover_float`, `redact`) defers
+  its draw by one tick — a flush before sending cannot cover the repaint that
+  opening the window itself causes. `show`/hover need neither: they draw over
+  existing text without creating a window.
 
 Before the first draw the terminal is checked against the small set that
 implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
