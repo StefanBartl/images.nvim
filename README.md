@@ -57,7 +57,7 @@ introduced by Neovim's output layer. That makes both plugins unusable there,
 regardless of configuration.
 
 images.nvim uses the iTerm2 protocol (OSC 1337) instead, which works
-reliably. Three details that matter, all of them learned the hard way:
+reliably. Four details that matter, all of them learned the hard way:
 
 - Output goes through `vim.api.nvim_ui_send`, not `io.stdout:write` — the
   latter only draws once per terminal session.
@@ -68,6 +68,13 @@ reliably. Three details that matter, all of them learned the hard way:
   `preserveAspectRatio=1`. The terminal does the scaling, so the pixel size of
   a cell never has to be known — which is exactly where snacks.image breaks on
   Windows, since its `ioctl(TIOCGWINSZ)` path cannot work there.
+- Any pending screen update is flushed **before** the payload goes out.
+  `nvim_ui_send` writes to the terminal immediately, while Neovim's own repaint
+  only runs once control returns to the main loop. Open a window and draw into
+  it in the same tick, and Neovim paints that window's empty cells over the
+  image right after it was sent — popup visible, image gone. That was the
+  `:Image zen` bug; the flush lives in `images.terminal.draw`, so every drawing
+  path inherits it.
 
 Before the first draw the terminal is checked against the small set that
 implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment

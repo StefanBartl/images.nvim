@@ -547,6 +547,16 @@ The image appears below the statusline ~
     positioning sequence did not reach the terminal — check for a multiplexer
     (tmux needs `set -g allow-passthrough on`).
 
+A window opens but stays empty ~
+    Was the `:Image zen` bug: `nvim_ui_send()` writes to the terminal at once,
+    while Neovim's own repaint waits for the main loop. Opening a window and
+    drawing into it in the same tick sent the image and then let Neovim paint
+    that window's empty cells over it. `images.terminal.draw()` now flushes
+    the pending repaint first, so every drawing path — zen, hover float,
+    redact — inherits the fix. If an empty window still appears, the terminal
+    is most likely ignoring the sequence entirely; check `wezterm imgcat`
+    above.
+
 The image does not disappear ~
     `:Image clear` forces a repaint. If it returns on its own, an event in
     `display.clear_events` is missing for your workflow.
