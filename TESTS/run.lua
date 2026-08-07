@@ -75,6 +75,7 @@ local specs = {
   "zen_spec.lua",
   "scale_spec.lua",
   "sanitize_filename_spec.lua",
+  "paste_target_spec.lua",
   "convert_spec.lua",
   "remote_spec.lua",
   "screenshot_spec.lua",

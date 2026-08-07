@@ -132,7 +132,37 @@ end
 -- Für Tests exponiert: reine Funktion, kein Terminal/Dateisystem nötig.
 M.sanitize_filename = sanitize_filename
 
---- Zielpfad für ein neues Bild bestimmen und das Verzeichnis anlegen.
+--- Bereits vorhandenes Ressourcen-Verzeichnis im Dokumentverzeichnis finden
+--- (z.B. "Resources"/"Ressourcen", siehe `paste.existing_dir_names`) — falls
+--- eins existiert, wird dieses statt `paste.dir` verwendet, damit nicht ein
+--- zweiter Ablage-Ordner ("assets") parallel zu einem bereits gepflegten
+--- entsteht. Case-insensitiver Abgleich: Windows-Dateisysteme sind selbst
+--- schon case-insensitiv, und ein exaktes `"resources"` würde sonst an einem
+--- vorhandenen `Resources` vorbeisuchen.
+---@param doc_dir string
+---@return string|nil Name des gefundenen Verzeichnisses, wie im Dateisystem
+local function find_existing_resource_dir(doc_dir)
+  local candidates = cfg().paste.existing_dir_names
+  if not candidates or #candidates == 0 then return nil end
+
+  local wanted = {}
+  for _, n in ipairs(candidates) do
+    wanted[n:lower()] = true
+  end
+
+  local entries = vim.fn.readdir(doc_dir) or {}
+  for _, entry in ipairs(entries) do
+    if wanted[entry:lower()] and vim.fn.isdirectory(doc_dir .. "/" .. entry) == 1 then return entry end
+  end
+  return nil
+end
+-- Für Tests exponiert: liest nur, schreibt nichts.
+M.find_existing_resource_dir = find_existing_resource_dir
+
+--- Zielpfad für ein neues Bild bestimmen und das Verzeichnis anlegen. Läuft
+--- erst NACH einer erfolgreichen Aufnahme (siehe `paste_with_name`) — sonst
+--- würde z.B. eine leere Zwischenablage trotzdem ein `assets`-Verzeichnis
+--- anlegen, obwohl gar nichts hineingeschrieben wird.
 ---@param buf integer
 ---@param filename_override string|nil bereits sanitisierter Name; nil = Template
 ---@return string|nil absoluter Pfad
@@ -146,7 +176,7 @@ local function target_paths(buf, filename_override)
   local doc_dir = vim.fn.fnamemodify(name, ":p:h")
   local doc_stem = vim.fn.fnamemodify(name, ":t:r")
 
-  local sub = c.dir or ""
+  local sub = find_existing_resource_dir(doc_dir) or c.dir or ""
   local dir = (sub ~= "") and (doc_dir .. "/" .. sub) or doc_dir
   if vim.fn.isdirectory(dir) == 0 then
     local ok = pcall(vim.fn.mkdir, dir, "p")
@@ -157,6 +187,21 @@ local function target_paths(buf, filename_override)
   local abs = dir .. "/" .. file
   local rel = (sub ~= "") and (sub .. "/" .. file) or file
   return abs, rel, nil
+end
+
+--- `src` nach `dst` verschieben. `fs_rename` scheitert über Laufwerksgrenzen
+--- hinweg (EXDEV, unter Windows der Normalfall zwischen Temp- und
+--- Projektlaufwerk) — dann wird stattdessen kopiert und das Original gelöscht.
+---@param src string
+---@param dst string
+---@return boolean ok
+local function move_file(src, dst)
+  if vim.uv.fs_rename(src, dst) then return true end
+  if vim.uv.fs_copyfile(src, dst) then
+    pcall(vim.uv.fs_unlink, src)
+    return true
+  end
+  return false
 end
 
 --- Link an der zum Zeitpunkt des Aufrufs gültigen Cursorposition einfügen.
@@ -198,27 +243,49 @@ local function insert_link(buf, rel, alt)
 end
 
 --- Zweiter Teil von `M.run`/`M.screenshot`, nach einer optionalen
---- Namensabfrage: Bilddatei über `capture(abs, cb)` erzeugen und danach
+--- Namensabfrage: Bilddatei über `capture(out, cb)` erzeugen und danach
 --- optional nach Alt-Text fragen. `capture` ist austauschbar —
 --- `clipboard_to_file` für `:Image paste`, `images.screenshot.capture` für
 --- `:Image screenshot` — alles danach (Zielpfad, Link, Alt-Text) ist für
 --- beide identisch. Async, weil eine interaktive Bildschirmauswahl
 --- Sekunden bis zu einer Minute dauern kann und ein blockierendes Warten
 --- darauf Neovim für diese ganze Zeit einfrieren würde.
+---
+--- `capture` schreibt zuerst in eine temporäre Datei, nicht direkt in
+--- `paste.dir` — erst nach einer erfolgreichen Aufnahme wird das Zielverzeichnis
+--- bestimmt (inkl. `find_existing_resource_dir`), bei Bedarf angelegt und die
+--- Datei dorthin verschoben. Bricht `capture` ab (z.B. kein Bild in der
+--- Zwischenablage, Screenshot mit <Esc> abgebrochen), bleibt dadurch auch kein
+--- leeres `paste.dir` zurück.
 ---@param buf integer
 ---@param filename_override string|nil bereits sanitisiert; nil = Template
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@return nil
 local function paste_with_name(buf, filename_override, capture)
-  local abs, rel, err = target_paths(buf, filename_override)
-  if not abs or not rel then
-    notify().error(err or "Zielpfad unbestimmbar")
+  if vim.api.nvim_buf_get_name(buf) == "" then
+    notify().error("Buffer hat keinen Dateinamen — bitte zuerst speichern")
     return
   end
 
-  capture(abs, function(ok, cap_err)
+  local tmp = vim.fn.tempname() .. ".png"
+
+  capture(tmp, function(ok, cap_err)
     if not ok then
+      pcall(vim.uv.fs_unlink, tmp)
       notify().warn(cap_err or "Einfügen fehlgeschlagen")
+      return
+    end
+
+    local abs, rel, err = target_paths(buf, filename_override)
+    if not abs or not rel then
+      pcall(vim.uv.fs_unlink, tmp)
+      notify().error(err or "Zielpfad unbestimmbar")
+      return
+    end
+
+    if not move_file(tmp, abs) then
+      pcall(vim.uv.fs_unlink, tmp)
+      notify().error("Datei konnte nicht verschoben werden: " .. abs)
       return
     end
 
@@ -253,10 +320,26 @@ end
 --- `capture` als Aufnahmefunktion ausführen. Gemeinsamer Kern von `M.run`
 --- (Zwischenablage) und `M.screenshot` (interaktive Bildschirmauswahl) —
 --- beide unterscheiden sich nur darin, WIE die Bilddatei entsteht.
+---
+--- `direct_name` kommt von `:Image paste {name}` — ist er gesetzt, wird er
+--- (sanitisiert) direkt verwendet und weder die interaktive Abfrage noch
+--- `paste.ask_filename` greifen: der Name wurde bereits beim Aufruf
+--- angegeben, es gibt nichts mehr zu erfragen.
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
+---@param direct_name string|nil bereits als Kommandoargument angegebener Name
 ---@return nil
-local function capture_with_optional_name(capture)
+local function capture_with_optional_name(capture, direct_name)
   local buf = vim.api.nvim_get_current_buf()
+
+  if direct_name then
+    local sanitized = sanitize_filename(direct_name)
+    if not sanitized then
+      notify().error("Ungültiger Dateiname: " .. direct_name)
+      return
+    end
+    paste_with_name(buf, sanitized, capture)
+    return
+  end
 
   if not cfg().paste.ask_filename then
     paste_with_name(buf, nil, capture)
@@ -291,10 +374,16 @@ end
 
 --- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
 --- einfügen.
+---@param name string|nil bereits vorgegebener Dateiname (`:Image paste {name}`) — überspringt jede Namensabfrage
 ---@return nil
-function M.run()
-  capture_with_optional_name(clipboard_to_file)
+function M.run(name)
+  capture_with_optional_name(clipboard_to_file, name)
 end
+
+-- Für Tests exponiert: beide nehmen `capture` als Parameter entgegen, ein
+-- Fake genügt also, ohne echte Zwischenablage/echten interaktiven Screenshot.
+M.paste_with_name = paste_with_name
+M.capture_with_optional_name = capture_with_optional_name
 
 --- Interaktive Bildschirm-Auswahl direkt in eine Datei aufnehmen und wie
 --- `M.run` weiterverarbeiten — der Alltagsfall in einem Schritt statt drei

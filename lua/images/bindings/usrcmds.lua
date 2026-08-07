@@ -137,9 +137,10 @@ function M.register(cfg)
 
       {
         path = { "paste" },
-        desc = "Bild aus der Zwischenablage speichern und verlinken",
-        run = function()
-          require("images").paste()
+        args = { { name = "name", type = "STRING", optional = true } },
+        desc = "Bild aus der Zwischenablage speichern und verlinken; mit {name} direkt benannt statt der konfigurierten Namensabfrage",
+        run = function(ctx)
+          require("images").paste(ctx.args.name)
         end,
       },
 

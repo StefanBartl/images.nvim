@@ -159,7 +159,7 @@ dependencies are in place.
 | `:Image gallery [cols]` | Show every image of the buffer side by side in a grid |
 | `:Image next` / `prev` | Jump to the next/previous image and show it |
 | `:Image info [path]` | Format, dimensions and file size |
-| `:Image paste` | Save the clipboard image next to the document and insert the link |
+| `:Image paste [name]` | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly instead of asking/templating |
 | `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
 | `:Image export [path]` | Export an image as PDF, next to the source file — requires ImageMagick |
@@ -184,7 +184,12 @@ selection.
 
 `:Image paste` is the everyday case for documentation: take a screenshot, run
 it, and the PNG is written to `assets/<document>-<timestamp>.png` with
-`![](assets/…)` inserted at the cursor. `:Image screenshot` collapses this
+`![](assets/…)` inserted at the cursor — unless a `Resources` or
+`Ressourcen` folder already exists next to the document, in which case that
+one is reused instead of creating `assets` alongside it (see
+`paste.existing_dir_names` below). No image on the clipboard leaves no
+folder behind either way. `:Image paste {name}` uses `{name}` directly as
+the filename instead. `:Image screenshot` collapses this
 further into one step — it takes the screenshot itself instead of reading
 whatever is already on the clipboard, then continues exactly like `:Image
 paste`. Uses `screencapture -i` on macOS, `grim`+`slurp` or `maim -s` on
@@ -242,6 +247,7 @@ require("images").setup({
   },
   paste = {
     dir = "assets",              -- "" puts the file next to the document
+    existing_dir_names = { "Resources", "Ressourcen" }, -- reused instead of `dir` if already present; {} disables
     name_template = "%s-%d.png", -- document stem, timestamp
     link_template = "![](%s)",
     ask_alt_text = false,        -- true prompts for alt text before inserting the link
@@ -274,6 +280,10 @@ itself is used — and the extension is always forced to `.png`, since that is
 what gets written regardless of what you type. Cancelling here does nothing
 at all: unlike the alt-text prompt, nothing has been read from the clipboard
 yet at this point, so cancel means cancel.
+
+`:Image paste {name}` sanitizes `{name}` the same way and uses it directly,
+skipping the prompt outright — a name given on the command line takes
+priority over `paste.ask_filename`.
 
 A statusline segment:
 
