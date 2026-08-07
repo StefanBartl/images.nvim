@@ -8,8 +8,13 @@
 -- sendet das Bild und lässt Neovim danach die leeren Zellen dieses Fensters
 -- darüber malen — Popup da, Bild weg.
 --
--- Deshalb muss `terminal.draw` den anstehenden Repaint erzwingen, BEVOR die
--- Payload rausgeht. Genau diese Reihenfolge steht hier, nicht das Zeichnen.
+-- Dagegen hilft zweierlei, und beides wird hier festgenagelt:
+--   1. `terminal.draw` erzwingt den anstehenden Repaint, BEVOR die Payload
+--      rausgeht — räumt weg, was vor dem Senden bereits anstand.
+--   2. Jeder Pfad, der ein Fenster öffnet (`zen`, `hover_float`, `redact`),
+--      zeichnet erst im nächsten Tick — denn den Repaint, den das Öffnen
+--      selbst auslöst, kann kein Flush vor dem Senden abfangen.
+-- Geprüft wird die Reihenfolge, nicht das Zeichnen.
 
 ---@param H table Harness aus TESTS/run.lua
 return function(H)
@@ -76,5 +81,38 @@ return function(H)
     for _, entry in ipairs(log) do
       H.ok(entry ~= "payload", "fehlende Datei sendet keine Payload")
     end
+
+    -- ── Fenster-Pfade zeichnen erst im nächsten Tick ────────────────────────
+    -- Die zweite Hälfte derselben Ursache: der Flush oben räumt weg, was VOR
+    -- dem Senden anstand — nicht den Repaint, den das Öffnen des Fensters
+    -- selbst auslöst. Wer ein Fenster erzeugt und im selben Tick zeichnet,
+    -- liegt weiterhin unter Neovims Farbe. Deshalb muss bei `zen` (und
+    -- gleichermaßen `hover_float`/`redact`) NACH dem Aufruf noch nichts
+    -- gesendet sein.
+    local zen = require("images.zen")
+    -- Ohne das meldet der Fähigkeits-Guard im Testlauf berechtigt ein
+    -- unerkanntes Terminal — hier nur Rauschen, die Reihenfolge hängt nicht
+    -- daran.
+    local prev_cfg = require("images.config").get()
+    require("images.config").setup({ display = { assume_supported = true } })
+
+    local sent = 0
+    local real_send = vim.api.nvim_ui_send
+    vim.api.nvim_ui_send = function(s)
+      if type(s) == "string" and s:find("1337", 1, true) then sent = sent + 1 end
+    end
+    local ok_open, opened = pcall(zen.open, img)
+    local immediate = sent
+    vim.wait(500, function()
+      return sent > 0
+    end)
+    local deferred = sent
+    vim.api.nvim_ui_send = real_send
+    pcall(zen.close)
+    require("images.config").setup(prev_cfg)
+
+    H.ok(ok_open and opened, "zen.open öffnet das Fenster")
+    H.eq(immediate, 0, "zen zeichnet NICHT im selben Tick wie das Fenster-Öffnen")
+    H.eq(deferred, 1, "zen zeichnet genau einmal, sobald der Loop weiterläuft")
   end)
 end
