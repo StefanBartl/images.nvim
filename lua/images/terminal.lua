@@ -185,6 +185,24 @@ local function payload_for(raw, cols, rows)
   })
 end
 
+--- Anstehende Bildschirmausgabe erzwingen, BEVOR gezeichnet wird.
+---
+--- Vierte Eigenheit, die Zeit gekostet hat: `nvim_ui_send` schreibt sofort
+--- ans Terminal, Neovims eigener Repaint läuft dagegen erst, wenn die
+--- Steuerung in die Hauptschleife zurückkehrt. Wer also ein Fenster öffnet
+--- und im selben Tick hineinzeichnet, sendet das Bild und lässt Neovim
+--- danach die (leeren) Zellen dieses Fensters darüber malen — Popup da,
+--- Bild weg. Genau so verhielt sich `:Image zen`.
+---
+--- Deshalb hier und nicht beim Aufrufer: Es ist eine Invariante des
+--- Zeichenpfads, nicht der Fensterlogik. Wo der Schirm ohnehin steht
+--- (`images.browse`s Picker-Preview, `images.gallery` über bestehendem
+--- Text), ist es ein wirkungsloses Flush.
+---@return nil
+local function flush_pending_redraw()
+  pcall(vim.cmd, "redraw")
+end
+
 --- Ein Bild an einer Terminalposition zeichnen.
 ---@param file string Absoluter Pfad zu einer Bilddatei
 ---@param row integer 1-basierte Terminalzeile
@@ -196,8 +214,12 @@ end
 function M.draw(file, row, col, cols, rows)
   if not M.available() then return false, "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)" end
 
+  -- Vor dem Lesen: schlägt das Lesen fehl, war der Flush umsonst, aber
+  -- harmlos — umgekehrt käme er zu spät.
   local raw, err = read_file(file)
   if not raw then return false, err end
+
+  flush_pending_redraw()
 
   local send = vim.api.nvim_ui_send
   send(ESC .. "[s")
@@ -227,6 +249,8 @@ function M.draw_many(placements)
 
   local send = vim.api.nvim_ui_send
   local drawn, errors = 0, {}
+
+  flush_pending_redraw()
 
   send(ESC .. "[s")
   for _, p in ipairs(placements) do

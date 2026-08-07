@@ -80,6 +80,7 @@ local specs = {
   "screenshot_spec.lua",
   "hover_float_spec.lua",
   "redact_spec.lua",
+  "terminal_draw_spec.lua",
 }
 
 local failed = 0
