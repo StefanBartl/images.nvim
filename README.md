@@ -104,9 +104,10 @@ SVG is the one format WezTerm cannot decode at all — everything else
 (PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
 `.svg` file is rasterized to a cached PNG before drawing; without it, opening
 one reports a clear error instead of failing silently. Together with
-`:Image export`, `:Image redact` and the ASCII fallback (below), these are
-deliberately the *only* four places ImageMagick is a requirement rather
-than an improvement — see [Configuration](#configuration).
+`:Image export` (unless `pdfport.nvim` is installed, see below), `:Image
+redact` and the ASCII fallback (below), these are deliberately the *only*
+four places ImageMagick is a requirement rather than an improvement — see
+[Configuration](#configuration).
 
 When the terminal check fails, `:Image show`/hover fall back to a colored
 block-character rendering instead of the (silently ineffective) OSC 1337
@@ -163,7 +164,7 @@ dependencies are in place.
 | `:Image paste [name]` | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly instead of asking/templating |
 | `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
-| `:Image export [path]` | Export an image as PDF, next to the source file — requires ImageMagick |
+| `:Image export [path]` | Export an image as PDF, next to the source file — via `pdfport.nvim` if installed, else requires ImageMagick |
 | `:Image redact [path]` | Open a censor mode: mark boxes (Visual mode + `<CR>`), `w` blacks them out into a new file — requires ImageMagick |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
@@ -337,8 +338,14 @@ possible across the sibling plugins.
 ## Optional external tools
 
 ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative
-scaling, SVG display, and is required outright for `:Image export`/`redact`;
-`chafa` is the terminal-image fallback. Declared, with the reasoning per
+scaling, SVG display, and is required outright for `:Image redact`;
+`chafa` is the terminal-image fallback. `:Image export` needs ImageMagick
+too, *unless* [`pdfport.nvim`](https://github.com/StefanBartl/pdfport.nvim)
+is installed — then the export routes through pdfport's `create()` API
+instead (asynchronous, lossless via `img2pdf` if available, otherwise
+`magick` through pdfport's own fallback chain). Soft dependency, `pcall`'d;
+without pdfport.nvim the previous synchronous `magick`-only path is
+unchanged. Declared, with the reasoning per
 tool, in [`docs/install.json`](docs/install.json) — parsed by
 [lib.nvim](https://github.com/StefanBartl/lib.nvim)'s
 [`deps` module](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/deps/README.md),

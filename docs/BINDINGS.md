@@ -19,12 +19,13 @@ completion and this table all come from the same spec.
 | `:Image paste [name]` | — | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly |
 | `:Image screenshot` | — | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
-| `:Image export [path]` | — | Export an image as PDF next to the source file (needs ImageMagick) |
+| `:Image export [path]` | — | Export an image as PDF next to the source file (via `pdfport.nvim` if installed, else needs ImageMagick) |
 | `:Image redact [path]` | — | Censor mode: mark boxes (Visual + `<CR>`), `w` blacks them out into a new file (needs ImageMagick) |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
 | `:Image zen [path]` | — | Show one image full-screen in a real editable window |
+| `:Image draw <position> [path]` | — | Draw an image at a named position in the current window (`full`/9 anchors); the primitive zen/hover/redact/the picker preview build on, also `images.draw()` |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | — | Report whether this terminal can display images |
 | `:Image clear` | — | Remove displayed images, release a pin, and close a `:Image zen` window |

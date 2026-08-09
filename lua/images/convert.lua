@@ -18,6 +18,14 @@
 --- anzuhängen, das eine PDF erwartet. Kein Cache — anders als SVG-Anzeige
 --- ist das ein einmaliger, expliziter Export, kein wiederholter Zeichenpfad.
 ---
+--- Ist `pdfport.nvim` installiert und meldet `can_create("image")` einen
+--- verfügbaren Producer, läuft der Export darüber (asynchron, verlustfrei
+--- über `img2pdf`, sonst `magick` — welcher Producer greift, entscheidet
+--- pdfports eigene `create_chain`, nicht dieses Plugin). Ohne pdfport bleibt
+--- der bisherige synchrone `magick`-Pfad unverändert die einzige Option.
+--- Soft-Dependency über `pcall`, wie überall in diesem Repo (siehe
+--- CROSS-PLUGIN.md).
+---
 --- `M.redact` — Rechtecke (Pixelkoordinaten, siehe `images.scale`) schwarz
 --- übermalen und als neue Datei ablegen, siehe docs/ROADMAP/REDACT.md für
 --- das volle Konzept (Motivation: casedesk-Anhänge mit Kundendaten, die vor
@@ -72,19 +80,58 @@ end
 --- überschrieben — dieselbe Haltung wie `:Image paste`/`replace`, die
 --- Zieldateien ebenfalls ohne Rückfrage schreiben; images.nvim fragt bei
 --- Dateioperationen grundsätzlich nicht nach, sondern meldet das Ergebnis.
+---
+--- `on_done` ist der einzige verlässliche Weg, das Ergebnis zu erfahren: der
+--- magick-Pfad ruft es synchron auf, bevor `to_pdf` zurückkehrt; der
+--- pdfport-Pfad ruft es asynchron auf, sobald pdfports Producer fertig ist.
 ---@param path string absoluter Pfad zu einer Bilddatei
----@return string|nil pdf_path
----@return string|nil err
-function M.to_pdf(path)
-  if vim.fn.executable("magick") == 0 then return nil, "PDF-Export braucht ImageMagick (`magick` nicht gefunden)" end
+---@param on_done fun(ok: boolean, out_path_or_err: string)|nil
+---@return string|nil pdf_path  nur im synchronen (magick) Erfolgsfall gesetzt
+---@return string|nil err       nur im synchronen (magick) Fehlerfall gesetzt
+function M.to_pdf(path, on_done)
+  local ok_pp, pdfport = pcall(require, "pdfport")
+  if ok_pp and type(pdfport.can_create) == "function" and pdfport.can_create("image") then
+    pdfport.create({
+      inputs = { path },
+      from = "image",
+      __callback = function(result)
+        if not on_done then return end
+        if result.status == "ok" then
+          on_done(true, result.path)
+        else
+          on_done(false, result.error or "Export fehlgeschlagen (pdfport)")
+        end
+      end,
+    })
+    return nil, nil
+  end
+
+  if vim.fn.executable("magick") == 0 then
+    local err = "PDF-Export braucht ImageMagick (`magick` nicht gefunden)"
+    if on_done then on_done(false, err) end
+    return nil, err
+  end
 
   local stat = vim.uv.fs_stat(path)
-  if not stat then return nil, "Datei nicht gefunden: " .. path end
+  if not stat then
+    local err = "Datei nicht gefunden: " .. path
+    if on_done then on_done(false, err) end
+    return nil, err
+  end
 
   local out = vim.fn.fnamemodify(path, ":r") .. ".pdf"
   local result = vim.system({ "magick", path, out }, { text = true }):wait()
-  if result.code ~= 0 then return nil, "Export fehlgeschlagen: " .. vim.trim(result.stderr or "") end
-  if not vim.uv.fs_stat(out) then return nil, "Export lieferte keine Datei" end
+  if result.code ~= 0 then
+    local err = "Export fehlgeschlagen: " .. vim.trim(result.stderr or "")
+    if on_done then on_done(false, err) end
+    return nil, err
+  end
+  if not vim.uv.fs_stat(out) then
+    local err = "Export lieferte keine Datei"
+    if on_done then on_done(false, err) end
+    return nil, err
+  end
+  if on_done then on_done(true, out) end
   return out
 end
 
