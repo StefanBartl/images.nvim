@@ -472,6 +472,48 @@ function M.zen(path)
   return require("images.zen").open(path)
 end
 
+--- Ein Bild — oder das unter dem Cursor — zuverlässig in einem Fenster (oder
+--- dem Fenster, das einen Buffer zeigt) an einer benannten Position zeichnen.
+--- Anders als `M.show` (immer das aktuelle Fenster, unterhalb des Cursors)
+--- oder `M.zen`/`M.hover_float` (feste Fenster mit eigener Lebensdauer) legt
+--- diese Funktion die Position selbst fest — für Aufrufer, die genau wissen
+--- wollen, wo das Bild landet, z.B. andere Plugins, die ein Fenster ohnehin
+--- schon offen haben.
+---
+--- Keine Remote-Bilder (dieselbe Grenze wie bei `M.zen`/`M.export`/
+--- `M.redact` — nur `M.show`/Hover laden URLs, siehe `display.remote`s Doku
+--- in `images.config.DEFAULTS`).
+---@param target integer|nil Fenster- oder Buffer-Handle; nil/0 = aktuelles Fenster
+---@param position string siehe `images.scale.POSITIONS` ("full", "center", "top-left", …)
+---@param path string|nil nil = Bild unter dem Cursor
+---@param opts Images.Anchor.Opts|nil
+---@return boolean ok bei `opts.defer = true`: ob der Aufruf angenommen wurde, nicht ob bereits gezeichnet ist
+---@return string|nil err
+function M.draw(target, position, path, opts)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
+    return false, "Kein Bild gefunden"
+  end
+
+  guard_capability()
+
+  opts = opts or {}
+  local user_on_done = opts.on_done
+  local merged_opts = vim.tbl_extend("force", opts, {
+    -- `images.anchor.draw` ruft dies immer genau einmal — synchron, wenn
+    -- `target` sich nicht auflösen lässt oder `defer` nicht gesetzt ist,
+    -- sonst sobald der aufgeschobene Versuch feststeht. Ein Fehlschlag
+    -- erreicht so den User in jedem Fall, nicht nur im Sofort-Pfad.
+    on_done = function(ok, err)
+      if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+      if user_on_done then user_on_done(ok, err) end
+    end,
+  })
+
+  return require("images.anchor").draw(target, position, file, merged_opts)
+end
+
 --- Zwei Bilder unterhalb eines Scopes auswählen und nebeneinander vergleichen.
 ---@param scope string|nil "cfile"|"cwd"|"path"; nil = "cwd"
 ---@param arg string|nil bei scope="path": das Zielverzeichnis
@@ -549,6 +591,14 @@ function M.setup(opts)
   require("images.bindings.usrcmds").register(conf)
   require("images.bindings.keymaps").register(conf)
   require("images.bindings.autocmds").register(conf)
+
+  -- Einmaliges (über Neustarts persistiertes) Popup beim ersten `setup()`
+  -- nach der Installation: welche CLI-Tools schalten was frei, und warum
+  -- (docs/install.json). `:Lib deps show images.nvim` danach jederzeit
+  -- wiederholbar. pcall'd: ein älteres lib.nvim ohne lib.nvim.deps darf
+  -- setup() nicht wegen eines reinen Info-Popups brechen.
+  local ok_deps, deps = pcall(require, "lib.nvim.deps")
+  if ok_deps then deps.show_once("images.nvim") end
 end
 
 return M
