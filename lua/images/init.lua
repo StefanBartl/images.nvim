@@ -595,10 +595,14 @@ function M.setup(opts)
   -- Einmaliges (über Neustarts persistiertes) Popup beim ersten `setup()`
   -- nach der Installation: welche CLI-Tools schalten was frei, und warum
   -- (docs/install.json). `:Lib deps show images.nvim` danach jederzeit
-  -- wiederholbar. pcall'd: ein älteres lib.nvim ohne lib.nvim.deps darf
-  -- setup() nicht wegen eines reinen Info-Popups brechen.
-  local ok_deps, deps = pcall(require, "lib.nvim.deps")
-  if ok_deps then deps.show_once("images.nvim") end
+  -- wiederholbar. `conf.deps_popup = false` (direkt in der setup()-Spec,
+  -- config/DEFAULTS.lua) schaltet es für dieses Plugin ab. pcall'd: ein
+  -- älteres lib.nvim ohne lib.nvim.deps darf setup() nicht wegen eines
+  -- reinen Info-Popups brechen.
+  if conf.deps_popup ~= false then
+    local ok_deps, deps = pcall(require, "lib.nvim.deps")
+    if ok_deps then deps.show_once("images.nvim") end
+  end
 end
 
 return M

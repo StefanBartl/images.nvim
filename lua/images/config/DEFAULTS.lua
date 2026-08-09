@@ -90,6 +90,12 @@ return {
     ask_filename = false,
   },
 
+  -- Einmaliges "welche CLI-Tools will dieses Plugin, und warum"-Popup beim
+  -- ersten setup() nach der Installation (via lib.nvim.deps). false schaltet
+  -- es für dieses Plugin ab, direkt hier in der setup()-Spec — kein vim.g
+  -- nötig. Siehe README "Optional external tools".
+  deps_popup = true,
+
   keymaps = {
     show = "<leader>im",
     gallery = "<leader>ig",
