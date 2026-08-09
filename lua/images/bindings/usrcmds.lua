@@ -221,6 +221,18 @@ function M.register(cfg)
       },
 
       {
+        path = { "draw" },
+        args = {
+          { name = "position", type = "STRING", enum = require("images.scale").POSITIONS },
+          { name = "path", type = "FILE", optional = true },
+        },
+        desc = "Bild an einer benannten Position im aktuellen Fenster zeichnen (ohne Pfad: das unter dem Cursor)",
+        run = function(ctx)
+          require("images").draw(nil, ctx.args.position, ctx.args.path)
+        end,
+      },
+
+      {
         path = { "pin" },
         desc = "Anzeige festhalten — kein Aufräumen bei Cursorbewegung",
         run = function()

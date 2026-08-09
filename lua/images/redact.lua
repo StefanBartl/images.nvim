@@ -213,15 +213,14 @@ function M.open(path)
     desc = "images.redact: Aufräumen beim Schließen",
   })
 
-  -- `vim.schedule` aus demselben Grund wie in `images.zen` (dort ausführlich
-  -- begründet): synchron gezeichnet läge das Bild vor Neovims Repaint des
-  -- gerade geöffneten Fensters und würde von dessen Zellen überdeckt.
-  vim.schedule(function()
-    if not vim.api.nvim_win_is_valid(win) then return end
-    local pos = vim.api.nvim_win_get_position(win)
-    local ok, err = require("images.terminal").draw(target, pos[1] + 1, pos[2] + 1, cols, rows)
-    if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
-  end)
+  -- `defer = true` aus demselben Grund wie in `images.zen` — siehe
+  -- `images.anchor`s Moduldoku: das Fenster wurde gerade erst geöffnet.
+  require("images.anchor").draw(win, "full", target, {
+    defer = true,
+    on_done = function(ok, err)
+      if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+    end,
+  })
 
   return true
 end

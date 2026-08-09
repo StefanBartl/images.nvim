@@ -42,23 +42,55 @@ return function(H)
   H.ok(r.b < 1, "…ist aber sichtbar kleiner als das größere Bild")
   H.eq(math.floor(r.b * 100 + 0.5), 50, "der Faktor entspricht dem tatsächlichen Diagonalenverhältnis (0.5)")
 
-  -- ── box(): zentriert statt in der Ecke ──────────────────────────────────────
-  local cols, rows, col_off, row_off = scale.box(100, 40, 1)
-  H.eq(cols, 100, "factor=1 nutzt die volle Breite")
+  -- ── anchor_box("center", ...): zentriert statt in der Ecke ─────────────────
+  local cols, rows, col_off, row_off = scale.anchor_box(100, 40, "center", 1)
+  H.eq(cols, 100, "scale=1 nutzt die volle Breite")
   H.eq(rows, 40, "…und volle Höhe")
   H.eq(col_off, 0, "…ohne Versatz")
   H.eq(row_off, 0, "…in beiden Achsen")
 
-  cols, rows, col_off, row_off = scale.box(100, 40, 0.5)
-  H.eq(cols, 50, "factor=0.5 halbiert die Breite")
+  cols, rows, col_off, row_off = scale.anchor_box(100, 40, "center", 0.5)
+  H.eq(cols, 50, "scale=0.5 halbiert die Breite")
   H.eq(rows, 20, "…und die Höhe")
   H.eq(col_off, 25, "…und zentriert horizontal ((100-50)/2)")
   H.eq(row_off, 10, "…und vertikal ((40-20)/2)")
 
-  -- ── box(): nie kleiner als eine Zelle, auch bei extremem Faktor ────────────
-  cols, rows = scale.box(10, 10, 0.01)
+  -- ── anchor_box("full", ...): scale wird ignoriert, immer volle Größe ───────
+  cols, rows, col_off, row_off = scale.anchor_box(100, 40, "full", 0.1)
+  H.eq(cols, 100, "full ignoriert scale — volle Breite")
+  H.eq(rows, 40, "…und volle Höhe")
+  H.eq(col_off, 0, "…kein Versatz")
+  H.eq(row_off, 0, "…in beiden Achsen")
+
+  -- ── anchor_box(): die acht Randpositionen sitzen am jeweiligen Rand,
+  --    mittig zentriert entlang der anderen Achse, nicht in der Ecke ────────
+  local _
+  _, _, col_off, row_off = scale.anchor_box(100, 40, "top-left", 0.5)
+  H.eq(col_off, 0, "top-left: kein horizontaler Versatz")
+  H.eq(row_off, 0, "top-left: kein vertikaler Versatz")
+
+  cols, _, col_off, row_off = scale.anchor_box(100, 40, "top-right", 0.5)
+  H.eq(col_off, 100 - cols, "top-right: an die rechte Kante")
+  H.eq(row_off, 0, "top-right: oben")
+
+  _, rows, col_off, row_off = scale.anchor_box(100, 40, "bottom-left", 0.5)
+  H.eq(col_off, 0, "bottom-left: links")
+  H.eq(row_off, 40 - rows, "bottom-left: an die untere Kante")
+
+  cols, rows, col_off, row_off = scale.anchor_box(100, 40, "center-right", 0.5)
+  H.eq(col_off, 100 - cols, "center-right: rechte Kante")
+  H.eq(row_off, math.floor((40 - rows) / 2), "center-right: vertikal zentriert")
+
+  -- ── anchor_box(): nie kleiner als eine Zelle, auch bei extremem Skalar ─────
+  cols, rows = scale.anchor_box(10, 10, "center", 0.01)
   H.ok(cols >= 1, "cols wird nie 0")
   H.ok(rows >= 1, "rows wird nie 0")
+
+  -- ── anchor_box(): unbekannte Position meldet einen Fehler statt zu raten ──
+  local nil_cols, _, _, _, err = scale.anchor_box(100, 40, "nowhere", 0.5)
+  H.eq(nil_cols, nil, "unbekannte Position liefert kein Ergebnis")
+  H.ok(err ~= nil, "…sondern eine Fehlermeldung")
+  H.contains(err, "nowhere", "…die die ungültige Eingabe nennt")
 
   -- ── fit_cells(): ohne Bildmaße unverändert ─────────────────────────────────
   cols, rows = scale.fit_cells(60, 25, nil)

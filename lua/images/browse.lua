@@ -136,6 +136,10 @@ end
 --- Ein Bild anhand der Geometrie eines Fensters zeichnen, statt anhand der
 --- Cursorposition (anders als `images.show`) — für die Vorschau innerhalb
 --- eines Picker-Fensters, dessen Lage der Aufrufer nicht selbst kennt.
+---
+--- Dünner Wrapper um `images.anchor.draw` (die kanonische Implementierung);
+--- Name und Signatur bleiben unverändert, weil markdown.nvim diese Funktion
+--- bereits als öffentliche API konsumiert (siehe README.md/CROSS-PLUGIN.md).
 ---@param file string
 ---@param winid integer
 ---@param factor number|nil 0 < factor <= 1; nil/1 = volle Fenstergröße.
@@ -144,18 +148,8 @@ end
 ---            `:Image compare` den Faktor aus den echten Bildmaßen ableitet.
 ---@return boolean ok
 local function draw_in_window(file, winid, factor)
-  if not vim.api.nvim_win_is_valid(winid) then return false end
-  local pos = vim.api.nvim_win_get_position(winid)
-  local width = vim.api.nvim_win_get_width(winid)
-  local height = vim.api.nvim_win_get_height(winid)
-  require("images.terminal").clear()
-
-  local cols, rows, col_off, row_off = width, height, 0, 0
-  if factor and factor < 1 then
-    cols, rows, col_off, row_off = require("images.scale").box(width, height, factor)
-  end
-
-  local ok = require("images.terminal").draw(file, pos[1] + 1 + row_off, pos[2] + 1 + col_off, cols, rows)
+  local position = (factor and factor < 1) and "center" or "full"
+  local ok = require("images.anchor").draw(winid, position, file, { scale = factor })
   return ok
 end
 M.draw_in_window = draw_in_window
