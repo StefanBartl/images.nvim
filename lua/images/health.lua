@@ -118,6 +118,18 @@ local function check_deps()
 end
 
 ---@return nil
+---Meldet images.nvims eigene docs/install.json über lib.nvim.deps — dieselben
+---Tools, die check_imagemagick()/check_clipboard() bereits prüfen, aber mit
+---dem deklarierten `why` je Tool und einem Verweis auf `:Lib deps show`.
+---Tut nichts, wenn lib.nvim.deps fehlt (älteres lib.nvim).
+local function check_lib_deps()
+  local ok, deps_health = pcall(require, "lib.nvim.deps.health")
+  if not ok then return end
+  vim.health.start("images.nvim: deklarierte Tools (lib.nvim.deps)")
+  deps_health.report_for("images.nvim")
+end
+
+---@return nil
 function M.check()
   vim.health.start("images.nvim")
   check_output()
@@ -126,6 +138,7 @@ function M.check()
   check_screenshot()
   check_imagemagick()
   check_deps()
+  check_lib_deps()
 end
 
 return M

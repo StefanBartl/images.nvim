@@ -25,6 +25,7 @@
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Integrations](#integrations)
+- [Optional external tools](#optional-external-tools)
 - [Documentation](#documentation)
 - [Development](#development)
 
@@ -167,6 +168,7 @@ dependencies are in place.
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
+| `:Image draw <position> [path]` | Draw an image at a named position ("full", "center", "top-left", …) in the current window — the reliable, positioned single-shot primitive behind zen/hover/redact, also available as `images.draw()` for other plugins |
 | `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan, view side by side; with ImageMagick, scaled proportionally so a small icon doesn't look the same size as a large photo |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | Report whether this terminal can display images |
@@ -211,6 +213,19 @@ available in a terminal at all, so the box is sized generously on purpose
 margin): over-redacting is the safe failure mode, under-redacting is not.
 See [docs/ROADMAP/REDACT.md](docs/ROADMAP/REDACT.md) for the full design
 rationale.
+
+`:Image draw <position> [path]` (Lua: `images.draw(target, position, path,
+opts)`) draws reliably at a named spot in a window — `"full"` fills it,
+`"top-left"`/`"center"`/`"bottom-right"`/… anchor a smaller, scaled box (see
+`images.scale`'s `POSITIONS` list for the full nine anchors plus `"full"`).
+`target` is a window handle, a buffer handle (resolved to whichever window
+currently shows it), or nil for the current window — the command always
+targets the current one. This is the one place that actually knows how to
+draw into a window and have it stick: `:Image zen`, the hover float, redact,
+and the picker preview all delegate to it internally, so a window opened in
+the same tick as the draw call (`opts.defer = true`) is handled correctly
+without every caller re-solving the same timing problem (see
+`lua/images/anchor.lua`'s module doc for why that problem exists at all).
 
 ## Configuration
 
@@ -299,7 +314,10 @@ relationship also runs the other way: `markdown.nvim`'s `mi` prefers
 images.nvim as its in-Neovim preview provider (over snacks.nvim/image.nvim,
 both Kitty-only), and its `:Markdown links show` reuses
 `images.browse.draw_in_window()` for a live per-item image preview when
-`snacks.picker` is also installed.
+`snacks.picker` is also installed. `draw_in_window()` is itself a thin,
+name-preserved wrapper around `images.draw()` now — a new consumer should
+reach for `images.draw(target, position, path, opts)` directly instead,
+`draw_in_window` stays only for that existing call site.
 
 `lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
 picker used by `:Image list`, and the `kit.compare` component behind
@@ -315,6 +333,23 @@ Kitty-only one — see "Why not snacks.image or image.nvim" above); without it,
 and `open.nvim` routes `:Open image` here. See
 [docs/ROADMAP/CROSS-PLUGIN.md](docs/ROADMAP/CROSS-PLUGIN.md) for what else is
 possible across the sibling plugins.
+
+## Optional external tools
+
+ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative
+scaling, SVG display, and is required outright for `:Image export`/`redact`;
+`chafa` is the terminal-image fallback. Declared, with the reasoning per
+tool, in [`docs/install.json`](docs/install.json) — parsed by
+[lib.nvim](https://github.com/StefanBartl/lib.nvim)'s
+[`deps` module](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/deps/README.md),
+which this plugin already depends on:
+
+- The first time `setup()` runs after installing images.nvim, a popup shows
+  what's missing and why (once, ever — see `:help lib.nvim-deps-first_run`).
+- `:Lib deps show images.nvim` shows the same report at any time.
+- `:Lib deps install images.nvim` composes and confirms an install command
+  for your OS's package manager.
+- Also folded into `:checkhealth images`.
 
 ## Documentation
 
