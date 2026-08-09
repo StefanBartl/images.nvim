@@ -367,9 +367,13 @@ end
 
 --- Bild als PDF exportieren, neben der Quelldatei — die Gegenrichtung von
 --- pdfports "PDF-Seite als Bild" (dort noch offen, siehe pdfport.nvims
---- eigene docs/ROADMAP.md).
+--- eigene docs/ROADMAP.md). Läuft über pdfport.nvim (asynchron, verlustfrei
+--- via img2pdf), wenn installiert und verfügbar; sonst der bisherige
+--- synchrone `magick`-Pfad — siehe `images.convert.to_pdf`.
 ---@param path string|nil nil = Bild unter dem Cursor
----@return boolean ok
+---@return boolean ok  true = Export wurde gestartet (Ergebnis kommt über
+---notify, synchron im magick-Pfad, asynchron im pdfport-Pfad); false = gar
+---nicht erst gestartet (kein Bild gefunden)
 function M.export(path)
   local file = require("images.resolve").path_or_cursor(path)
   if not file then
@@ -377,13 +381,14 @@ function M.export(path)
     return false
   end
 
-  local out, err = require("images.convert").to_pdf(file)
-  if not out then
-    notify().error(err or "Export fehlgeschlagen")
-    return false
-  end
+  require("images.convert").to_pdf(file, function(ok, out_path_or_err)
+    if ok then
+      notify().info("Exportiert: " .. vim.fn.fnamemodify(out_path_or_err, ":~"))
+    else
+      notify().error(out_path_or_err or "Export fehlgeschlagen")
+    end
+  end)
 
-  notify().info("Exportiert: " .. vim.fn.fnamemodify(out, ":~"))
   return true
 end
 
