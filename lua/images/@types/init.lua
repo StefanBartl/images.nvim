@@ -7,6 +7,7 @@
 ---@field display ImagesNvim.DisplayConfig
 ---@field paste ImagesNvim.PasteConfig
 ---@field keymaps ImagesNvim.KeymapConfig
+---@field deps_popup? boolean Einmaliges lib.nvim.deps-Popup beim ersten setup() nach Installation zeigen (default true; ohne lib.nvim.deps wirkungslos)
 
 ---@class ImagesNvim.DisplayConfig
 ---@field max_cols integer Maximale Bildbreite in Terminalzellen
