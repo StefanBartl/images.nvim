@@ -82,6 +82,7 @@ local specs = {
   "hover_float_spec.lua",
   "redact_spec.lua",
   "terminal_draw_spec.lua",
+  "anchor_spec.lua",
 }
 
 local failed = 0

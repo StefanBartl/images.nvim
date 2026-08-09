@@ -52,18 +52,66 @@ function M.compute(a, b)
   return { a = ratio, b = 1 }
 end
 
---- Zellenbox innerhalb eines Fensters bestimmen: `factor` der vollen Größe,
---- zentriert statt in einer Ecke klebend.
+--- Standard-Skalierung für eine benannte Position ohne expliziten `scale`
+--- (siehe `M.anchor_box`) — klein genug, um Randbereiche wie "top-left"
+--- erkennbar von einer Vollflächenanzeige zu unterscheiden.
+M.DEFAULT_ANCHOR_SCALE = 0.45
+
+--- Horizontaler/vertikaler Anteil (0 = Kante, 0.5 = mittig, 1 = Gegenkante),
+--- den eine Box vom übrigen Platz einnimmt — dieselbe Formel für alle neun
+--- Positionen, nur mit anderen (h, v). "full" braucht keinen Sondereintrag:
+--- bei `scale = 1` ist `win_width - cols == 0`, jeder Anker liefert also
+--- ohnehin Offset 0.
+---@type table<string, { h: number, v: number }>
+local ANCHORS = {
+  full = { h = 0.5, v = 0.5 },
+  ["top-left"] = { h = 0, v = 0 },
+  top = { h = 0.5, v = 0 },
+  ["top-right"] = { h = 1, v = 0 },
+  ["center-left"] = { h = 0, v = 0.5 },
+  center = { h = 0.5, v = 0.5 },
+  ["center-right"] = { h = 1, v = 0.5 },
+  ["bottom-left"] = { h = 0, v = 1 },
+  bottom = { h = 0.5, v = 1 },
+  ["bottom-right"] = { h = 1, v = 1 },
+}
+
+--- Gültige Positionsnamen, sortiert — für Validierung, `<Tab>`-Completion
+--- und Doku, damit keine der beiden Listen aus dem Tritt geraten kann.
+---@type string[]
+M.POSITIONS = { "full" }
+for _, name in ipairs({
+  "top-left", "top", "top-right",
+  "center-left", "center", "center-right",
+  "bottom-left", "bottom", "bottom-right",
+}) do
+  M.POSITIONS[#M.POSITIONS + 1] = name
+end
+
+--- Zellenbox innerhalb eines Fensters an einer benannten Position bestimmen.
+--- `position = "full"` ignoriert `scale` (immer 1); jede andere Position
+--- nutzt `scale` (Default `M.DEFAULT_ANCHOR_SCALE`) und zentriert die
+--- resultierende Box am jeweiligen Anker statt sie in eine Ecke zu kleben —
+--- "top-right" sitzt also mittig am oberen rechten Rand, nicht bündig in
+--- der Ecke.
 ---@param win_width integer Zellen
 ---@param win_height integer Zellen
----@param factor number 0 < factor <= 1
----@return integer cols, integer rows, integer col_offset, integer row_offset
-function M.box(win_width, win_height, factor)
-  local cols = math.max(1, math.floor(win_width * factor))
-  local rows = math.max(1, math.floor(win_height * factor))
-  local col_offset = math.floor((win_width - cols) / 2)
-  local row_offset = math.floor((win_height - rows) / 2)
-  return cols, rows, col_offset, row_offset
+---@param position string einer von `M.POSITIONS`
+---@param scale number|nil 0 < scale <= 1; ignoriert bei `position = "full"`
+---@return integer|nil cols, integer|nil rows, integer|nil col_offset, integer|nil row_offset, string|nil err
+function M.anchor_box(win_width, win_height, position, scale)
+  local anchor = ANCHORS[position]
+  if not anchor then
+    return nil, nil, nil, nil, ("Unbekannte Position: %s (erwartet %s)"):format(tostring(position), table.concat(M.POSITIONS, "|"))
+  end
+
+  local effective_scale = (position == "full") and 1 or math.max(0.05, math.min(1, scale or M.DEFAULT_ANCHOR_SCALE))
+
+  local cols = math.max(1, math.floor(win_width * effective_scale))
+  local rows = math.max(1, math.floor(win_height * effective_scale))
+  local col_offset = math.floor((win_width - cols) * anchor.h)
+  local row_offset = math.floor((win_height - rows) * anchor.v)
+  return cols, rows, col_offset, row_offset, nil
 end
 
 --- Angenommenes Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe).

@@ -208,6 +208,18 @@ Calling |images.setup()| is optional when using `opts`.
                         snacks hover popup, since it is not wired to close
                         on focus loss like one.
 
+:Image draw {position} [{path}]
+                        Draw {path} — or the image under the cursor — at a
+                        named position in the current window: "full" fills
+                        it, any of the eight anchors ("top-left", "top",
+                        "top-right", "center-left", "center",
+                        "center-right", "bottom-left", "bottom",
+                        "bottom-right") centers a smaller, scaled box there
+                        instead. The reliable, positioned single-shot
+                        primitive `:Image zen`/the hover float/redact/the
+                        picker preview all build on internally — see
+                        |images.draw()|.
+
 :Image check            Report whether this terminal can display images, and
                         re-run the detection (useful after setting
                         `display.assume_supported`).
@@ -508,6 +520,24 @@ images.zen({path})                                                *images.zen()*
                 Show {path} — or the image under the cursor when nil — full
                 screen in a real editable window. Returns boolean.
 
+images.draw({target}, {position}, {path}, {opts})                *images.draw()*
+                Draw {path} — or the image under the cursor when nil —
+                reliably in {target} at {position}. See |:Image| draw for
+                the position names.
+                {target}: a window handle, a buffer handle (resolved to a
+                window currently showing it), or nil for the current window.
+                {opts}: `{ scale?, defer?, on_done? }` — {scale} (0 <
+                scale <= 1) overrides the default box size for a non-"full"
+                position; {defer} = true schedules the draw for the next
+                event-loop tick, needed when {target} was opened/populated
+                in the same tick as this call (nvim does not repaint until
+                control returns to the main loop, so a synchronous draw
+                right after opening a window gets painted over); {on_done}
+                (ok, err) always runs exactly once, synchronously unless
+                {defer} is set. Returns `ok` — with `defer = true`, whether
+                the call was accepted, not whether the draw already
+                happened; use {on_done} for that result.
+
 images.gallery_range({first}, {last}, {columns})       *images.gallery_range()*
                 Show the images between lines {first} and {last} side by
                 side. Thin wrapper around |images.gallery()| that resolves a
@@ -533,6 +563,8 @@ markdown.nvim   Used for link resolution when present, via a `pcall`. Falls
                 consumer of |images.browse()|'s `draw_in_window()`: its `mi`
                 image handler and (with snacks.picker) `:Markdown links show`
                 both use it for their own in-Neovim previews.
+                `draw_in_window()` itself now just delegates to
+                |images.draw()| — a new consumer should call that directly.
 
 snacks.nvim     Its picker is used by `:Image pickers`/`:Image compare` for a
                 live image thumbnail per entry, via a custom preview function
