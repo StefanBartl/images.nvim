@@ -350,6 +350,10 @@ which this plugin already depends on:
 - `:Lib deps install images.nvim` composes and confirms an install command
   for your OS's package manager.
 - Also folded into `:checkhealth images`.
+- Opt out of the popup with `vim.g.lib_nvim_deps_disable_first_run = true`
+  (every plugin) or `vim.g.lib_nvim_deps_disabled_plugins = { "images.nvim" }`
+  (just this one) — set anywhere in your config, no `lib.nvim` config block
+  needed.
 
 ## Documentation
 
