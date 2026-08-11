@@ -8,6 +8,8 @@
 
 local M = {}
 
+local DOUBLE_CLICK = "<2-LeftMouse>"
+
 --- Bindung → Aktion. Eine Tabelle statt fünf `if`-Blöcken, damit eine neue
 --- Bindung nur hier einen Eintrag braucht.
 ---@type { option: string, desc: string, run: fun() }[]
@@ -59,10 +61,29 @@ local ACTIONS = {
 --- Doppelklick auf einen Markdown-Link zeigt das Bild.
 --- `<2-LeftMouse>` feuert nach dem regulären Klick, der Cursor steht also
 --- bereits im Link — deshalb genügt `hover()` ohne eigene Positionsauswertung.
+---
+--- Ein bereits vorhandenes buffer-lokales `<2-LeftMouse>` wird nicht
+--- überschrieben. Andere Plugins belegen dieselbe Taste auf denselben
+--- Filetypes (markdown.nvim etwa mit einem Handler, der Anchor → Bild → URL →
+--- Datei routet und für den Bildfall ohnehin hierher delegiert). Da beide
+--- Seiten in einem `FileType`-Autocmd registrieren, entschied sonst allein die
+--- Ladereihenfolge, wer gewinnt — und wenn images.nvim gewann, blieben von
+--- einem umfassenderen Handler nur die Bildlinks übrig. Der Verzicht ist die
+--- richtige Richtung: fremde Handler decken den Bildfall mit ab, umgekehrt
+--- nicht.
 ---@param buf integer
 ---@return nil
 local function map_double_click(buf)
-  vim.keymap.set("n", "<2-LeftMouse>", function()
+  -- Nicht `maparg()`: das fragt immer den *aktuellen* Buffer ab, und der muss
+  -- im FileType-Callback nicht `buf` sein. Termcodes auf beiden Seiten, weil
+  -- `lhs` je nach registrierendem Plugin als "<2-LeftMouse>" oder bereits als
+  -- rohe Tastenfolge zurückkommt.
+  local want = vim.api.nvim_replace_termcodes(DOUBLE_CLICK, true, true, true)
+  for _, existing in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+    if vim.api.nvim_replace_termcodes(existing.lhs or "", true, true, true) == want then return end
+  end
+
+  vim.keymap.set("n", DOUBLE_CLICK, function()
     if not require("images").hover() then
       -- Kein Bildlink getroffen: Doppelklick soll sich normal verhalten
       -- (Wortauswahl), statt stumm geschluckt zu werden.

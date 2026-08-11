@@ -246,7 +246,10 @@ Registered buffer-locally for the filetypes in `keymaps.filetypes`.
     <2-LeftMouse>       Double-click a markdown link to show the image.
 
 A double-click that does not hit an image link falls through to the normal
-word selection.
+word selection. If the buffer already has a buffer-local `<2-LeftMouse>` from
+another plugin (markdown.nvim binds one on the same filetypes), images.nvim
+leaves it alone rather than overwriting it — such handlers route the image
+case here anyway, while the reverse is not true.
 
 Every entry accepts `false` to disable that single mapping.
 

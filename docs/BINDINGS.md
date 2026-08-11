@@ -57,6 +57,13 @@ to disable that single mapping.
 A double-click that does not land on an image link falls through to the normal
 word selection, so the mapping never swallows a plain double-click.
 
+`<2-LeftMouse>` is only set when the buffer does not already have a
+buffer-local mapping for it. markdown.nvim binds the same key on the same
+filetypes and routes anchor → image → URL → file, delegating the image case
+back to images.nvim; since both register from a `FileType` autocmd, load order
+would otherwise decide the winner, and images.nvim winning would drop the
+other cases. Whoever binds first keeps the key.
+
 ## Autocmds
 
 | Augroup | Event | Description |
