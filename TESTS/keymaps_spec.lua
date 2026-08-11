@@ -106,5 +106,37 @@ return function(H)
   })
   H.ok(ok, "fehlendes which-key ist ein no-op, kein Fehler")
 
+  -- ── Doppelklick überschreibt kein fremdes <2-LeftMouse> ───────────────────
+  -- Andere Plugins (markdown.nvim) belegen dieselbe Taste auf denselben
+  -- Filetypes und routen dort mehr als nur Bildlinks; images.nvim tritt dann
+  -- zurück, statt die Ladereihenfolge entscheiden zu lassen.
+  reset()
+
+  ---@param ft string
+  ---@param pre_mapped boolean ein fremdes <2-LeftMouse> vorher setzen
+  ---@return string|nil desc der am Ende gültigen Bindung
+  local function double_click_desc(ft, pre_mapped)
+    local buf = vim.api.nvim_create_buf(false, true)
+    if pre_mapped then
+      vim.keymap.set("n", "<2-LeftMouse>", function() end, { buffer = buf, desc = "fremd" })
+    end
+    keymaps.register({
+      ---@diagnostic disable-next-line: missing-fields
+      keymaps = { show = false, gallery = false, next = false, prev = false, paste = false, double_click = true, filetypes = { ft } },
+    })
+    vim.api.nvim_set_option_value("filetype", ft, { buf = buf })
+
+    local want = vim.api.nvim_replace_termcodes("<2-LeftMouse>", true, true, true)
+    local found
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+      if vim.api.nvim_replace_termcodes(m.lhs or "", true, true, true) == want then found = m.desc end
+    end
+    vim.api.nvim_buf_delete(buf, { force = true })
+    return found
+  end
+
+  H.eq(double_click_desc("images_ft_free", false), "images: Bild bei Doppelklick auf Link", "ohne Vorbelegung setzt images.nvim seinen Doppelklick")
+  H.eq(double_click_desc("images_ft_taken", true), "fremd", "eine vorhandene Bindung bleibt unangetastet")
+
   reset()
 end
