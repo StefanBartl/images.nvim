@@ -397,7 +397,7 @@ simply not found when those scan for images.
 `display.screenshot.windows_timeout_ms`/`.windows_poll_interval_ms` only
 matter on Windows. There is no documented way to have the modern Snipping
 Tool write directly to a file, so `:Image screenshot` launches it
-(`ms-screenclip:`) and polls the clipboard for a *new* image — different
+(`ms-screenclip:`) and polls the clipboard for a new image — different
 from whatever was there before — every `windows_poll_interval_ms`, up to
 `windows_timeout_ms`. On macOS and Linux the underlying tool
 (`screencapture -i`, `grim`+`slurp`, or `maim -s`) writes to the target file
@@ -643,7 +643,7 @@ A URL says "Remote-Bilder sind deaktiviert" ~
 
 `:Image screenshot` times out on Windows without an obvious reason ~
     There is no documented way to make the modern Snipping Tool write
-    directly to a file, so this plugin waits for a *new* image to appear in
+    directly to a file, so this plugin waits for a new image to appear in
     the clipboard after launching it — this is the least certain of the
     three platforms this plugin supports. If it keeps timing out, `:Image
     paste` (manual screenshot, then paste) is the unchanged, proven
