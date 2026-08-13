@@ -81,9 +81,7 @@ local function sample(path, cols, rows)
     }, { text = false })
     :wait()
 
-  if result.code ~= 0 then
-    return nil, "ASCII-Sampling fehlgeschlagen: " .. vim.trim(tostring(result.stderr or ""))
-  end
+  if result.code ~= 0 then return nil, "ASCII-Sampling fehlgeschlagen: " .. vim.trim(tostring(result.stderr or "")) end
   local raw = result.stdout
   local need = cols * rows * 3
   if not raw or #raw < need then return nil, "ASCII-Sampling lieferte zu wenig Daten" end
@@ -163,7 +161,9 @@ function M.open(path, display)
     group = vim.api.nvim_create_augroup("images.ascii", { clear = true }),
     pattern = tostring(winid),
     once = true,
-    callback = function() winid = nil end,
+    callback = function()
+      winid = nil
+    end,
     desc = "images.ascii: Aufräumen beim Schließen",
   })
 

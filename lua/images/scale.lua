@@ -81,9 +81,15 @@ local ANCHORS = {
 ---@type string[]
 M.POSITIONS = { "full" }
 for _, name in ipairs({
-  "top-left", "top", "top-right",
-  "center-left", "center", "center-right",
-  "bottom-left", "bottom", "bottom-right",
+  "top-left",
+  "top",
+  "top-right",
+  "center-left",
+  "center",
+  "center-right",
+  "bottom-left",
+  "bottom",
+  "bottom-right",
 }) do
   M.POSITIONS[#M.POSITIONS + 1] = name
 end
@@ -102,7 +108,11 @@ end
 function M.anchor_box(win_width, win_height, position, scale)
   local anchor = ANCHORS[position]
   if not anchor then
-    return nil, nil, nil, nil, ("Unbekannte Position: %s (erwartet %s)"):format(tostring(position), table.concat(M.POSITIONS, "|"))
+    return nil,
+      nil,
+      nil,
+      nil,
+      ("Unbekannte Position: %s (erwartet %s)"):format(tostring(position), table.concat(M.POSITIONS, "|"))
   end
 
   local effective_scale = (position == "full") and 1 or math.max(0.05, math.min(1, scale or M.DEFAULT_ANCHOR_SCALE))

@@ -117,12 +117,18 @@ return function(H)
   ---@return string|nil desc der am Ende gültigen Bindung
   local function double_click_desc(ft, pre_mapped)
     local buf = vim.api.nvim_create_buf(false, true)
-    if pre_mapped then
-      vim.keymap.set("n", "<2-LeftMouse>", function() end, { buffer = buf, desc = "fremd" })
-    end
+    if pre_mapped then vim.keymap.set("n", "<2-LeftMouse>", function() end, { buffer = buf, desc = "fremd" }) end
     keymaps.register({
       ---@diagnostic disable-next-line: missing-fields
-      keymaps = { show = false, gallery = false, next = false, prev = false, paste = false, double_click = true, filetypes = { ft } },
+      keymaps = {
+        show = false,
+        gallery = false,
+        next = false,
+        prev = false,
+        paste = false,
+        double_click = true,
+        filetypes = { ft },
+      },
     })
     vim.api.nvim_set_option_value("filetype", ft, { buf = buf })
 
@@ -135,7 +141,11 @@ return function(H)
     return found
   end
 
-  H.eq(double_click_desc("images_ft_free", false), "images: Bild bei Doppelklick auf Link", "ohne Vorbelegung setzt images.nvim seinen Doppelklick")
+  H.eq(
+    double_click_desc("images_ft_free", false),
+    "images: Bild bei Doppelklick auf Link",
+    "ohne Vorbelegung setzt images.nvim seinen Doppelklick"
+  )
   H.eq(double_click_desc("images_ft_taken", true), "fremd", "eine vorhandene Bindung bleibt unangetastet")
 
   reset()
