@@ -124,7 +124,12 @@ end
 ---@param input string Roher User-Input
 ---@return string|nil bereinigter Dateiname mit `.png`, oder nil ohne brauchbaren Rest
 local function sanitize_filename(input)
-  local base = vim.fn.fnamemodify(vim.trim(input or ""), ":t")
+  -- `fnamemodify(":t")` erkennt `\` nur unter Windows als Pfadtrenner -- unter
+  -- Linux/macOS ist Backslash ein gültiges Dateinamenszeichen, also bliebe ein
+  -- eingegebenes "C:\Windows\name" dort unverändert stehen. Erst manuell auf
+  -- `/` normalisieren macht die Trennung plattformunabhängig.
+  local normalized = vim.trim(input or ""):gsub("\\", "/")
+  local base = vim.fn.fnamemodify(normalized, ":t")
   local stem = vim.trim(vim.fn.fnamemodify(base, ":r"))
   if stem == "" or stem == "." or stem == ".." then return nil end
   return stem .. ".png"
