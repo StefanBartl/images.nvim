@@ -6,18 +6,19 @@
 --- (siehe `images.init`). Sonst liefen sie permanent mit, obwohl sie nur für die
 --- wenigen Sekunden relevant sind, in denen ein Bild auf dem Schirm steht.
 
+local autocmd = require("lib.nvim.autocmd")
+
 local M = {}
 
 --- Autocmds registrieren.
 ---@param _cfg ImagesNvim.Config
 ---@return nil
 function M.register(_cfg)
-  vim.api.nvim_create_autocmd("VimLeavePre", {
-    group = vim.api.nvim_create_augroup("images.autocmds", { clear = true }),
+  autocmd.create("VimLeavePre", function()
+    require("images.terminal").clear()
+  end, {
+    group = autocmd.group("images.autocmds", true),
     desc = "images: angezeigtes Bild vor dem Beenden entfernen",
-    callback = function()
-      require("images.terminal").clear()
-    end,
   })
 end
 

@@ -37,8 +37,10 @@ end
 
 ---@return nil
 local function check_clipboard()
-  if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
-    if vim.fn.executable("powershell.exe") == 1 then
+  local executable = require("lib.nvim.cross.executable")
+
+  if require("lib.nvim.cross.platform.is_windows")() then
+    if executable.exists("powershell.exe") then
       vim.health.ok("`powershell.exe` gefunden — `:Image paste` verfügbar")
     else
       vim.health.warn("`powershell.exe` nicht gefunden — `:Image paste` funktioniert nicht")
@@ -46,8 +48,8 @@ local function check_clipboard()
     return
   end
 
-  if vim.fn.has("mac") == 1 then
-    if vim.fn.executable("pngpaste") == 1 then
+  if require("lib.nvim.cross.platform.is_macos")() then
+    if executable.exists("pngpaste") then
       vim.health.ok("`pngpaste` gefunden — `:Image paste` verfügbar")
     else
       vim.health.warn("`pngpaste` fehlt", { "brew install pngpaste" })
@@ -55,9 +57,9 @@ local function check_clipboard()
     return
   end
 
-  if vim.fn.executable("wl-paste") == 1 then
+  if executable.exists("wl-paste") then
     vim.health.ok("`wl-paste` gefunden — `:Image paste` verfügbar")
-  elseif vim.fn.executable("xclip") == 1 then
+  elseif executable.exists("xclip") then
     vim.health.ok("`xclip` gefunden — `:Image paste` verfügbar")
   else
     vim.health.warn("Weder `wl-paste` noch `xclip` gefunden — `:Image paste` funktioniert nicht")
@@ -68,7 +70,7 @@ end
 local function check_screenshot()
   local screenshot = require("images.screenshot")
   if screenshot.available() then
-    if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
+    if require("lib.nvim.cross.platform.is_windows")() then
       vim.health.ok("Snipping Tool (`ms-screenclip:`) verfügbar — `:Image screenshot`")
     else
       vim.health.ok("`:Image screenshot` verfügbar")
@@ -84,7 +86,7 @@ end
 
 ---@return nil
 local function check_imagemagick()
-  if vim.fn.executable("magick") == 1 then
+  if require("lib.nvim.cross.executable").exists("magick") then
     vim.health.ok(
       "`magick` gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung, SVG-Anzeige, `:Image export` und `:Image redact` verfügbar"
     )

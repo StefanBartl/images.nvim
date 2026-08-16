@@ -52,8 +52,9 @@ end
 ---@return nil
 local function clipboard_to_file(out, callback)
   local cmd ---@type string[]
+  local executable = require("lib.nvim.cross.executable")
 
-  if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
+  if require("lib.nvim.cross.platform.is_windows")() then
     local ps = table.concat({
       "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
       "$img = [System.Windows.Forms.Clipboard]::GetImage();",
@@ -61,16 +62,16 @@ local function clipboard_to_file(out, callback)
       ("$img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png);"):format(out:gsub("'", "''")),
     }, " ")
     cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
-  elseif vim.fn.has("mac") == 1 then
-    if vim.fn.executable("pngpaste") == 0 then
+  elseif require("lib.nvim.cross.platform.is_macos")() then
+    if not executable.exists("pngpaste") then
       callback(false, "`pngpaste` nicht gefunden (brew install pngpaste)")
       return
     end
     cmd = { "pngpaste", out }
   else
-    if vim.fn.executable("wl-paste") == 1 then
+    if executable.exists("wl-paste") then
       cmd = { "sh", "-c", ("wl-paste --type image/png > '%s'"):format(out) }
-    elseif vim.fn.executable("xclip") == 1 then
+    elseif executable.exists("xclip") then
       cmd = { "sh", "-c", ("xclip -selection clipboard -t image/png -o > '%s'"):format(out) }
     else
       callback(false, "Weder `wl-paste` noch `xclip` gefunden")

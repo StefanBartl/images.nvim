@@ -43,7 +43,7 @@ end
 ---@return string
 local function cache_dir()
   local dir = vim.fn.stdpath("cache") .. "/images.nvim/svg"
-  if vim.fn.isdirectory(dir) == 0 then pcall(vim.fn.mkdir, dir, "p") end
+  require("lib.nvim.fs.mkdirp")(dir)
   return dir
 end
 
@@ -52,7 +52,9 @@ end
 ---@return string|nil png_path
 ---@return string|nil err
 function M.to_png(path)
-  if vim.fn.executable("magick") == 0 then return nil, "SVG braucht ImageMagick (`magick` nicht gefunden)" end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    return nil, "SVG braucht ImageMagick (`magick` nicht gefunden)"
+  end
 
   local stat = vim.uv.fs_stat(path)
   if not stat then return nil, "Datei nicht gefunden: " .. path end
@@ -106,7 +108,7 @@ function M.to_pdf(path, on_done)
     return nil, nil
   end
 
-  if vim.fn.executable("magick") == 0 then
+  if not require("lib.nvim.cross.executable").exists("magick") then
     local err = "PDF-Export braucht ImageMagick (`magick` nicht gefunden)"
     if on_done then on_done(false, err) end
     return nil, err
@@ -144,7 +146,9 @@ end
 ---@return string|nil out_path
 ---@return string|nil err
 function M.redact(path, boxes)
-  if vim.fn.executable("magick") == 0 then return nil, "Schwärzen braucht ImageMagick (`magick` nicht gefunden)" end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    return nil, "Schwärzen braucht ImageMagick (`magick` nicht gefunden)"
+  end
   if not boxes or #boxes == 0 then return nil, "Keine Box zum Schwärzen angegeben" end
 
   local stat = vim.uv.fs_stat(path)

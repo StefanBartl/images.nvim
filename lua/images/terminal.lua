@@ -156,11 +156,9 @@ local function read_file(file)
     effective = png
   end
 
-  local fd, open_err = io.open(effective, "rb")
-  if not fd then return nil, ("Datei nicht lesbar: %s (%s)"):format(effective, open_err or "?") end
-  local raw = fd:read("*a")
-  fd:close()
-  if not raw or raw == "" then return nil, "Datei ist leer: " .. effective end
+  local raw, read_err = require("lib.nvim.fs.read")(effective)
+  if not raw then return nil, ("Datei nicht lesbar: %s (%s)"):format(effective, read_err or "?") end
+  if raw == "" then return nil, "Datei ist leer: " .. effective end
   return raw
 end
 

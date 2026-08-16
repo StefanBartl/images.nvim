@@ -82,7 +82,8 @@ end
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 local function capture_linux(out, callback)
-  if vim.fn.executable("grim") == 1 and vim.fn.executable("slurp") == 1 then
+  local executable = require("lib.nvim.cross.executable")
+  if executable.exists("grim") and executable.exists("slurp") then
     vim.system({ "slurp" }, { text = true }, function(sel)
       vim.schedule(function()
         if sel.code ~= 0 or vim.trim(sel.stdout or "") == "" then
@@ -100,7 +101,7 @@ local function capture_linux(out, callback)
         end)
       end)
     end)
-  elseif vim.fn.executable("maim") == 1 then
+  elseif executable.exists("maim") then
     -- -s: interaktive Auswahl per Ziehen. Abbruch (<Esc>) liefert exit != 0.
     vim.system({ "maim", "-s", out }, { text = true }, function(result)
       vim.schedule(function()
@@ -211,19 +212,22 @@ end
 --- Ob auf dieser Plattform überhaupt ein Aufnahmeweg zur Verfügung steht.
 ---@return boolean
 function M.available()
-  if vim.fn.has("mac") == 1 then
-    return vim.fn.executable("screencapture") == 1
-  elseif vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
+  local executable = require("lib.nvim.cross.executable")
+  if require("lib.nvim.cross.platform.is_macos")() then
+    return executable.exists("screencapture")
+  elseif require("lib.nvim.cross.platform.is_windows")() then
     return true -- ms-screenclip: gehört zu Windows, kein separates Tool nötig
   else
-    return (vim.fn.executable("grim") == 1 and vim.fn.executable("slurp") == 1) or vim.fn.executable("maim") == 1
+    return (executable.exists("grim") and executable.exists("slurp")) or executable.exists("maim")
   end
 end
 
 --- Begründung, wenn `available()` false ist — für die Fehlermeldung.
 ---@return string
 function M.unavailable_reason()
-  if vim.fn.has("mac") == 1 then return "`screencapture` nicht gefunden (gehört normalerweise zu macOS)" end
+  if require("lib.nvim.cross.platform.is_macos")() then
+    return "`screencapture` nicht gefunden (gehört normalerweise zu macOS)"
+  end
   return "Weder `grim`+`slurp` (Wayland) noch `maim` (X11) gefunden"
 end
 
@@ -234,9 +238,9 @@ end
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 function M.capture(out, callback)
-  if vim.fn.has("mac") == 1 then
+  if require("lib.nvim.cross.platform.is_macos")() then
     capture_mac(out, callback)
-  elseif vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
+  elseif require("lib.nvim.cross.platform.is_windows")() then
     capture_windows(out, callback)
   else
     capture_linux(out, callback)

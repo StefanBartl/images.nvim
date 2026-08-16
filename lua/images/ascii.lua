@@ -53,7 +53,7 @@ end
 --- Ob ImageMagick verfügbar ist — die einzige Voraussetzung dieses Moduls.
 ---@return boolean
 function M.available()
-  return vim.fn.executable("magick") == 1
+  return require("lib.nvim.cross.executable").exists("magick")
 end
 
 --- `path` auf `cols`x`rows` Pixel herunterrechnen und als rohe RGB-Bytes
@@ -157,13 +157,13 @@ function M.open(path, display)
     end
   end
 
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup("images.ascii", { clear = true }),
+  local autocmd = require("lib.nvim.autocmd")
+  autocmd.create("WinClosed", function()
+    winid = nil
+  end, {
+    group = autocmd.group("images.ascii", true),
     pattern = tostring(winid),
     once = true,
-    callback = function()
-      winid = nil
-    end,
     desc = "images.ascii: Aufräumen beim Schließen",
   })
 
