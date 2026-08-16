@@ -105,22 +105,21 @@ function M.open(path)
   end
   winid = win
 
-  local group = vim.api.nvim_create_augroup("images.zen", { clear = true })
-  vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
+  local autocmd = require("lib.nvim.autocmd")
+  local group = autocmd.group("images.zen", true)
+  autocmd.create({ "WinResized", "VimResized" }, function()
+    redraw(file)
+  end, {
     group = group,
-    callback = function()
-      redraw(file)
-    end,
     desc = "images.zen: Bild folgt der Fenstergröße",
   })
-  vim.api.nvim_create_autocmd("WinClosed", {
+  autocmd.create("WinClosed", function()
+    winid = nil
+    require("images.terminal").clear()
+  end, {
     group = group,
     pattern = tostring(winid),
     once = true,
-    callback = function()
-      winid = nil
-      require("images.terminal").clear()
-    end,
     desc = "images.zen: Aufräumen beim Schließen",
   })
 

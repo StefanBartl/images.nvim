@@ -29,7 +29,7 @@ end
 ---@return string
 local function cache_dir()
   local dir = vim.fn.stdpath("cache") .. "/images.nvim/remote"
-  if vim.fn.isdirectory(dir) == 0 then pcall(vim.fn.mkdir, dir, "p") end
+  require("lib.nvim.fs.mkdirp")(dir)
   return dir
 end
 
@@ -67,8 +67,9 @@ function M.fetch(url)
   local timeout_s = math.max(1, math.floor((c.timeout_ms or 10000) / 1000))
   local max_bytes = c.max_bytes or (20 * 1024 * 1024)
 
+  local executable = require("lib.nvim.cross.executable")
   local cmd
-  if vim.fn.executable("curl") == 1 then
+  if executable.exists("curl") then
     cmd = {
       "curl",
       "-fsSL",
@@ -80,7 +81,7 @@ function M.fetch(url)
       out,
       url,
     }
-  elseif vim.fn.executable("wget") == 1 then
+  elseif executable.exists("wget") then
     -- -Q<bytes>: Quota, das nächstbeste Aequivalent zu curls --max-filesize.
     cmd = { "wget", "-q", "--timeout=" .. tostring(timeout_s), "-Q" .. tostring(max_bytes), "-O", out, url }
   else

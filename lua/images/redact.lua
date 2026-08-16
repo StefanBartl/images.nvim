@@ -197,19 +197,19 @@ function M.open(path)
   winid, bufnr, file, image_px, draw_cols, draw_rows = win, buf, target, px, cols, rows
   boxes = {}
 
-  vim.keymap.set("n", "w", write_redacted, { buffer = buf, nowait = true, desc = "images.redact: schwärzen und speichern" })
-  vim.keymap.set("n", "u", undo_box, { buffer = buf, nowait = true, desc = "images.redact: letzte Box entfernen" })
-  vim.keymap.set("x", "<CR>", confirm_box, { buffer = buf, nowait = true, desc = "images.redact: Auswahl als Box markieren" })
+  local map = require("lib.nvim.map")
+  map("n", "w", write_redacted, { buffer = buf, nowait = true }, "images.redact: schwärzen und speichern")
+  map("n", "u", undo_box, { buffer = buf, nowait = true }, "images.redact: letzte Box entfernen")
+  map("x", "<CR>", confirm_box, { buffer = buf, nowait = true }, "images.redact: Auswahl als Box markieren")
 
-  local group = vim.api.nvim_create_augroup("images.redact", { clear = true })
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = group,
+  local autocmd = require("lib.nvim.autocmd")
+  autocmd.create("WinClosed", function()
+    winid = nil
+    require("images.terminal").clear()
+  end, {
+    group = autocmd.group("images.redact", true),
     pattern = tostring(win),
     once = true,
-    callback = function()
-      winid = nil
-      require("images.terminal").clear()
-    end,
     desc = "images.redact: Aufräumen beim Schließen",
   })
 

@@ -44,7 +44,7 @@ function M.collect(path)
     mtime = stat.mtime and stat.mtime.sec or 0,
   }
 
-  if vim.fn.executable("magick") == 1 then
+  if require("lib.nvim.cross.executable").exists("magick") then
     -- `identify` als Subcommand von `magick`, nicht als eigenes Binary: auf
     -- Windows kollidiert `convert.exe`/`identify.exe` mit den gleichnamigen
     -- Systemprogrammen in System32.
@@ -70,7 +70,7 @@ function M.lines(info)
   }
   if info.width and info.height then
     table.insert(out, 2, ("Format:  %s %dx%d"):format(info.format or "?", info.width, info.height))
-  elseif vim.fn.executable("magick") == 0 then
+  elseif not require("lib.nvim.cross.executable").exists("magick") then
     out[#out + 1] = "Format:  (ImageMagick nicht installiert)"
   end
   if info.mtime > 0 then out[#out + 1] = "Geändert: " .. os.date("%Y-%m-%d %H:%M", info.mtime) end

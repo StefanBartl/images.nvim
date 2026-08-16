@@ -100,14 +100,14 @@ function M.open(file)
   end
   winid = win
 
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = vim.api.nvim_create_augroup("images.hover_float", { clear = true }),
+  local autocmd = require("lib.nvim.autocmd")
+  autocmd.create("WinClosed", function()
+    winid = nil
+    require("images.terminal").clear()
+  end, {
+    group = autocmd.group("images.hover_float", true),
     pattern = tostring(winid),
     once = true,
-    callback = function()
-      winid = nil
-      require("images.terminal").clear()
-    end,
     desc = "images.hover_float: Aufräumen beim Schließen",
   })
 

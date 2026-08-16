@@ -83,13 +83,13 @@ local function map_double_click(buf)
     if vim.api.nvim_replace_termcodes(existing.lhs or "", true, true, true) == want then return end
   end
 
-  vim.keymap.set("n", DOUBLE_CLICK, function()
+  require("lib.nvim.map")("n", DOUBLE_CLICK, function()
     if not require("images").hover() then
       -- Kein Bildlink getroffen: Doppelklick soll sich normal verhalten
       -- (Wortauswahl), statt stumm geschluckt zu werden.
       vim.cmd("normal! viw")
     end
-  end, { buffer = buf, desc = "images: Bild bei Doppelklick auf Link" })
+  end, { buffer = buf }, "images: Bild bei Doppelklick auf Link")
 end
 
 --- Längstes gemeinsames Präfix der konfigurierten Bindungen, z.B. "<leader>i"
@@ -133,21 +133,19 @@ function M.register(cfg)
   local prefix = common_prefix(keys)
   if prefix then require("images.bindings.which_key").setup(prefix) end
 
-  vim.api.nvim_create_autocmd("FileType", {
-    group = vim.api.nvim_create_augroup("images.keymaps", { clear = true }),
+  local map = require("lib.nvim.map")
+  ---@param ev { buf: integer }
+  require("lib.nvim.autocmd").create("FileType", function(ev)
+    if not vim.api.nvim_buf_is_valid(ev.buf) then return end
+    for _, action in ipairs(ACTIONS) do
+      local lhs = keys[action.option]
+      if type(lhs) == "string" and lhs ~= "" then map("n", lhs, action.run, { buffer = ev.buf }, action.desc) end
+    end
+    if keys.double_click then map_double_click(ev.buf) end
+  end, {
+    group = require("lib.nvim.autocmd").group("images.keymaps", true),
     pattern = keys.filetypes or { "markdown" },
     desc = "images: buffer-lokale Keymaps setzen",
-    ---@param ev { buf: integer }
-    callback = function(ev)
-      if not vim.api.nvim_buf_is_valid(ev.buf) then return end
-      for _, action in ipairs(ACTIONS) do
-        local lhs = keys[action.option]
-        if type(lhs) == "string" and lhs ~= "" then
-          vim.keymap.set("n", lhs, action.run, { buffer = ev.buf, desc = action.desc })
-        end
-      end
-      if keys.double_click then map_double_click(ev.buf) end
-    end,
   })
 end
 

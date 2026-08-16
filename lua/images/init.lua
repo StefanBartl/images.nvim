@@ -55,18 +55,17 @@ local function arm_clear()
   if pinned then return end
   local events = cfg().display.clear_events
   if not events or #events == 0 then return end
-  vim.api.nvim_create_autocmd(events, {
-    group = vim.api.nvim_create_augroup("images.clear", { clear = true }),
+  require("lib.nvim.autocmd").create(events, function()
+    if require("images.hover_float").is_open() then
+      require("images.hover_float").close()
+    elseif require("images.ascii").is_open() then
+      require("images.ascii").close()
+    else
+      require("images.terminal").clear()
+    end
+  end, {
+    group = require("lib.nvim.autocmd").group("images.clear", true),
     once = true,
-    callback = function()
-      if require("images.hover_float").is_open() then
-        require("images.hover_float").close()
-      elseif require("images.ascii").is_open() then
-        require("images.ascii").close()
-      else
-        require("images.terminal").clear()
-      end
-    end,
   })
 end
 
