@@ -369,7 +369,7 @@ which this plugin already depends on:
 
 - `:h images` — vimdoc reference
 - [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
-- [docs/map/](docs/map/) — generated module map ([documentation.nvim](https://github.com/StefanBartl/documentation.nvim))
+- generated module map — not committed (derived output, stale the moment anything changes); open any file in this repo and run `:DocMap` to build it into `docs/map/`, via [documentation.nvim](https://github.com/StefanBartl/documentation.nvim)
 - [docs/ROADMAP/](docs/ROADMAP/) — planned features and cross-plugin ideas
 
 ## Development
