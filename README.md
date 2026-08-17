@@ -39,6 +39,7 @@ dependency.
 :Image                     show the image under the cursor
 :'<,'>Image                gallery of just the selected lines
 :Image gallery             every image in the buffer, side by side
+:'<,'>Image gallery        …restricted to the selected lines
 :Image paste               clipboard screenshot → file next to the document + link
 :Image screenshot          take a screenshot interactively, skipping the clipboard step
 :Image next / prev         walk through the images of the buffer
@@ -159,6 +160,7 @@ dependencies are in place.
 | `:Image list` | Pick from every image link in the buffer |
 | `:'<,'>Image list` | …restricted to the selected lines |
 | `:Image gallery [cols]` | Show every image of the buffer side by side in a grid |
+| `:'<,'>Image gallery [cols]` | …restricted to the selected lines |
 | `:Image next` / `prev` | Jump to the next/previous image and show it |
 | `:Image info [path]` | Format, dimensions and file size |
 | `:Image paste [name]` | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly instead of asking/templating |
