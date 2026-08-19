@@ -48,7 +48,8 @@ end
 
 --- Fenstergröße aus der Config-Anteilsangabe berechnen. Reine Funktion (kein
 --- Fenster, keine Seiteneffekte) — deshalb ohne Terminal testbar, anders als
---- der Rest dieses Moduls.
+--- der Rest dieses Moduls. Das ist die MAXIMALBOX; `M.dimensions_for`
+--- schrumpft sie bei Bedarf auf das Seitenverhältnis eines Bildes.
 ---@param zen_cfg ImagesNvim.ZenConfig|nil
 ---@return integer width
 ---@return integer height
@@ -57,6 +58,29 @@ function M.dimensions(zen_cfg)
   local width = math.max(1, math.floor(vim.o.columns * (zen_cfg.width or 0.9)))
   local height = math.max(1, math.floor(vim.o.lines * (zen_cfg.height or 0.85)))
   return width, height
+end
+
+--- Fenstergröße für EIN bestimmtes Bild: die Maximalbox aus `M.dimensions`,
+--- geschrumpft auf das Seitenverhältnis des Bildes (`images.scale.fit_cells`,
+--- dieselbe Funktion, die `images.redact` schon dafür nutzt). Ohne echte
+--- Pixelmaße (kein ImageMagick, oder ein Format, das `images.info` nicht
+--- lesen kann) bleibt es bei der Maximalbox — unverändertes Verhalten.
+---
+--- Grund, das hier zu tun statt `preserveAspectRatio=1` allein walten zu
+--- lassen: das Terminal skaliert nur INNERHALB der gesendeten Zellbox und
+--- lässt den Rest leer — ein Fenster, das breiter oder höher als das
+--- (skalierte) Bild ist, zeigt also sichtbaren Leerraum statt eines Fehlers.
+--- Ein passend zugeschnittenes Fenster braucht dieses Leerlassen gar nicht
+--- erst.
+---@param file string
+---@param zen_cfg ImagesNvim.ZenConfig|nil
+---@return integer width
+---@return integer height
+function M.dimensions_for(file, zen_cfg)
+  local max_w, max_h = M.dimensions(zen_cfg)
+  local px = require("images.info").collect(file)
+  if not px or not px.width or not px.height then return max_w, max_h end
+  return require("images.scale").fit_cells(max_w, max_h, px)
 end
 
 --- Ob gerade ein Zen-Fenster offen ist.
@@ -90,7 +114,7 @@ function M.open(path)
   -- Ein bereits offenes Zen-Fenster ersetzen statt zu stapeln.
   M.close()
 
-  local width, height = M.dimensions(cfg().display.zen)
+  local width, height = M.dimensions_for(file, cfg().display.zen)
 
   local win, buf = require("lib.nvim.window.make_scratch")({
     width = width,
