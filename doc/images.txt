@@ -346,7 +346,11 @@ after 20000 visited entries as a safety net against an accidental scan of a
 huge tree — the results found up to that point are still used.
 
 `display.zen` sizes the `:Image zen` window as a fraction (0-1) of the
-editor's width/height.
+editor's width/height — that is the MAXIMUM box. The window actually opened
+is shrunk to the image's own aspect ratio inside it (when ImageMagick can
+read the image's pixel size; otherwise the fraction alone decides, as
+before), so the image fills its window instead of leaving empty space on
+one side.
 
                                                     *images-capability-config*
 Before the first draw, images.nvim checks whether the terminal is one that
@@ -617,6 +621,15 @@ A window opens but stays empty, or shows only its first rows ~
     repaint that opening the window itself triggers. If an empty window still
     appears, the terminal is most likely ignoring the sequence entirely;
     check `wezterm imgcat` above.
+
+The image leaves empty space at one edge of the `:Image zen` window ~
+    `preserveAspectRatio=1` scales the image DOWN to fit the sent cell box,
+    but never grows the box to match — a window wider or taller than the
+    (scaled) image just shows nothing in the remainder. `:Image zen` sizes
+    its window to the image's own aspect ratio for exactly this reason
+    (`images.scale.fit_cells()`); without ImageMagick installed the pixel
+    size cannot be read and the window falls back to the plain
+    `display.zen` fraction.
 
 The image does not disappear ~
     `:Image clear` forces a repaint. If it returns on its own, an event in

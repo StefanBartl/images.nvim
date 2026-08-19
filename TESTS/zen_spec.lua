@@ -28,4 +28,14 @@ return function(H)
   H.falsy(zen.is_open(), "kein Zen-Fenster offen")
   zen.close() -- darf nicht fehlschlagen
   H.falsy(zen.is_open(), "close() bleibt ein No-op ohne offenes Fenster")
+
+  -- ── `dimensions_for` schrumpft auf das Bild-Seitenverhältnis ───────────────
+  -- Kein echter Dateizugriff nötig: `images.info.collect` liefert ohne
+  -- ImageMagick (oder für einen nicht existierenden Pfad) einfach kein
+  -- `width`/`height`, und `dimensions_for` fällt dann auf die Maximalbox
+  -- zurück — exakt der Pfad, der hier ohne Terminal/ImageMagick geprüft wird.
+  local max_w, max_h = zen.dimensions(nil)
+  local fw, fh = zen.dimensions_for("/pfad/der/nicht/existiert.png", nil)
+  H.eq(fw, max_w, "ohne ermittelbare Pixelmaße: Breite bleibt die Maximalbox")
+  H.eq(fh, max_h, "ohne ermittelbare Pixelmaße: Höhe bleibt die Maximalbox")
 end

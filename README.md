@@ -80,6 +80,14 @@ reliably. Four details that matter, all of them learned the hard way:
   its draw by one tick — a flush before sending cannot cover the repaint that
   opening the window itself causes. `show`/hover need neither: they draw over
   existing text without creating a window.
+- `preserveAspectRatio=1` only scales the image DOWN to fit the sent cell
+  box — it never grows the box to match, so a window wider or taller than
+  the (scaled) image just shows empty space in that direction. `:Image zen`
+  sizes its window to the image's own aspect ratio up front instead
+  (`images.scale.fit_cells`, the same fit `images.redact` already used),
+  bounded by `display.zen.width`/`height`. Falls back to the old fixed box
+  when the pixel size can't be read (no ImageMagick, or an unreadable
+  format) — no regression, just no fit.
 
 Before the first draw the terminal is checked against the small set that
 implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
