@@ -20,7 +20,7 @@ function M.buffer(buf, first, last)
 
   local found, missing = {}, {}
   for i, line in ipairs(lines) do
-    for _, link in ipairs(resolve.links_in_line(line)) do
+    for _, link in ipairs(resolve.links_in_line(line, from + i)) do
       if resolve.is_image(link.target) then
         local path = resolve.to_path(link.target, buf)
         if path then

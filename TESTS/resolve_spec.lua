@@ -62,4 +62,33 @@ return function(H)
   H.ok(target ~= nil, "Remote-Link wird als Ziel erkannt: " .. tostring(err))
   H.eq(target and target.path, "https://example.com/foto.jpg", "path ist die URL selbst, nicht nil")
   pcall(vim.api.nvim_buf_delete, buf, { force = true })
+
+  -- ── HTML-Ziele über markdown.nvim ──────────────────────────────────────────
+  -- Nur wenn markdown.nvim erreichbar ist: `links_in_line` delegiert dorthin,
+  -- weil dessen Scanner auch `<img src="…">` kennt — das Muster, mit dem man
+  -- in Markdown eine Bildunterschrift bekommt (`<figure>`/`<figcaption>`).
+  -- Ohne markdown.nvim bleibt es beim eigenen Markdown-Muster, und dann ist
+  -- hier nichts zu prüfen.
+  if pcall(require, "markdown.core.link_scan") then
+    local html = resolve.links_in_line('<img src="assets/start.png" alt="Start Screen">', 1)
+    H.eq(#html, 1, "HTML-Bild wird über markdown.nvim erkannt")
+    H.eq(html[1].target, "assets/start.png", "src wird als Ziel gemeldet")
+    H.ok(html[1].from >= 1 and html[1].to >= html[1].from, "Bereich ist 1-basiert und gültig")
+
+    local fig = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(fig, 0, -1, false, {
+      "<figure>",
+      '  <img src="https://example.com/foto.jpg" alt="Foto">',
+      "  <figcaption>Abbildung 1: Foto</figcaption>",
+      "</figure>",
+    })
+    vim.api.nvim_set_current_buf(fig)
+    -- Cursor auf der Caption-Zeile: kein Ziel in der Zeile selbst, das Bild
+    -- kommt aus dem umschließenden `<figure>`-Block.
+    vim.api.nvim_win_set_cursor(0, { 3, 4 })
+    local cap = resolve.under_cursor()
+    H.ok(cap ~= nil, "Caption-Zeile löst das Bild des Blocks auf")
+    H.eq(cap and cap.path, "https://example.com/foto.jpg", "…und zwar dasselbe wie das `<img>`")
+    pcall(vim.api.nvim_buf_delete, fig, { force = true })
+  end
 end
