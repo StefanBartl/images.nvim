@@ -21,10 +21,27 @@ function M.is_image(target)
   return false
 end
 
---- Alle Markdown-Link-Ziele einer Zeile mit ihren Spaltenbereichen.
+--- Alle Link-Ziele einer Zeile mit ihren Spaltenbereichen (1-basiert,
+--- beide Grenzen inklusive).
+---
+--- Bevorzugt markdown.nvims Scanner, der neben `![alt](ziel)` auch rohes
+--- HTML kennt — `<img src="…">` in einem `<figure>`-Block ist genau das
+--- Muster, mit dem man in Markdown eine Bildunterschrift bekommt, und ohne
+--- diese Delegation wäre jedes Bild mit Caption für `:Image` unsichtbar.
+--- Ohne markdown.nvim bleibt es beim eigenen Markdown-Muster.
 ---@param line string
+---@param lnum integer|nil nur für die Weitergabe an markdown.nvim relevant
 ---@return { target: string, from: integer, to: integer }[]
-function M.links_in_line(line)
+function M.links_in_line(line, lnum)
+  local ok, scan = pcall(require, "markdown.core.link_scan")
+  if ok and type(scan.from_line) == "function" then
+    local out = {}
+    for _, link in ipairs(scan.from_line(line, lnum or 1)) do
+      out[#out + 1] = { target = link.target, from = link.col + 1, to = link.col_end + 1 }
+    end
+    return out
+  end
+
   local out = {}
   local init = 1
   while true do
@@ -118,8 +135,18 @@ function M.under_cursor()
   local lnum, col = pos[1], pos[2] + 1
   local line = vim.api.nvim_get_current_line()
 
-  for _, link in ipairs(M.links_in_line(line)) do
+  for _, link in ipairs(M.links_in_line(line, lnum)) do
     if col >= link.from and col <= link.to then return resolve_target(link.target, lnum) end
+  end
+
+  -- Cursor in einem `<figure>`-Block, aber nicht auf dem `<img>` selbst
+  -- (typischerweise auf der `<figcaption>`-Zeile): markdown.nvim löst den
+  -- Block als Ganzes auf, damit die Unterschrift dasselbe Bild meint wie
+  -- das Tag darüber.
+  local ok_html, html = pcall(require, "markdown.core.html_links")
+  if ok_html and type(html.figure_at) == "function" then
+    local fig = html.figure_at(vim.api.nvim_get_current_buf(), lnum)
+    if fig then return resolve_target(fig.target, lnum) end
   end
 
   local cfile = vim.fn.expand("<cfile>")

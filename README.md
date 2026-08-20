@@ -320,7 +320,11 @@ A statusline segment:
 ## Integrations
 
 `markdown.nvim` is used for link resolution when present, falling back to an
-internal resolver otherwise — a soft dependency, never required. The
+internal resolver otherwise — a soft dependency, never required. With it
+installed, raw HTML counts as a link too: `<img src="…">` is a target like
+any other, and a `<figure>` block resolves as one unit, so the cursor on the
+`<figcaption>` line draws the image the caption belongs to. Without it, only
+`![alt](target)` is recognized. The
 relationship also runs the other way: `markdown.nvim`'s `mi` prefers
 images.nvim as its in-Neovim preview provider (over snacks.nvim/image.nvim,
 both Kitty-only), and its `:Markdown links show` reuses
