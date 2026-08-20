@@ -41,5 +41,3 @@ images.statusline()	images.txt	/*images.statusline()*
 images.step()	images.txt	/*images.step()*
 images.txt	images.txt	/*images.txt*
 images.zen()	images.txt	/*images.zen()*
-new	images.txt	/*new*
-new	images.txt	/*new*
