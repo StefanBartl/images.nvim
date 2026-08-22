@@ -143,14 +143,19 @@ local function write_redacted()
     pixel_boxes[#pixel_boxes + 1] = require("images.scale").cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding)
   end
 
-  local out, err = require("images.convert").redact(file, pixel_boxes)
-  if not out then
-    notify().error(err or "Schwärzen fehlgeschlagen")
-    return
-  end
+  -- convert.redact() ist asynchron: magick blockierte hier vorher für die
+  -- gesamte Konvertierung. Das Fenster bleibt bis zum Ergebnis stehen und
+  -- wird erst im Callback geschlossen — die Reihenfolge ist damit dieselbe
+  -- wie vorher, nur ohne eingefrorenen Editor.
+  require("images.convert").redact(file, pixel_boxes, function(out, err)
+    if not out then
+      notify().error(err or "Schwärzen fehlgeschlagen")
+      return
+    end
 
-  notify().info("Geschwärzte Kopie gespeichert: " .. vim.fn.fnamemodify(out, ":~"))
-  M.close()
+    notify().info("Geschwärzte Kopie gespeichert: " .. vim.fn.fnamemodify(out, ":~"))
+    M.close()
+  end)
 end
 
 --- Bild — oder das unter dem Cursor — im Zensur-Modus öffnen.

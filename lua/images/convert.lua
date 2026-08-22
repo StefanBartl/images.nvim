@@ -154,18 +154,28 @@ end
 --- ablegen ("bild.png" → "bild.redacted.png"), das Original bleibt
 --- unverändert. Existiert die Zieldatei bereits, wird sie überschrieben —
 --- dieselbe Haltung wie `M.to_pdf`.
+---
+--- `on_done` ist der Weg zum Ergebnis: `magick` lief hier bis eben über
+--- `vim.system(...):wait()` und blockierte den UI-Thread für die gesamte
+--- Konvertierung. Bei mehreren Boxen auf einem großen Screenshot sind das
+--- Sekunden — und der Zensur-Modus ist genau die Situation, in der man
+--- danach direkt weiterarbeiten will.
 ---@param path string absoluter Pfad zu einer Bilddatei
 ---@param boxes { x1: integer, y1: integer, x2: integer, y2: integer }[] Pixelrechtecke, siehe `images.scale.cell_box_to_pixels`
----@return string|nil out_path
----@return string|nil err
-function M.redact(path, boxes)
-  if not require("lib.nvim.cross.executable").exists("magick") then
-    return nil, "Schwärzen braucht ImageMagick (`magick` nicht gefunden)"
+---@param on_done fun(out_path: string|nil, err: string|nil)|nil
+---@return nil
+function M.redact(path, boxes, on_done)
+  local function done(out_path, err)
+    if on_done then on_done(out_path, err) end
   end
-  if not boxes or #boxes == 0 then return nil, "Keine Box zum Schwärzen angegeben" end
+
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    return done(nil, "Schwärzen braucht ImageMagick (`magick` nicht gefunden)")
+  end
+  if not boxes or #boxes == 0 then return done(nil, "Keine Box zum Schwärzen angegeben") end
 
   local stat = vim.uv.fs_stat(path)
-  if not stat then return nil, "Datei nicht gefunden: " .. path end
+  if not stat then return done(nil, "Datei nicht gefunden: " .. path) end
 
   local ext = vim.fn.fnamemodify(path, ":e")
   local out = vim.fn.fnamemodify(path, ":r") .. ".redacted." .. (ext ~= "" and ext or "png")
@@ -177,10 +187,21 @@ function M.redact(path, boxes)
   end
   table.insert(args, out)
 
-  local result = vim.system(args, { text = true }):wait()
-  if result.code ~= 0 then return nil, "Schwärzen fehlgeschlagen: " .. vim.trim(result.stderr or "") end
-  if not vim.uv.fs_stat(out) then return nil, "Schwärzen lieferte keine Datei" end
-  return out
+  vim.system(args, { text = true }, function(result)
+    -- vim.system-Callbacks laufen außerhalb der Main-Loop; der Aufrufer
+    -- notifiziert und schließt ein Fenster.
+    vim.schedule(function()
+      if result.code ~= 0 then
+        done(nil, "Schwärzen fehlgeschlagen: " .. vim.trim(result.stderr or ""))
+        return
+      end
+      if not vim.uv.fs_stat(out) then
+        done(nil, "Schwärzen lieferte keine Datei")
+        return
+      end
+      done(out, nil)
+    end)
+  end)
 end
 
 return M
