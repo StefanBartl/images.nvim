@@ -83,9 +83,11 @@ end
 --- Zieldateien ebenfalls ohne Rückfrage schreiben; images.nvim fragt bei
 --- Dateioperationen grundsätzlich nicht nach, sondern meldet das Ergebnis.
 ---
---- `on_done` ist der einzige verlässliche Weg, das Ergebnis zu erfahren: der
---- magick-Pfad ruft es synchron auf, bevor `to_pdf` zurückkehrt; der
---- pdfport-Pfad ruft es asynchron auf, sobald pdfports Producer fertig ist.
+--- `on_done` ist der einzige Weg, das Ergebnis zu erfahren: beide Pfade —
+--- pdfport wie magick — rufen es asynchron auf, sobald die Konvertierung
+--- fertig ist. Die Rückgabewerte sind entsprechend immer nil und nur noch
+--- für die Fälle gesetzt, die schon vor dem Start scheitern (kein magick,
+--- Datei nicht gefunden).
 ---@param path string absoluter Pfad zu einer Bilddatei
 ---@param on_done fun(ok: boolean, out_path_or_err: string)|nil
 ---@return string|nil pdf_path  nur im synchronen (magick) Erfolgsfall gesetzt
@@ -122,19 +124,30 @@ function M.to_pdf(path, on_done)
   end
 
   local out = vim.fn.fnamemodify(path, ":r") .. ".pdf"
-  local result = vim.system({ "magick", path, out }, { text = true }):wait()
-  if result.code ~= 0 then
-    local err = "Export fehlgeschlagen: " .. vim.trim(result.stderr or "")
-    if on_done then on_done(false, err) end
-    return nil, err
-  end
-  if not vim.uv.fs_stat(out) then
-    local err = "Export lieferte keine Datei"
-    if on_done then on_done(false, err) end
-    return nil, err
-  end
-  if on_done then on_done(true, out) end
-  return out
+
+  -- `magick` lief hier bis eben über `vim.system(...):wait()` und blockierte
+  -- damit den UI-Thread für die gesamte Konvertierung — bei einem großen Bild
+  -- sind das Sekunden. Jetzt asynchron, genau wie der pdfport-Zweig darüber:
+  -- damit ist `on_done` in *beiden* Pfaden der Weg zum Ergebnis, so wie die
+  -- Doku dieser Funktion es ohnehin schon beschreibt.
+  vim.system({ "magick", path, out }, { text = true }, function(result)
+    -- vim.system-Callbacks laufen außerhalb der Main-Loop; `on_done` landet
+    -- bei jedem Aufrufer in notify und vim.fn.
+    vim.schedule(function()
+      if not on_done then return end
+      if result.code ~= 0 then
+        on_done(false, "Export fehlgeschlagen: " .. vim.trim(result.stderr or ""))
+        return
+      end
+      if not vim.uv.fs_stat(out) then
+        on_done(false, "Export lieferte keine Datei")
+        return
+      end
+      on_done(true, out)
+    end)
+  end)
+
+  return nil, nil
 end
 
 --- Rechtecke schwarz übermalen und als neue Datei neben der Quelldatei
