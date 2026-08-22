@@ -89,61 +89,72 @@ end
 -- ── Anzeige ──────────────────────────────────────────────────────────────────
 
 --- Eine Bilddatei anzeigen.
+---
+--- Für eine http(s)-URL ist das asynchron: der Download läuft im Hintergrund
+--- (er blockierte vorher bis zum konfigurierten Timeout, Default 10s) und die
+--- Anzeige passiert in dessen Callback. `true` heißt dann "Laden gestartet",
+--- Fehler kommen über notify — dieselbe Aufteilung, die `M.export` schon hat.
 ---@param path string Absoluter/relativer Pfad, oder eine http(s)-URL
 ---@return boolean ok
 function M.show(path)
-  local file
-  if require("images.remote").is_remote(path) then
-    local fetched, remote_err = require("images.remote").fetch(path)
-    if not fetched then
-      notify().error(remote_err or "Remote-Bild konnte nicht geladen werden")
-      return false
+  ---@param file string
+  ---@return boolean ok
+  local function display_file(file)
+    local display = cfg().display
+    local cap = require("images.terminal").capability(display.assume_supported)
+
+    -- Terminal kann vermutlich kein OSC 1337: statt der Warnung + einem
+    -- wirkungslosen Zeichenversuch die Blockgrafik-Alternative, wenn
+    -- ImageMagick verfügbar und der Fallback nicht abgeschaltet ist.
+    if not cap.ok then
+      local ascii_cfg = display.ascii_fallback or {}
+      local ascii = require("images.ascii")
+      if ascii_cfg.enabled ~= false and ascii.available() then
+        local ok, err = ascii.open(file, display)
+        if not ok then
+          notify().error(err or "ASCII-Fallback fehlgeschlagen")
+          return false
+        end
+        arm_clear()
+        return true
+      end
     end
-    file = fetched
-  else
-    file = require("images.resolve").to_path(path)
+
+    guard_capability()
+
+    if display.hover_mode == "float" then
+      if not require("images.hover_float").open(file) then return false end
+    else
+      local ok, err =
+        require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
+      if not ok then
+        notify().error(err or "Anzeige fehlgeschlagen")
+        return false
+      end
+    end
+
+    arm_clear()
+    return true
   end
 
+  if require("images.remote").is_remote(path) then
+    require("images.remote").fetch(path, function(fetched, remote_err)
+      if not fetched then
+        notify().error(remote_err or "Remote-Bild konnte nicht geladen werden")
+        return
+      end
+      display_file(fetched)
+    end)
+    return true
+  end
+
+  local file = require("images.resolve").to_path(path)
   if not file then
     notify().error("Bild nicht gefunden: " .. tostring(path))
     return false
   end
 
-  local display = cfg().display
-  local cap = require("images.terminal").capability(display.assume_supported)
-
-  -- Terminal kann vermutlich kein OSC 1337: statt der Warnung + einem
-  -- wirkungslosen Zeichenversuch die Blockgrafik-Alternative, wenn
-  -- ImageMagick verfügbar und der Fallback nicht abgeschaltet ist.
-  if not cap.ok then
-    local ascii_cfg = display.ascii_fallback or {}
-    local ascii = require("images.ascii")
-    if ascii_cfg.enabled ~= false and ascii.available() then
-      local ok, err = ascii.open(file, display)
-      if not ok then
-        notify().error(err or "ASCII-Fallback fehlgeschlagen")
-        return false
-      end
-      arm_clear()
-      return true
-    end
-  end
-
-  guard_capability()
-
-  if display.hover_mode == "float" then
-    if not require("images.hover_float").open(file) then return false end
-  else
-    local ok, err =
-      require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
-    if not ok then
-      notify().error(err or "Anzeige fehlgeschlagen")
-      return false
-    end
-  end
-
-  arm_clear()
-  return true
+  return display_file(file)
 end
 
 --- Bild unter dem Cursor anzeigen (Markdown-Link oder Dateiname).

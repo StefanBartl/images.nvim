@@ -54,15 +54,23 @@ end
 
 --- Bild von `url` laden, gecacht — ein zweiter Aufruf mit derselben URL
 --- lädt nicht erneut, sondern trifft den Cache.
+---
+--- Asynchron: das Ergebnis kommt ausschließlich über `on_done`. Der Download
+--- lief bis eben über `vim.system(...):wait()` und hielt den UI-Thread für
+--- die gesamte Übertragung an — bei einer langsamen Leitung bis zum
+--- konfigurierten Timeout (Default 10s). Ein Cache-Treffer ruft `on_done`
+--- noch im selben Tick auf, ohne Prozess.
 ---@param url string
----@return string|nil local_path
----@return string|nil err
-function M.fetch(url)
+---@param on_done fun(local_path: string|nil, err: string|nil)
+---@return nil
+function M.fetch(url, on_done)
   local c = cfg().display.remote
-  if not c.enabled then return nil, "Remote-Bilder sind deaktiviert (`display.remote.enabled = true` zum Einschalten)" end
+  if not c.enabled then
+    return on_done(nil, "Remote-Bilder sind deaktiviert (`display.remote.enabled = true` zum Einschalten)")
+  end
 
   local out = cache_path(url)
-  if vim.uv.fs_stat(out) then return out end
+  if vim.uv.fs_stat(out) then return on_done(out, nil) end
 
   local timeout_s = math.max(1, math.floor((c.timeout_ms or 10000) / 1000))
   local max_bytes = c.max_bytes or (20 * 1024 * 1024)
@@ -85,22 +93,32 @@ function M.fetch(url)
     -- -Q<bytes>: Quota, das nächstbeste Aequivalent zu curls --max-filesize.
     cmd = { "wget", "-q", "--timeout=" .. tostring(timeout_s), "-Q" .. tostring(max_bytes), "-O", out, url }
   else
-    return nil, "Weder `curl` noch `wget` gefunden"
+    return on_done(nil, "Weder `curl` noch `wget` gefunden")
   end
 
-  local result = vim.system(cmd, { text = true }):wait()
-  if result.code ~= 0 then
-    pcall(vim.uv.fs_unlink, out)
-    return nil, ("Download fehlgeschlagen (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
-  end
+  vim.system(cmd, { text = true }, function(result)
+    -- vim.system-Callbacks laufen außerhalb der Main-Loop; der Aufrufer
+    -- zeichnet danach ins Terminal und notifiziert.
+    vim.schedule(function()
+      if result.code ~= 0 then
+        pcall(vim.uv.fs_unlink, out)
+        on_done(
+          nil,
+          ("Download fehlgeschlagen (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
+        )
+        return
+      end
 
-  local stat = vim.uv.fs_stat(out)
-  if not stat or stat.size == 0 then
-    pcall(vim.uv.fs_unlink, out)
-    return nil, "Download lieferte keine Datei"
-  end
+      local stat = vim.uv.fs_stat(out)
+      if not stat or stat.size == 0 then
+        pcall(vim.uv.fs_unlink, out)
+        on_done(nil, "Download lieferte keine Datei")
+        return
+      end
 
-  return out
+      on_done(out, nil)
+    end)
+  end)
 end
 
 return M
