@@ -7,6 +7,20 @@
 
 local M = {}
 
+---@internal
+--- Ergebnis-Cache, Schlüssel ist Pfad + Änderungszeit + Größe.
+---
+--- `magick identify` läuft über `vim.system(...):wait()` und blockiert damit
+--- den UI-Thread. Asynchron geht hier nicht ohne Weiteres: alle sechs
+--- Aufrufer (`ascii`, `compare` — zweimal pro Vergleich —, `init`, `redact`,
+--- `zen`) brauchen die Abmessungen sofort für ihre Layout-Rechnung, die
+--- Rückgabe ist also Teil des Vertrags. Was aber geht: dieselbe Datei nicht
+--- immer wieder befragen. Format und Abmessungen ändern sich nur, wenn die
+--- Datei sich ändert — und genau das steckt im Schlüssel. `:Image compare`
+--- spart damit die Hälfte, jedes wiederholte Anzeigen desselben Bildes alles.
+---@type table<string, Images.Info>
+local cache = {}
+
 ---@class Images.Info
 ---@field path string Absoluter Pfad
 ---@field bytes integer Dateigröße
@@ -37,11 +51,16 @@ function M.collect(path)
   local stat = vim.uv.fs_stat(path)
   if not stat then return nil, "Datei nicht gefunden: " .. path end
 
+  local mtime = stat.mtime and stat.mtime.sec or 0
+  local key = ("%s:%d:%d"):format(path, mtime, stat.size)
+  local hit = cache[key]
+  if hit then return hit end
+
   ---@type Images.Info
   local info = {
     path = path,
     bytes = stat.size,
-    mtime = stat.mtime and stat.mtime.sec or 0,
+    mtime = mtime,
   }
 
   if require("lib.nvim.cross.executable").exists("magick") then
@@ -57,6 +76,7 @@ function M.collect(path)
     end
   end
 
+  cache[key] = info
   return info
 end
 
