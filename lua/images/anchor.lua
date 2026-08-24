@@ -124,13 +124,45 @@ local function terminal_padding()
   return row, col
 end
 
+--- Sicherheitsmarge in Zellen, die rundum im Fenster frei bleibt.
+---
+--- **Warum das der Default ist und nicht bündiges Zeichnen.** Ein Bild exakt
+--- in den Rahmen zu legen sieht nur dann gut aus, wenn die Platzierung
+--- zellgenau stimmt. Das lässt sich aber nicht garantieren: Terminals mit
+--- einem Fenster-Padding, das kein Vielfaches der Zellgröße ist, verschieben
+--- das Bild um Bruchteile einer Zelle (WezTerm nachweislich, siehe
+--- docs/ROADMAP/TERMINALS.md), und weder Zellgröße noch Padding sind aus
+--- Neovim heraus abfragbar (`:h TermResponse` reicht keine CSI-Antworten
+--- durch). Bündig gezeichnet wird aus so einem Versatz ein sichtbarer
+--- Überstand über den Rahmen — das liest sich als kaputt. Mit einer Zelle
+--- Marge bleibt derselbe Versatz *innerhalb* des Rahmens und liest sich als
+--- Absicht.
+---
+--- Der Preis ist ehrlich: das Bild wird etwas kleiner als das Fenster, und
+--- weil `preserveAspectRatio=1` in der verkleinerten Box neu einpasst, kann
+--- die Marge auf einer Achse etwas größer ausfallen als auf der anderen. Wer
+--- sein Setup vermessen hat (`display.cell_aspect`, `display.terminal_padding`),
+--- setzt `display.draw_inset = 0` und bekommt das bündige Bild zurück.
+---@param explicit integer|nil Wert aus `Images.Anchor.Opts.inset`
+---@return integer cells >= 0
+local function draw_inset(explicit)
+  if type(explicit) == "number" then return math.max(0, math.floor(explicit)) end
+
+  local ok, config = pcall(require, "images.config")
+  if not ok then return 0 end
+
+  local configured = (config.get().display or {}).draw_inset
+  return type(configured) == "number" and math.max(0, math.floor(configured)) or 0
+end
+
 ---@param winid integer bereits als gültig geprüft
 ---@param position string siehe `images.scale.POSITIONS`
 ---@param file string
 ---@param scale number|nil
+---@param inset integer|nil
 ---@return boolean ok
 ---@return string|nil err
-local function draw_now(winid, position, file, scale)
+local function draw_now(winid, position, file, scale, inset)
   if not vim.api.nvim_win_is_valid(winid) then return false, "Fenster nicht mehr gültig" end
 
   local pos = vim.api.nvim_win_get_position(winid)
@@ -141,6 +173,21 @@ local function draw_now(winid, position, file, scale)
 
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
+
+  -- Marge rundum. Pro Achse gedeckelt, damit selbst in einem sehr kleinen
+  -- Fenster mindestens eine Zelle Bild übrig bleibt — eine Marge, die das
+  -- Bild ganz auffrisst, wäre schlechter als gar keine.
+  local margin = draw_inset(inset)
+  if margin > 0 then
+    local mc = math.min(margin, math.floor((cols - 1) / 2))
+    local mr = math.min(margin, math.floor((rows - 1) / 2))
+    if mc > 0 then
+      cols, col_off = cols - 2 * mc, col_off + mc
+    end
+    if mr > 0 then
+      rows, row_off = rows - 2 * mr, row_off + mr
+    end
+  end
 
   require("images.terminal").clear()
   return require("images.terminal").draw(
@@ -155,6 +202,7 @@ end
 ---@class Images.Anchor.Opts
 ---@field scale number|nil 0 < scale <= 1; ignoriert bei `position = "full"`; sonst Default `images.scale.DEFAULT_ANCHOR_SCALE`
 ---@field defer boolean|nil `vim.schedule` vor dem Zeichnen — nötig, wenn `target` im selben Tick geöffnet/befüllt wurde (siehe Modul-Doku). Default `false`.
+---@field inset integer|nil Sicherheitsmarge in Zellen rundum; `nil` = `display.draw_inset` aus der Konfiguration, `0` = bündig. Siehe `draw_inset`.
 ---@field on_done fun(ok: boolean, err: string|nil)|nil läuft in jedem Fall genau einmal — synchron bei `defer = false` (oder wenn `target` sich gar nicht auflösen lässt), sonst sobald der aufgeschobene Zeichenversuch feststeht
 
 --- Ein Bild in `target` an `position` zeichnen.
@@ -175,13 +223,13 @@ function M.draw(target, position, file, opts)
 
   if opts.defer then
     vim.schedule(function()
-      local ok, err = draw_now(winid, position, file, opts.scale)
+      local ok, err = draw_now(winid, position, file, opts.scale, opts.inset)
       if opts.on_done then opts.on_done(ok, err) end
     end)
     return true
   end
 
-  local ok, err = draw_now(winid, position, file, opts.scale)
+  local ok, err = draw_now(winid, position, file, opts.scale, opts.inset)
   if opts.on_done then opts.on_done(ok, err) end
   return ok, err
 end

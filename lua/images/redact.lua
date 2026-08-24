@@ -220,8 +220,15 @@ function M.open(path)
 
   -- `defer = true` aus demselben Grund wie in `images.zen` — siehe
   -- `images.anchor`s Moduldoku: das Fenster wurde gerade erst geöffnet.
+  -- `inset = 0`: hier ist die Zeichenbox keine Darstellungsfrage, sondern die
+  -- Grundlage der Rückrechnung. `draw_cols`/`draw_rows` oben und
+  -- `images.scale.cell_box_to_pixels` setzen voraus, dass die gezeichnete Box
+  -- exakt die ist, die `fit_cells` bestimmt hat. Eine Sicherheitsmarge würde
+  -- jede markierte Box auf die falsche Bildstelle abbilden — geschwärzt würde
+  -- dann nicht das, was der User markiert hat.
   require("images.anchor").draw(win, "full", target, {
     defer = true,
+    inset = 0,
     on_done = function(ok, err)
       if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
     end,

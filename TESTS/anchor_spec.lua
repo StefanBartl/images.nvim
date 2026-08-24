@@ -138,7 +138,7 @@ return function(H)
         return true
       end
 
-      anchor.draw(win, "full", img)
+      anchor.draw(win, "full", img, { inset = 0 })
       require("images.terminal").draw = real_draw
       vim.api.nvim_win_close(win, true)
       return captured
@@ -192,14 +192,78 @@ return function(H)
     local prev_conf = require("images.config").get()
 
     require("images.config").setup({})
-    anchor.draw(win, "full", img)
+    anchor.draw(win, "full", img, { inset = 0 })
     H.eq(captured.row, 11, "ohne terminal_padding-Konfiguration: kein Versatz")
     H.eq(captured.col, 11, "ohne terminal_padding-Konfiguration: kein Versatz")
 
     require("images.config").setup({ display = { terminal_padding = { row = 2, col = 1 } } })
-    anchor.draw(win, "full", img)
+    anchor.draw(win, "full", img, { inset = 0 })
     H.eq(captured.row, 13, "terminal_padding.row addiert sich auf die Zeile")
     H.eq(captured.col, 12, "terminal_padding.col addiert sich auf die Spalte")
+
+    require("images.config").setup(prev_conf)
+    require("images.terminal").draw = real_draw
+    vim.api.nvim_win_close(win, true)
+    vim.api.nvim_buf_delete(scratch, { force = true })
+  end)
+
+  -- ── draw(): display.draw_inset hält rundum eine Marge frei ────────────────
+  -- Toleranz gegen Sub-Zellen-Versatz auf Terminals mit nicht
+  -- zell-ausgerichtetem Fenster-Padding (siehe anchor.lua's draw_inset).
+  -- Geprüft wird beides: dass die Marge wirkt, und dass ein Aufrufer sie
+  -- explizit abwählen kann — images.redact hängt genau daran.
+  H.tmpdir(function(dir)
+    local img = dir .. "/probe.png"
+    H.write(img, "\137PNG\r\n\26\n-- nicht dekodierbar, aber nicht leer")
+
+    local scratch = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { "", "", "", "", "" })
+    local win = vim.api.nvim_open_win(scratch, false, {
+      relative = "editor",
+      row = 10,
+      col = 10,
+      width = 20,
+      height = 10,
+      style = "minimal",
+      border = "none",
+      focusable = false,
+      noautocmd = true,
+    })
+
+    local captured
+    local real_draw = require("images.terminal").draw
+    require("images.terminal").draw = function(_file, row, col, cols, rows)
+      captured = { row = row, col = col, cols = cols, rows = rows }
+      return true
+    end
+
+    local prev_conf = require("images.config").get()
+
+    require("images.config").setup({ display = { draw_inset = 0 } })
+    anchor.draw(win, "full", img)
+    H.eq(captured.cols, 20, "draw_inset = 0: Box füllt die Fensterbreite")
+    H.eq(captured.rows, 10, "draw_inset = 0: Box füllt die Fensterhöhe")
+    H.eq(captured.row, 11, "draw_inset = 0: kein Versatz")
+    H.eq(captured.col, 11, "draw_inset = 0: kein Versatz")
+
+    require("images.config").setup({ display = { draw_inset = 1 } })
+    anchor.draw(win, "full", img)
+    H.eq(captured.cols, 18, "draw_inset = 1: Box je eine Zelle schmaler pro Seite")
+    H.eq(captured.rows, 8, "draw_inset = 1: Box je eine Zelle niedriger pro Seite")
+    H.eq(captured.row, 12, "draw_inset = 1: Startzeile um die Marge nach innen")
+    H.eq(captured.col, 12, "draw_inset = 1: Startspalte um die Marge nach innen")
+
+    -- Der Aufrufer gewinnt gegen die Konfiguration — images.redact zeichnet
+    -- deshalb weiter bündig, egal was global eingestellt ist.
+    anchor.draw(win, "full", img, { inset = 0 })
+    H.eq(captured.cols, 20, "expliziter inset = 0 übergeht die Konfiguration")
+    H.eq(captured.row, 11, "expliziter inset = 0 zeichnet wieder bündig")
+
+    -- Eine Marge, die das Bild ganz auffressen würde, wird gedeckelt.
+    require("images.config").setup({ display = { draw_inset = 99 } })
+    anchor.draw(win, "full", img)
+    H.ok(captured.cols >= 1, "übergroße Marge lässt mindestens eine Spalte Bild übrig")
+    H.ok(captured.rows >= 1, "übergroße Marge lässt mindestens eine Zeile Bild übrig")
 
     require("images.config").setup(prev_conf)
     require("images.terminal").draw = real_draw

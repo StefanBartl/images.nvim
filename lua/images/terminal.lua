@@ -272,6 +272,14 @@ function M.draw(file, row, col, cols, rows)
   local raw, err = read_file(file)
   if not raw then return false, err end
 
+  -- `display.terminal_padding` darf negativ sein (siehe `images.anchor`), und
+  -- nahe am oberen/linken Rand kann das rechnerisch unter 1 fallen. `CSI 0;0H`
+  -- ist zwar in der Praxis wie `CSI 1;1H`, aber darauf soll sich hier nichts
+  -- verlassen — und `clamp_to_screen` würde aus einem zu kleinen `row` eine zu
+  -- große Höhe ableiten.
+  row = math.max(1, row)
+  col = math.max(1, col)
+
   cols, rows = clamp_to_screen(row, col, cols, rows)
 
   flush_pending_redraw()

@@ -21,6 +21,7 @@
 ---@field max_rows integer Maximale Bildhöhe in Terminalzeilen
 ---@field gallery_gap integer Zellen Abstand zwischen Galerie-Kacheln
 ---@field cell_aspect number Pixel-Seitenverhältnis einer Zelle (Breite/Höhe); 0 = Annahme 0.5 aus images.scale, siehe images.cell
+---@field draw_inset integer Sicherheitsmarge in Zellen rundum; 1 = tolerant gegen Sub-Zellen-Versatz (Default), 0 = bündig (siehe images.anchor)
 ---@field terminal_padding { row: integer, col: integer } Fester Zeilen-/Spaltenversatz in ganzen Zellen, Ausgleich für Terminals mit nicht zell-ausgerichtetem window_padding (siehe images.anchor)
 ---@field hover_mode "overlay"|"float" Wie `:Image show`/Hover anzeigt (nicht die Galerie)
 ---@field assume_supported boolean Terminal-Erkennung übergehen (nur die Warnung)

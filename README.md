@@ -130,6 +130,25 @@ single-image path (`:Image show`/hover) gets it, same scope boundary as
 remote images below; set `display.ascii_fallback.enabled = false` to turn it
 off and keep the old silent-no-op-with-a-warning behavior instead.
 
+### Placement accuracy
+
+Images are positioned with `CSI row;col H`, which addresses **whole terminal
+cells only** — the iTerm2 protocol has no pixel offset. Terminals whose window
+padding is not a multiple of the cell size therefore place the image a fraction
+of a cell off, and a plugin cannot correct for it: neither the cell size nor the
+padding is knowable from inside Neovim (`:h TermResponse` forwards only DA1,
+OSC, DCS and APC responses, and the cell-size reply is a plain CSI response;
+`nvim_list_uis()` reports cells, not pixels). This is measured and written up in
+[docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
+
+Because of that, images are drawn with **one cell of margin inside their frame**
+by default (`display.draw_inset = 1`). A sub-cell offset then stays inside the
+frame instead of visibly spilling over it — robust everywhere, at the cost of
+the image not being perfectly flush. If you know your setup, set
+`display.cell_aspect` and `display.terminal_padding`, then `display.draw_inset =
+0` for a flush image. `:Image redact` always draws flush regardless, because its
+cell-to-pixel mapping depends on it.
+
 Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
 and by hovering a markdown link that points at one, but **off by default**:
 set `display.remote.enabled = true` first. This mirrors what email clients
@@ -247,6 +266,10 @@ require("images").setup({
   display = {
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,
+    cell_aspect = 0,  -- pixel width/height of one cell; 0 assumes 0.5. Cannot be
+                      -- detected (see "Placement accuracy"), so set it if you know it
+    draw_inset = 1,   -- cells of margin kept free around a drawn image; 0 draws flush
+    terminal_padding = { row = 0, col = 0 }, -- whole-cell draw offset, see "Placement accuracy"
     gallery_gap = 1, -- cells between gallery tiles
     hover_mode = "overlay", -- "float" shows a small window instead of drawing over the text
     assume_supported = false, -- true silences the "unknown terminal" warning

@@ -96,15 +96,27 @@ rund 10 px Zellbreite), erzeugt einen Sub-Zellen-Versatz, den kein
 Zeilen-/Spaltenwert auflösen kann — unabhängig davon, wie genau man das
 Padding kennt.
 
-**Empfehlung, in dieser Reihenfolge.**
+**Was das Plugin daraus macht.** Weil ein Plugin diesen Versatz weder messen
+noch erfragen kann, ist der Default **nicht** bündiges Zeichnen, sondern eine
+Sicherheitsmarge von einer Zelle rundum (`display.draw_inset = 1`). Ein
+Sub-Zellen-Versatz bleibt damit *innerhalb* des Rahmens statt sichtbar
+darüber hinauszuragen — auf jedem Terminal, ohne Konfiguration und ohne
+Erkennung. Das ist bewusst Robustheit vor Präzision: ein Bild, das mit etwas
+Luft im Rahmen sitzt, liest sich als Absicht; eines, das asymmetrisch
+übersteht, liest sich als Fehler.
 
-1. `window_padding` auf **0** setzen, wenn die Bildausrichtung wichtiger ist
-   als der Fensterrand. Einzige restlos saubere Variante.
-2. Sonst `window_padding` auf ein **glattes Vielfaches der Zellgröße** legen.
-   Dann ist der verbleibende Versatz ein ganzzahliger Zellwert und über
-   `display.terminal_padding = { row = …, col = … }` kompensierbar.
-3. Sonst den Rest hinnehmen: nach den Fixes 1–3 bleibt ein Versatz von unter
-   einer Zeile.
+**Für ein vermessenes Setup, in dieser Reihenfolge.**
+
+1. `window_padding` auf **0** setzen. Einzige restlos saubere Variante.
+2. Sonst `window_padding` auf ein **glattes Vielfaches der Zellgröße** legen —
+   in WezTerm über die `cell`-Einheit (`"1cell"`) statt über Pixel. Achtung:
+   nach eigener Messung bezieht sich `"1cell"` auf die Zell**breite**, auch
+   für `top`/`bottom`; vertikal ist das also kein Vielfaches der Zellhöhe und
+   der Versatz bleibt. Vertikal entweder `0` oder ein Pixelwert, der ein
+   Vielfaches der Zellhöhe ist.
+3. Verbleibt danach ein ganzzahliger Versatz, ihn über
+   `display.terminal_padding = { row = …, col = … }` kompensieren und mit
+   `display.draw_inset = 0` bündig zeichnen.
 
 Dass genau dieselbe Mechanik in anderen Terminals mit eigenem Fensterrand
 auftritt, ist zu erwarten; gemessen wurde sie nur in WezTerm.
