@@ -96,6 +96,13 @@ return {
   -- nötig. Siehe README "Optional external tools".
   deps_popup = true,
 
+  -- Rechtsklick-Kontextmenü (nvzone/menu, weiche Abhängigkeit; Einträge aus
+  -- images.integrations.menu). Ohne installiertes nvzone/menu automatisch
+  -- aus -- steuert nur, ob M.items()/M.submenu() überhaupt Einträge liefern.
+  menu = {
+    enable = true,
+  },
+
   keymaps = {
     show = "<leader>im",
     gallery = "<leader>ig",

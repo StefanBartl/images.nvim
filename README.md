@@ -349,6 +349,14 @@ and `open.nvim` routes `:Open image` here. See
 [docs/ROADMAP/CROSS-PLUGIN.md](docs/ROADMAP/CROSS-PLUGIN.md) for what else is
 possible across the sibling plugins.
 
+`images.integrations.menu` contributes a right-click context menu (Show
+image, Gallery, Next/Previous, Paste, Screenshot, Info) in the shape
+[nvzone/menu](https://github.com/nvzone/menu) expects — a natural extension
+of the existing `<2-LeftMouse>` hover, gated the same way (`keymaps.filetypes`,
+plus `menu.enable`). No dependency on `menu` itself; a host composes the
+entries into its own menu. See
+[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#right-click-context-menu-nvzonemenu).
+
 ## Optional external tools
 
 ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative

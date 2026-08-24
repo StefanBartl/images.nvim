@@ -8,6 +8,13 @@
 ---@field paste ImagesNvim.PasteConfig
 ---@field keymaps ImagesNvim.KeymapConfig
 ---@field deps_popup? boolean Einmaliges lib.nvim.deps-Popup beim ersten setup() nach Installation zeigen (default true; ohne lib.nvim.deps wirkungslos)
+---@field menu? ImagesNvim.MenuConfig `images.integrations.menu` (nvzone/menu-Kontextmenü-Beitrag) an-/abschalten
+
+---Abschalter für `images.integrations.menu`. images.nvim hat selbst keine
+---nvzone/menu-Abhängigkeit; das steuert nur, ob M.items()/M.submenu()
+---Einträge liefern.
+---@class ImagesNvim.MenuConfig
+---@field enable? boolean default true
 
 ---@class ImagesNvim.DisplayConfig
 ---@field max_cols integer Maximale Bildbreite in Terminalzellen

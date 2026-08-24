@@ -60,6 +60,22 @@ popup shows what's missing and why, once ever.
   `vim.g.lib_nvim_deps_disable_first_run`,
   `vim.g.lib_nvim_deps_disabled_plugins`
 
+## Right-click context menu (nvzone/menu)
+
+`images.integrations.menu` contributes entries — Show image under cursor,
+Gallery, Next/Previous image, Paste from clipboard, Screenshot, Show image
+info — in the shape [nvzone/menu](https://github.com/nvzone/menu) expects,
+gated the same way the keymaps in `images.bindings.keymaps` are:
+`keymaps.filetypes` (default markdown/vimwiki/norg/text) and
+`config.menu.enable`. Mouse interaction is already a first-class idiom
+here (`<2-LeftMouse>` hover) — this is a natural extension of it, not a new
+one. images.nvim has no dependency on `menu` and never opens a context
+menu itself; a host (typically your own `<RightMouse>` dispatcher)
+composes the entries into its own menu.
+
+- **Module:** `images/integrations/menu.lua` (`M.items`, `M.submenu`)
+- **Config:** `opts.menu.enable` (default `true`)
+
 ## Health check
 
 `:checkhealth images` verifies terminal capability, clipboard tool,
