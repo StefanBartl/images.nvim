@@ -6,276 +6,210 @@
 --- OSC-1337-Platzierung nicht mit, andere Terminals mit eigenem Fensterrand
 --- vermutlich ebenso (Messprotokoll: docs/ROADMAP/TERMINALS.md). Der Versatz
 --- ist aus Neovim heraus **nicht** ermittelbar — `:h TermResponse` reicht
---- keine CSI-Antworten durch, `nvim_list_uis()` kennt keine Pixel.
+--- keine CSI-Antworten durch, `nvim_list_uis()` kennt keine Pixel. Und er ist
+--- auch nicht konstant: derselbe Wert stimmte an einer Cursorposition und war
+--- an einer anderen bereits übers Ziel hinaus. Ein Wert in der Doku wäre also
+--- schon für ein einzelnes Setup falsch.
 ---
---- Bleibt: den Menschen fragen, der es sieht. Genau das ist dieses Modul —
---- kein Messgerät, sondern ein Dialog, der die eine Information einsammelt,
---- die der Rechner nicht hat, und daraus die Werte ableitet.
+--- Bleibt: den Menschen fragen, der es sieht.
 ---
---- **Warum in Textzeilen gefragt wird und nicht in Pixeln.** Niemand kann am
---- Bildschirm Pixel abzählen. Zeilen und Spalten dagegen liegen sichtbar
---- daneben — und sie sind zufällig genau die Einheit, in der `CSI row;col H`
---- rechnet. Die Antwort des Users ist damit direkt der Korrekturwert, ohne
---- Umrechnung und ohne Schätzung dazwischen.
+--- **Warum Verschieben und keine Fragen.** Die erste Fassung zeigte eine
+--- Testkarte und fragte per Auswahlmenü, was an welcher Kante zu sehen sei.
+--- Das konnte nicht funktionieren, aus genau dem Grund, der in
+--- `images.anchor` steht: das Menü ist ein Fenster, Neovim malt beim Öffnen
+--- über die Zellen — und damit über das Bild, das beurteilt werden sollte.
+--- Übrig blieb ein leerer Rahmen und eine Frage dazu.
 ---
---- **Warum die Testkarte erzeugt und nicht mitgeliefert wird.** Sie muss das
---- Seitenverhältnis der Zeichenbox exakt treffen, sonst letterboxt das
---- Terminal und der entstehende Rand wäre von einem Platzierungsfehler nicht
---- zu unterscheiden. Siehe `images.testcard`.
+--- Das Verschieben löst beides auf einmal. Es gibt kein zweites Fenster, das
+--- etwas verdecken könnte, und jeder Tastendruck zeichnet ohnehin neu — der
+--- Repaint, der vorher das Problem war, ist jetzt Teil der Schleife. Vor
+--- allem aber muss niemand mehr schätzen: statt "wie viele Zeilen steht es
+--- über?" heißt es "schieb, bis es passt". Das ist dieselbe Information, nur
+--- ohne den Umweg über eine Zahl, die man am Bildschirm nicht ablesen kann.
 ---
 --- **Was am Ende nicht lösbar bleibt.** Ist der Versatz kleiner als eine
---- Zelle, kann kein Zeilen-/Spaltenwert ihn ausgleichen. Der Dialog sagt das
---- dann und empfiehlt `display.draw_inset` — das ist keine Ausrede, sondern
---- die Protokollgrenze, und sie gehört benannt statt kaschiert.
+--- Zelle, springt das Bild beim Schieben darüber hinweg, ohne je genau zu
+--- sitzen. Der Abschluss sagt das dann und verweist auf
+--- `display.draw_inset` — das ist keine Ausrede, sondern die Protokollgrenze,
+--- und sie gehört benannt statt kaschiert.
 
 local M = {}
 
 --- Größe des Kalibrierfensters in Zellen, als Anteil der Editorfläche.
 --- Groß genug, dass eine Zelle Versatz deutlich sichtbar ist, klein genug,
---- dass ringsum Text stehen bleibt — der Text ist die Referenz, an der der
---- User "eine Zeile" überhaupt abschätzen kann.
+--- dass ringsum Text stehen bleibt — der Text macht überhaupt erst sichtbar,
+--- wo der Fensterrand verläuft.
 M.WINDOW = { width = 0.6, height = 0.6 }
 
 ---@class Images.Calibrate.State
 ---@field row integer aktueller Zeilen-Korrekturwert
 ---@field col integer aktueller Spalten-Korrekturwert
----@field residual_row boolean Rest unterhalb einer Zelle, vertikal
----@field residual_col boolean Rest unterhalb einer Zelle, horizontal
 ---@field win integer|nil
 ---@field buf integer|nil
 ---@field card string|nil Pfad der Testkarte
----@field cols integer
----@field rows integer
+---@field prev_win integer|nil Fenster, das vor dem Start fokussiert war
 
 ---@type Images.Calibrate.State|nil
 local state = nil
 
 ---@internal
----@return table
+--- Dasselbe Muster wie in `images.redact` und den übrigen Modulen:
+--- `lib.nvim.notify` ist eine Fabrik, kein fertiger Notifier.
+---@return Lib.Notify.Notifier
 local function notify()
-  local ok, n = pcall(require, "lib.nvim.notify")
-  if ok then return n end
-  return {
-    info = function(m)
-      vim.notify(m, vim.log.levels.INFO)
-    end,
-    warn = function(m)
-      vim.notify(m, vim.log.levels.WARN)
-    end,
-    error = function(m)
-      vim.notify(m, vim.log.levels.ERROR)
-    end,
-  }
-end
-
----@internal
---- `lib.nvim`s UI-Kit, wenn vorhanden. Ohne es bleibt `vim.ui.select`, damit
---- der Befehl auch in einer Installation ohne UI-Kit benutzbar ist.
----@param opts { title: string, items: string[], on_select: fun(item: string, idx: integer), on_cancel: fun() }
-local function choose(opts)
-  local ok, select = pcall(require, "lib.nvim.ui.kit.select")
-  if ok and type(select.open) == "function" then
-    select.open({
-      title = opts.title,
-      items = opts.items,
-      on_select = function(item, idx)
-        opts.on_select(item, idx)
-      end,
-      on_cancel = opts.on_cancel,
-    })
-    return
-  end
-
-  vim.ui.select(opts.items, { prompt = opts.title }, function(item, idx)
-    if item then
-      opts.on_select(item, idx)
-    else
-      opts.on_cancel()
-    end
-  end)
-end
-
----@internal
----@param question string
----@param on_answer fun(yes: boolean)
-local function ask_yes_no(question, on_answer)
-  local ok, confirm = pcall(require, "lib.nvim.ui.kit.confirm")
-  if ok and type(confirm.open) == "function" then
-    confirm.open({
-      question = question,
-      on_answer = function(a)
-        on_answer(a == true)
-      end,
-    })
-    return
-  end
-
-  choose({
-    title = question,
-    items = { "Ja", "Nein" },
-    on_select = function(_, idx)
-      on_answer(idx == 1)
-    end,
-    on_cancel = function()
-      on_answer(false)
-    end,
-  })
-end
-
----@internal
---- Das Kalibrierfenster schließen und die Testkarte wegräumen.
----@return nil
-local function teardown()
-  if not state then return end
-  pcall(function()
-    require("images.terminal").clear()
-  end)
-  if state.win and vim.api.nvim_win_is_valid(state.win) then pcall(vim.api.nvim_win_close, state.win, true) end
-  if state.card then pcall(os.remove, state.card) end
-  state = nil
+  return require("lib.nvim.notify").create("[images]")
 end
 
 ---@internal
 --- Testkarte mit den aktuellen Korrekturwerten neu zeichnen.
+---
+--- `padding` geht als Aufruf-Option mit, nicht über `images.config`: ein
+--- Wert, den der User gerade durchprobiert, ist keine Einstellung, und eine
+--- Kalibrierung, die unterwegs die laufende Konfiguration umschreibt, wäre
+--- schlimmer als das Problem, das sie löst.
+---
+--- `inset = 0`, weil hier die Kante des Bildes die Kante des Fensters treffen
+--- soll — eine Marge würde genau das verdecken, was beurteilt wird.
 ---@return nil
 local function redraw()
   if not (state and state.win and vim.api.nvim_win_is_valid(state.win)) then return end
-
-  require("images.config").setup({
-    display = { terminal_padding = { row = state.row, col = state.col } },
-  })
-
-  -- `inset = 0`: während der Kalibrierung soll die Kante des Bildes die Kante
-  -- des Fensters treffen. Eine Marge würde genau das verdecken, was hier
-  -- beurteilt werden soll.
-  require("images.anchor").draw(state.win, "full", state.card, { defer = true, inset = 0 })
-end
-
----@internal
---- Wie viele Zellen eine Abweichung groß ist. Die Auswahl ist bewusst grob:
---- feiner als "eine Zeile" kann niemand schätzen, und feiner als eine Zelle
---- lässt sich ohnehin nichts korrigieren.
----@type { label: string, cells: integer }[]
-local MAGNITUDES = {
-  { label = "weniger als eine ganze Zeile/Spalte", cells = 0 },
-  { label = "etwa 1", cells = 1 },
-  { label = "etwa 2", cells = 2 },
-  { label = "etwa 3", cells = 3 },
-  { label = "4 oder mehr", cells = 4 },
-}
-
----@internal
----@param axis "row"|"col"
----@param direction integer -1 = Bild muss nach oben/links, +1 = nach unten/rechts
----@param unit string
----@param on_done fun()
-local function ask_magnitude(axis, direction, unit, on_done)
-  local items = {}
-  for i, m in ipairs(MAGNITUDES) do
-    items[i] = m.cells == 0 and m.label or (m.label .. " " .. unit)
-  end
-
-  choose({
-    title = "Wie groß ist die Abweichung?",
-    items = items,
-    on_select = function(_, idx)
-      local cells = MAGNITUDES[idx].cells
-      if cells == 0 then
-        -- Unterhalb einer Zelle: nicht korrigierbar, nur abfangbar.
-        state["residual_" .. axis] = true
-        on_done()
-        return
-      end
-      state[axis] = state[axis] + direction * cells
-      redraw()
-      vim.defer_fn(on_done, 120)
-    end,
-    on_cancel = on_done,
+  require("images.anchor").draw(state.win, "full", state.card, {
+    defer = true,
+    inset = 0,
+    padding = { row = state.row, col = state.col },
   })
 end
 
 ---@internal
---- Eine Kante beurteilen lassen und daraus den nächsten Schritt ableiten.
----@param axis "row"|"col"
----@param on_done fun()
-local function ask_edge(axis, on_done)
-  local vertical = axis == "row"
-  local edge = vertical and "Oberkante" or "linke Kante"
-  local unit = vertical and "Zeile(n)" or "Spalte(n)"
-
-  choose({
-    title = ("%s der Testkarte — was siehst du?"):format(edge),
-    items = {
-      "passt: Rahmen der Karte liegt genau am Fensterrand",
-      vertical and "Lücke: die Karte sitzt zu weit unten" or "Lücke: die Karte sitzt zu weit rechts",
-      vertical and "abgeschnitten: die Karte steht oben über" or "abgeschnitten: die Karte steht links über",
-    },
-    on_select = function(_, idx)
-      if idx == 1 then
-        on_done()
-        return
-      end
-      -- Lücke oben  → Karte zu tief  → nach oben korrigieren  (negativ)
-      -- Abgeschnitten oben → Karte zu hoch → nach unten korrigieren (positiv)
-      local direction = (idx == 2) and -1 or 1
-      ask_magnitude(axis, direction, unit, function()
-        -- Nach jeder Korrektur dieselbe Kante erneut beurteilen: der Wert
-        -- kann übers Ziel hinausgeschossen sein, und dann ist die nächste
-        -- Antwort die Gegenrichtung. So konvergiert es, statt einmal zu
-        -- raten.
-        if state and not state["residual_" .. axis] then
-          ask_edge(axis, on_done)
-        else
-          on_done()
-        end
-      end)
-    end,
-    on_cancel = on_done,
-  })
-end
-
----@internal
---- Ergebnis anzeigen, speichern anbieten.
+--- Fenster schließen, Testkarte löschen, Fokus zurückgeben.
 ---@return nil
-local function finish()
+local function teardown()
   if not state then return end
+  local prev = state.prev_win
+  local card = state.card
+  local win = state.win
+  state = nil
 
-  local row, col = state.row, state.col
-  local residual = state.residual_row or state.residual_col
-  teardown()
+  pcall(function()
+    require("images.terminal").clear()
+  end)
+  if win and vim.api.nvim_win_is_valid(win) then pcall(vim.api.nvim_win_close, win, true) end
+  if prev and vim.api.nvim_win_is_valid(prev) then pcall(vim.api.nvim_set_current_win, prev) end
+  if card then pcall(os.remove, card) end
+end
 
-  local lines = {
-    ("Ermittelt: terminal_padding = { row = %d, col = %d }"):format(row, col),
-  }
-  if residual then
-    lines[#lines + 1] = "Es bleibt ein Rest unterhalb einer Zelle — der ist protokollbedingt"
-    lines[#lines + 1] = "nicht korrigierbar. `display.draw_inset = 1` fängt ihn ab."
-  end
-  notify().info(table.concat(lines, "\n"))
-
-  if row == 0 and col == 0 and not residual then
-    notify().info("Nichts zu speichern: die Platzierung sitzt bereits.")
+---@internal
+--- Ergebnis mitteilen und das Speichern anbieten.
+---@param row integer
+---@param col integer
+---@return nil
+local function offer_save(row, col)
+  if row == 0 and col == 0 then
+    notify().info("Nichts zu speichern — die Platzierung sitzt bereits ohne Korrektur.")
     return
   end
 
-  ask_yes_no("Diese Werte dauerhaft für dieses Terminal speichern?", function(yes)
-    if not yes then
-      notify().info(
-        ("Nicht gespeichert. Für die eigene setup()-Spec:\n" .. "display = { terminal_padding = { row = %d, col = %d } }"):format(
-          row,
-          col
-        )
-      )
-      return
-    end
+  local summary = ("terminal_padding = { row = %d, col = %d }"):format(row, col)
 
+  local function persist()
     local ok, err = require("images.calibration").save({ terminal_padding = { row = row, col = col } })
     if ok then
-      notify().info("Gespeichert. Gilt ab dem nächsten Start automatisch.")
+      notify().info("Gespeichert (" .. summary .. ").\nGilt ab sofort und nach jedem Neustart.")
+      require("images.config").setup({ display = { terminal_padding = { row = row, col = col } } })
     else
       notify().error("Speichern fehlgeschlagen: " .. tostring(err))
     end
+  end
+
+  local function decline()
+    notify().info("Nicht gespeichert. Für die eigene setup()-Spec:\ndisplay = { " .. summary .. " }")
+  end
+
+  local ok_confirm, confirm = pcall(require, "lib.nvim.ui.kit.confirm")
+  if ok_confirm and type(confirm.open) == "function" then
+    confirm.open({
+      question = "Kalibrierung übernehmen?\n" .. summary,
+      on_answer = function(answer)
+        if answer == true then
+          persist()
+        else
+          decline()
+        end
+      end,
+    })
+    return
+  end
+
+  vim.ui.select({ "Ja, speichern", "Nein, nur anzeigen" }, { prompt = "Kalibrierung übernehmen? " .. summary }, function(_, idx)
+    if idx == 1 then
+      persist()
+    else
+      decline()
+    end
   end)
+end
+
+---@internal
+--- Die Tasten des Kalibrierfensters. Bewusst beides — Pfeile für den ersten
+--- Versuch, `hjkl` für die Finger, die schon wissen, wo sie hingreifen.
+---@param buf integer
+---@return nil
+local function set_keymaps(buf)
+  local function nudge(d_row, d_col)
+    return function()
+      if not state then return end
+      state.row = state.row + d_row
+      state.col = state.col + d_col
+      -- Titel mitführen: der aktuelle Wert soll ablesbar sein, ohne dass man
+      -- die Tastendrücke im Kopf mitzählt.
+      if state.win and vim.api.nvim_win_is_valid(state.win) then
+        pcall(vim.api.nvim_win_set_config, state.win, {
+          title = (" Kalibrierung   row %d   col %d   ⏎ übernehmen   q abbrechen "):format(state.row, state.col),
+        })
+      end
+      redraw()
+    end
+  end
+
+  local map = vim.keymap.set
+  local o = { buffer = buf, nowait = true, silent = true }
+
+  for _, k in ipairs({ "k", "<Up>" }) do
+    map("n", k, nudge(-1, 0), vim.tbl_extend("force", o, { desc = "images.calibrate: Bild nach oben" }))
+  end
+  for _, k in ipairs({ "j", "<Down>" }) do
+    map("n", k, nudge(1, 0), vim.tbl_extend("force", o, { desc = "images.calibrate: Bild nach unten" }))
+  end
+  for _, k in ipairs({ "h", "<Left>" }) do
+    map("n", k, nudge(0, -1), vim.tbl_extend("force", o, { desc = "images.calibrate: Bild nach links" }))
+  end
+  for _, k in ipairs({ "l", "<Right>" }) do
+    map("n", k, nudge(0, 1), vim.tbl_extend("force", o, { desc = "images.calibrate: Bild nach rechts" }))
+  end
+
+  map("n", "r", function()
+    if not state then return end
+    state.row, state.col = 0, 0
+    redraw()
+  end, vim.tbl_extend("force", o, { desc = "images.calibrate: zurücksetzen" }))
+
+  map("n", "<CR>", function()
+    if not state then return end
+    local row, col = state.row, state.col
+    teardown()
+    -- Erst nach dem Schließen fragen: solange das Bild noch steht, würde der
+    -- Dialog darüber malen (siehe Moduldoku).
+    vim.schedule(function()
+      offer_save(row, col)
+    end)
+  end, vim.tbl_extend("force", o, { desc = "images.calibrate: übernehmen" }))
+
+  for _, k in ipairs({ "q", "<Esc>" }) do
+    map("n", k, function()
+      teardown()
+      notify().info("Kalibrierung abgebrochen")
+    end, vim.tbl_extend("force", o, { desc = "images.calibrate: abbrechen" }))
+  end
 end
 
 --- Die Kalibrierung starten.
@@ -286,7 +220,8 @@ function M.run()
     return false
   end
 
-  local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
+  local display = require("images.config").get().display
+  local cap = require("images.terminal").capability(display.assume_supported)
   if not cap.ok then
     notify().error(cap.reason or "Terminal kann keine Bilder zeichnen")
     return false
@@ -295,8 +230,7 @@ function M.run()
   local cols = math.max(20, math.floor(vim.o.columns * M.WINDOW.width))
   local rows = math.max(8, math.floor(vim.o.lines * M.WINDOW.height))
 
-  local cell_aspect = require("images.scale").CELL_ASPECT
-  local card, card_err = require("images.testcard").write(cols, rows, cell_aspect)
+  local card, card_err = require("images.testcard").write(cols, rows, require("images.scale").CELL_ASPECT)
   if not card then
     notify().error(card_err or "Testkarte konnte nicht erzeugt werden")
     return false
@@ -309,8 +243,14 @@ function M.run()
     blank[i] = ""
   end
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, blank)
+  vim.bo[buf].modifiable = false
 
-  local win = vim.api.nvim_open_win(buf, false, {
+  local current = display.terminal_padding or {}
+  local start_row = type(current.row) == "number" and current.row or 0
+  local start_col = type(current.col) == "number" and current.col or 0
+
+  local prev_win = vim.api.nvim_get_current_win()
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     row = math.floor((vim.o.lines - rows) / 2),
     col = math.floor((vim.o.columns - cols) / 2),
@@ -318,37 +258,21 @@ function M.run()
     height = rows,
     style = "minimal",
     border = "rounded",
-    focusable = false,
     noautocmd = true,
-    title = " :Image calibrate ",
+    title = (" Kalibrierung   row %d   col %d   ⏎ übernehmen   q abbrechen "):format(start_row, start_col),
   })
 
-  local current = require("images.config").get().display.terminal_padding or {}
-  state = {
-    row = type(current.row) == "number" and current.row or 0,
-    col = type(current.col) == "number" and current.col or 0,
-    residual_row = false,
-    residual_col = false,
-    win = win,
-    buf = buf,
-    card = card,
-    cols = cols,
-    rows = rows,
-  }
+  state = { row = start_row, col = start_col, win = win, buf = buf, card = card, prev_win = prev_win }
 
+  set_keymaps(buf)
   redraw()
 
-  -- Erst zeichnen lassen, dann fragen: die erste Frage darf nicht über einem
-  -- Fenster stehen, in dem noch nichts zu sehen ist.
-  vim.defer_fn(function()
-    if not state then return end
-    ask_edge("row", function()
-      if not state then return end
-      ask_edge("col", function()
-        if state then finish() end
-      end)
-    end)
-  end, 200)
+  notify().info(
+    "Schieb die Testkarte mit hjkl / Pfeiltasten, bis ihr Rahmen genau\n"
+      .. "am Fensterrand sitzt. r setzt zurück, ⏎ übernimmt, q bricht ab.\n"
+      .. "Springt sie über die richtige Stelle hinweg, ist der Rest kleiner\n"
+      .. "als eine Zelle — dann hilft nur display.draw_inset."
+  )
 
   return true
 end

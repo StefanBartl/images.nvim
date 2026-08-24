@@ -110,13 +110,20 @@ end
 --- den OSC 1337 nicht kennt). Wer sein Padding auf ein Zell-Vielfaches legt,
 --- kann den Rest — jetzt ein ganzzahliger Zeilen-/Spaltenversatz — hierüber
 --- kompensieren. Messprotokoll: `docs/ROADMAP/TERMINALS.md`.
+---@param override { row: integer?, col: integer? }|nil Wert aus `Images.Anchor.Opts.padding`
 ---@return integer row
 ---@return integer col
-local function terminal_padding()
-  local ok, config = pcall(require, "images.config")
-  if not ok then return 0, 0 end
+local function terminal_padding(override)
+  local padding = override
 
-  local padding = (config.get().display or {}).terminal_padding
+  -- Nur die Konfiguration befragen, wenn der Aufrufer nichts mitgebracht hat.
+  -- `images.calibrate` probiert Werte durch und darf dafür nicht die globale
+  -- Konfiguration umschreiben — ein Probierwert ist keine Einstellung.
+  if type(padding) ~= "table" then
+    local ok, config = pcall(require, "images.config")
+    if not ok then return 0, 0 end
+    padding = (config.get().display or {}).terminal_padding
+  end
   if type(padding) ~= "table" then return 0, 0 end
 
   local row = type(padding.row) == "number" and math.floor(padding.row) or 0
@@ -166,14 +173,14 @@ end
 ---@param inset integer|nil
 ---@return boolean ok
 ---@return string|nil err
-local function draw_now(winid, position, file, scale, inset)
+local function draw_now(winid, position, file, scale, inset, padding)
   if not vim.api.nvim_win_is_valid(winid) then return false, "Fenster nicht mehr gültig" end
 
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
   local row_inset, col_inset = border_inset(winid)
-  local pad_row, pad_col = terminal_padding()
+  local pad_row, pad_col = terminal_padding(padding)
 
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
@@ -207,6 +214,7 @@ end
 ---@field scale number|nil 0 < scale <= 1; ignoriert bei `position = "full"`; sonst Default `images.scale.DEFAULT_ANCHOR_SCALE`
 ---@field defer boolean|nil `vim.schedule` vor dem Zeichnen — nötig, wenn `target` im selben Tick geöffnet/befüllt wurde (siehe Modul-Doku). Default `false`.
 ---@field inset integer|nil Sicherheitsmarge in Zellen rundum; `nil` = `display.draw_inset` aus der Konfiguration, `0` = bündig. Siehe `draw_inset`.
+---@field padding { row: integer?, col: integer? }|nil Zell-Versatz statt `display.terminal_padding`; für Aufrufer, die Werte durchprobieren, ohne die Konfiguration zu ändern
 ---@field on_done fun(ok: boolean, err: string|nil)|nil läuft in jedem Fall genau einmal — synchron bei `defer = false` (oder wenn `target` sich gar nicht auflösen lässt), sonst sobald der aufgeschobene Zeichenversuch feststeht
 
 --- Ein Bild in `target` an `position` zeichnen.
@@ -227,13 +235,13 @@ function M.draw(target, position, file, opts)
 
   if opts.defer then
     vim.schedule(function()
-      local ok, err = draw_now(winid, position, file, opts.scale, opts.inset)
+      local ok, err = draw_now(winid, position, file, opts.scale, opts.inset, opts.padding)
       if opts.on_done then opts.on_done(ok, err) end
     end)
     return true
   end
 
-  local ok, err = draw_now(winid, position, file, opts.scale, opts.inset)
+  local ok, err = draw_now(winid, position, file, opts.scale, opts.inset, opts.padding)
   if opts.on_done then opts.on_done(ok, err) end
   return ok, err
 end

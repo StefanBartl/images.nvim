@@ -201,6 +201,18 @@ return function(H)
     H.eq(captured.row, 13, "terminal_padding.row addiert sich auf die Zeile")
     H.eq(captured.col, 12, "terminal_padding.col addiert sich auf die Spalte")
 
+    -- ── opts.padding übergeht die Konfiguration, ohne sie zu ändern ──────────
+    -- `images.calibrate` probiert Werte durch. Täte es das über
+    -- `config.setup`, wäre die restliche Konfiguration des Users danach
+    -- überschrieben — genau so ging bei der ersten Fassung `cell_aspect`
+    -- verloren. Der Wert muss also am Aufruf hängen, nicht am Zustand.
+    require("images.config").setup({ display = { cell_aspect = 0.46, terminal_padding = { row = 2, col = 1 } } })
+    anchor.draw(win, "full", img, { inset = 0, padding = { row = -3, col = 0 } })
+    H.eq(captured.row, 8, "opts.padding gewinnt gegen display.terminal_padding")
+    H.eq(captured.col, 11, "…auf beiden Achsen, auch wenn nur eine gesetzt ist")
+    H.eq(require("images.config").get().display.cell_aspect, 0.46, "…und lässt die übrige Konfiguration unangetastet")
+    H.eq(require("images.config").get().display.terminal_padding.row, 2, "…einschließlich des konfigurierten terminal_padding")
+
     require("images.config").setup(prev_conf)
     require("images.terminal").draw = real_draw
     vim.api.nvim_win_close(win, true)
