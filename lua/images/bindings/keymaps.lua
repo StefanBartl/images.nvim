@@ -1,83 +1,82 @@
 ---@module 'images.bindings.keymaps'
----@brief Keymaps für images.nvim — alle abschaltbar, alle which-key-fähig.
+---@brief Keymaps for images.nvim — all optional, all which-key aware.
 ---@description
---- Alle Bindungen sind buffer-lokal und hängen an den Filetypes aus
---- `keymaps.filetypes`. Jede einzelne lässt sich über `false` deaktivieren
---- oder auf einen anderen Tastenweg legen; ein leerer `keymaps`-Block
---- registriert gar nichts.
+--- Every binding is buffer-local and tied to the filetypes from
+--- `keymaps.filetypes`. Each one can be disabled with `false` or moved to a
+--- different key; an empty `keymaps` block registers nothing at all.
 
 local M = {}
 
 local DOUBLE_CLICK = "<2-LeftMouse>"
 
---- Bindung → Aktion. Eine Tabelle statt fünf `if`-Blöcken, damit eine neue
---- Bindung nur hier einen Eintrag braucht.
+--- Binding -> action. A table rather than five `if` blocks, so a new binding
+--- only needs an entry here.
 ---@type { option: string, desc: string, run: fun() }[]
 local ACTIONS = {
   {
     option = "show",
-    desc = "images: Bild unter dem Cursor anzeigen",
+    desc = "images: show the image under the cursor",
     run = function()
       require("images").hover()
     end,
   },
   {
     option = "gallery",
-    desc = "images: alle Bilder des Buffers nebeneinander",
+    desc = "images: every image in the buffer, side by side",
     run = function()
       require("images").gallery()
     end,
   },
   {
     option = "next",
-    desc = "images: nächstes Bild",
+    desc = "images: next image",
     run = function()
       require("images").step(1)
     end,
   },
   {
     option = "prev",
-    desc = "images: vorheriges Bild",
+    desc = "images: previous image",
     run = function()
       require("images").step(-1)
     end,
   },
   {
     option = "paste",
-    desc = "images: Bild aus der Zwischenablage einfügen",
+    desc = "images: paste an image from the clipboard",
     run = function()
       require("images").paste()
     end,
   },
   {
     option = "screenshot",
-    desc = "images: Bildschirmausschnitt aufnehmen und einfügen",
+    desc = "images: take a screenshot and insert it",
     run = function()
       require("images").screenshot()
     end,
   },
 }
 
---- Doppelklick auf einen Markdown-Link zeigt das Bild.
---- `<2-LeftMouse>` feuert nach dem regulären Klick, der Cursor steht also
---- bereits im Link — deshalb genügt `hover()` ohne eigene Positionsauswertung.
+--- Double-clicking a markdown link shows the image.
+--- `<2-LeftMouse>` fires after the ordinary click, so the cursor is already
+--- inside the link — which is why `hover()` suffices without evaluating the
+--- position itself.
 ---
---- Ein bereits vorhandenes buffer-lokales `<2-LeftMouse>` wird nicht
---- überschrieben. Andere Plugins belegen dieselbe Taste auf denselben
---- Filetypes (markdown.nvim etwa mit einem Handler, der Anchor → Bild → URL →
---- Datei routet und für den Bildfall ohnehin hierher delegiert). Da beide
---- Seiten in einem `FileType`-Autocmd registrieren, entschied sonst allein die
---- Ladereihenfolge, wer gewinnt — und wenn images.nvim gewann, blieben von
---- einem umfassenderen Handler nur die Bildlinks übrig. Der Verzicht ist die
---- richtige Richtung: fremde Handler decken den Bildfall mit ab, umgekehrt
---- nicht.
+--- An existing buffer-local `<2-LeftMouse>` is not overwritten. Other plugins
+--- claim the same key on the same filetypes (markdown.nvim, for instance, with
+--- a handler routing anchor -> image -> URL -> file, which delegates here for
+--- the image case anyway). Since both sides register from a `FileType`
+--- autocmd, load order alone would otherwise decide the winner — and if
+--- images.nvim won, a more comprehensive handler would be reduced to image
+--- links only. Yielding is the right direction: a foreign handler covers the
+--- image case too, but not the other way round.
 ---@param buf integer
 ---@return nil
 local function map_double_click(buf)
-  -- Nicht `maparg()`: das fragt immer den *aktuellen* Buffer ab, und der muss
-  -- im FileType-Callback nicht `buf` sein. Termcodes auf beiden Seiten, weil
-  -- `lhs` je nach registrierendem Plugin als "<2-LeftMouse>" oder bereits als
-  -- rohe Tastenfolge zurückkommt.
+  -- Not `maparg()`: that always queries the *current* buffer, which need not be
+  -- `buf` inside a FileType callback. Termcodes on both sides, because
+  -- depending on the registering plugin `lhs` comes back either as
+  -- "<2-LeftMouse>" or already as a raw key sequence.
   local want = vim.api.nvim_replace_termcodes(DOUBLE_CLICK, true, true, true)
   for _, existing in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
     if vim.api.nvim_replace_termcodes(existing.lhs or "", true, true, true) == want then return end
@@ -85,16 +84,16 @@ local function map_double_click(buf)
 
   require("lib.nvim.map")("n", DOUBLE_CLICK, function()
     if not require("images").hover() then
-      -- Kein Bildlink getroffen: Doppelklick soll sich normal verhalten
-      -- (Wortauswahl), statt stumm geschluckt zu werden.
+      -- No image link hit: the double click should behave normally (select the
+      -- word) rather than being swallowed silently.
       vim.cmd("normal! viw")
     end
-  end, { buffer = buf }, "images: Bild bei Doppelklick auf Link")
+  end, { buffer = buf }, "images: show image on double-clicking a link")
 end
 
---- Längstes gemeinsames Präfix der konfigurierten Bindungen, z.B. "<leader>i"
---- für "<leader>im"/"<leader>ig"/…. Ohne mindestens zwei Bindungen mit
---- gemeinsamem Anfang ist eine Gruppen-Beschriftung sinnlos.
+--- The longest common prefix of the configured bindings, e.g. "<leader>i" for
+--- "<leader>im"/"<leader>ig"/…. Without at least two bindings sharing a start,
+--- a group label is pointless.
 ---@param keys ImagesNvim.KeymapConfig
 ---@return string|nil
 local function common_prefix(keys)
@@ -115,16 +114,16 @@ local function common_prefix(keys)
     prefix = prefix:sub(1, n)
     if prefix == "" then return nil end
   end
-  -- Ein Präfix, das bereits eine vollständige Bindung ist, wäre als
-  -- Gruppenname irreführend — which-key würde dann sowohl eine Aktion als
-  -- auch eine Gruppe unter derselben Taste zeigen.
+  -- A prefix that is already a complete binding would be misleading as a group
+  -- name -- which-key would then show both an action and a group under the same
+  -- key.
   for _, lhs in ipairs(lhs_list) do
     if lhs == prefix then return nil end
   end
   return prefix
 end
 
---- Keymaps registrieren.
+--- Register the keymaps.
 ---@param cfg ImagesNvim.Config
 ---@return nil
 function M.register(cfg)
@@ -145,7 +144,7 @@ function M.register(cfg)
   end, {
     group = require("lib.nvim.autocmd").group("images.keymaps", true),
     pattern = keys.filetypes or { "markdown" },
-    desc = "images: buffer-lokale Keymaps setzen",
+    desc = "images: install the buffer-local keymaps",
   })
 end
 

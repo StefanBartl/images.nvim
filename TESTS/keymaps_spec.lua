@@ -1,12 +1,11 @@
--- TESTS/keymaps_spec.lua — which-key-Gruppierung des `<leader>i`-Präfix.
+-- TESTS/keymaps_spec.lua — which-key grouping of the `<leader>i` prefix.
 --
--- which-key selbst wird nicht gebraucht: `images.bindings.which_key` fragt
--- es nur per `pcall(require, "which-key")` ab, und `package.loaded` lässt
--- sich mit einem Fake vorbelegen. Getestet wird durch die öffentliche
--- Schnittstelle (`keymaps.register`), nicht durch eine freigelegte
--- Interna-Funktion — dasselbe Vorgehen wie in den übrigen Specs dieses Repos.
+-- which-key itself is not needed: `images.bindings.which_key` only asks for it
+-- via `pcall(require, "which-key")`, and `package.loaded` can be primed with a
+-- fake. Tested through the public interface (`keymaps.register`) rather than an
+-- exposed internal — the same approach as the rest of this repo's specs.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local keymaps = require("images.bindings.keymaps")
 
@@ -26,7 +25,7 @@ return function(H)
     package.loaded["images.bindings.which_key"] = nil
   end
 
-  -- ── Gemeinsames Präfix wird als Gruppe registriert ─────────────────────────
+  -- ── A common prefix is registered as a group ─────────────────────────────
   reset()
   local fake = install_fake_which_key()
   keymaps.register({
@@ -41,11 +40,11 @@ return function(H)
       filetypes = {},
     },
   })
-  H.eq(#fake.calls, 1, "eine which-key-Registrierung bei gemeinsamem Präfix")
-  H.eq(fake.calls[1][1][1], "<leader>i", "das Präfix ist der gemeinsame Anfang")
-  H.ok(fake.calls[1][1].group ~= nil, "…mit einem Gruppennamen")
+  H.eq(#fake.calls, 1, "one which-key registration for a shared prefix")
+  H.eq(fake.calls[1][1][1], "<leader>i", "the prefix is the shared beginning")
+  H.ok(fake.calls[1][1].group ~= nil, "…with a group name")
 
-  -- ── Nur eine Bindung: kein gemeinsamer Anfang, keine Gruppe ────────────────
+  -- ── One binding only: no shared beginning, no group ──────────────────────
   reset()
   fake = install_fake_which_key()
   keymaps.register({
@@ -60,20 +59,20 @@ return function(H)
       filetypes = {},
     },
   })
-  H.eq(#fake.calls, 0, "eine einzelne Bindung braucht keine Gruppenbeschriftung")
+  H.eq(#fake.calls, 0, "a single binding needs no group label")
 
-  -- ── Keine Bindungen: kein Aufruf ────────────────────────────────────────────
+  -- ── No bindings: no call ─────────────────────────────────────────────────
   reset()
   fake = install_fake_which_key()
   keymaps.register({
     ---@diagnostic disable-next-line: missing-fields
     keymaps = { show = false, gallery = false, next = false, prev = false, paste = false, filetypes = {} },
   })
-  H.eq(#fake.calls, 0, "ohne Bindungen wird nichts registriert")
+  H.eq(#fake.calls, 0, "with no bindings nothing is registered")
 
-  -- ── Präfix, das selbst eine vollständige Bindung wäre: keine Gruppe ────────
-  -- Zwei Bindungen unter derselben Taste (eine Aktion, eine Gruppe) wäre
-  -- irreführend, deshalb wird das erkannt und übersprungen.
+  -- ── A prefix that is itself a complete binding: no group ─────────────────
+  -- Two bindings under the same key (one action, one group) would be
+  -- misleading, so this is detected and skipped.
   reset()
   fake = install_fake_which_key()
   keymaps.register({
@@ -88,9 +87,9 @@ return function(H)
       filetypes = {},
     },
   })
-  H.eq(#fake.calls, 0, "ein Präfix, das selbst eine Bindung ist, wird nicht als Gruppe registriert")
+  H.eq(#fake.calls, 0, "a prefix that is itself a binding is not registered as a group")
 
-  -- ── Ohne which-key: kein Fehler ─────────────────────────────────────────────
+  -- ── Without which-key: no error ──────────────────────────────────────────
   package.loaded["which-key"] = nil
   package.loaded["images.bindings.which_key"] = nil
   local ok = pcall(keymaps.register, {
@@ -104,20 +103,20 @@ return function(H)
       filetypes = {},
     },
   })
-  H.ok(ok, "fehlendes which-key ist ein no-op, kein Fehler")
+  H.ok(ok, "a missing which-key is a no-op, not an error")
 
-  -- ── Doppelklick überschreibt kein fremdes <2-LeftMouse> ───────────────────
-  -- Andere Plugins (markdown.nvim) belegen dieselbe Taste auf denselben
-  -- Filetypes und routen dort mehr als nur Bildlinks; images.nvim tritt dann
-  -- zurück, statt die Ladereihenfolge entscheiden zu lassen.
+  -- ── The double click does not overwrite a foreign <2-LeftMouse> ──────────
+  -- Other plugins (markdown.nvim) claim the same key on the same filetypes and
+  -- route more than just image links there; images.nvim yields rather than
+  -- letting load order decide.
   reset()
 
   ---@param ft string
-  ---@param pre_mapped boolean ein fremdes <2-LeftMouse> vorher setzen
-  ---@return string|nil desc der am Ende gültigen Bindung
+  ---@param pre_mapped boolean install a foreign <2-LeftMouse> beforehand
+  ---@return string|nil desc of the binding that ends up in effect
   local function double_click_desc(ft, pre_mapped)
     local buf = vim.api.nvim_create_buf(false, true)
-    if pre_mapped then vim.keymap.set("n", "<2-LeftMouse>", function() end, { buffer = buf, desc = "fremd" }) end
+    if pre_mapped then vim.keymap.set("n", "<2-LeftMouse>", function() end, { buffer = buf, desc = "foreign" }) end
     keymaps.register({
       ---@diagnostic disable-next-line: missing-fields
       keymaps = {
@@ -143,10 +142,10 @@ return function(H)
 
   H.eq(
     double_click_desc("images_ft_free", false),
-    "images: Bild bei Doppelklick auf Link",
-    "ohne Vorbelegung setzt images.nvim seinen Doppelklick"
+    "images: show image on double-clicking a link",
+    "with nothing pre-installed, images.nvim sets its double click"
   )
-  H.eq(double_click_desc("images_ft_taken", true), "fremd", "eine vorhandene Bindung bleibt unangetastet")
+  H.eq(double_click_desc("images_ft_taken", true), "foreign", "an existing binding stays untouched")
 
   reset()
 end

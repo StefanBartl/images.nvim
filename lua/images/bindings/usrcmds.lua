@@ -1,27 +1,27 @@
 ---@module 'images.bindings.usrcmds'
----@brief Registriert `:Image [subcommand] [options?]` über lib.nvim's composer.
+---@brief Registers `:Image [subcommand] [options?]` via lib.nvim's composer.
 ---@description
---- Ein Verb mit Routen statt einer Familie flacher Commands: `<Tab>`-Completion,
---- typisierte Argumente und die Doku-Generierung kommen dadurch aus derselben
---- Spec und können nicht auseinanderlaufen.
+--- One verb with routes rather than a family of flat commands: `<Tab>`
+--- completion, typed arguments and documentation generation all come from the
+--- same spec and cannot drift apart.
 ---
---- Range: `range = true` steht am Verb, nicht an einer einzelnen Route — die
---- Composer-Logik übernimmt für die ganze Spec ohnehin nur den ersten
---- gefundenen `range`-Wert (verb- oder routenweit), ein Mix wäre also
---- irreführend. `ctx.range.range > 0` unterscheidet einen echten Aufruf mit
---- Bereich (`:'<,'>Image …`) von einem ohne, bei dem `line1`/`line2` sonst
---- auf die aktuelle Zeile zeigen würden, ohne dass das der Absicht entspricht.
+--- Range: `range = true` sits on the verb, not on an individual route — the
+--- composer logic only picks up the first `range` value it finds for the whole
+--- spec (verb-wide or route-wide) anyway, so a mix would be misleading.
+--- `ctx.range.range > 0` distinguishes a genuine ranged invocation
+--- (`:'<,'>Image …`) from one without, where `line1`/`line2` would otherwise
+--- point at the current line without that being the intent.
 
 local M = {}
 
 local composer = require("lib.nvim.usercmd.composer")
 
--- Wie das eingebaute FILE (lesbare Datei, <Tab>-Dateivervollständigung),
--- aber zusätzlich eine http(s)-URL zulassend — für `:Image show <url>` bei
--- aktiviertem `display.remote.enabled`. Ob Remote-Bilder tatsächlich
--- geladen werden, entscheidet `images.remote` zur Laufzeit; hier geht es nur
--- darum, dass eine URL das Argument überhaupt passiert statt an der
--- Validierung als "keine lesbare Datei" abgewiesen zu werden.
+-- Like the built-in FILE (readable file, <Tab> file completion), but
+-- additionally permitting an http(s) URL — for `:Image show <url>` with
+-- `display.remote.enabled` on. Whether remote images are actually downloaded is
+-- `images.remote`'s decision at runtime; the only point here is that a URL gets
+-- past the argument at all, rather than being rejected in validation as "not a
+-- readable file".
 composer.register_type("IMAGE_TARGET", {
   validate = function(raw)
     if require("images.remote").is_remote(raw) then return true, raw, nil end
@@ -35,22 +35,22 @@ composer.register_type("IMAGE_TARGET", {
   end,
 })
 
---- Ob `ctx.range` einen tatsächlich angegebenen Bereich trägt.
+--- Whether `ctx.range` carries an actually specified range.
 ---@param ctx table
 ---@return boolean
 local function has_range(ctx)
   return ctx.range ~= nil and ctx.range.range > 0
 end
 
---- `:Image …` registrieren.
+--- Register `:Image …`.
 ---@param cfg ImagesNvim.Config
 ---@return nil
 function M.register(cfg)
   composer.verb(cfg.command, {
-    desc = ":Image — Bilder im Terminal anzeigen, vergleichen und einfügen",
+    desc = ":Image — show, compare and insert images in the terminal",
     range = true,
 
-    -- Bare `:Image` zeigt das Bild unter dem Cursor — der häufigste Fall
+    -- Bare `:Image` shows the image under the cursor -- the most common case
     -- braucht keinen Subcommand. Mit Bereich (`:'<,'>Image`) wird daraus eine
     -- Galerie der Bilder in diesem Bereich statt einer einzelnen Anzeige.
     default = function(ctx)
@@ -66,7 +66,7 @@ function M.register(cfg)
       {
         path = { "show" },
         args = { { name = "path", type = "IMAGE_TARGET", optional = true } },
-        desc = "Bild anzeigen (ohne Pfad: das unter dem Cursor); auch eine http(s)-URL bei display.remote.enabled",
+        desc = "Show an image (without a path: the one under the cursor); an http(s) URL too with display.remote.enabled",
         run = function(ctx)
           local images = require("images")
           if ctx.args.path then
@@ -79,9 +79,9 @@ function M.register(cfg)
 
       {
         path = { "list" },
-        -- Bereich beschränkt die Auswahl auf die Selektion statt den ganzen
+        -- A range restricts the choice to the selection rather than the whole
         -- Buffer zu durchsuchen.
-        desc = "Bilder im Buffer (oder in der Selektion) auflisten und eines zeigen",
+        desc = "List the images in the buffer (or in the selection) and show one",
         run = function(ctx)
           local images = require("images")
           if has_range(ctx) then
@@ -98,7 +98,7 @@ function M.register(cfg)
         -- Bereich zeigt nur die Bilder darin statt aller Bilder des Buffers —
         -- derselbe Bezug wie bei `list`, nur direkt als Galerie statt als
         -- Auswahl.
-        desc = "Bilder des Buffers (oder der Selektion) nebeneinander zeigen",
+        desc = "Show the buffer's (or the selection's) images side by side",
         run = function(ctx)
           local images = require("images")
           local columns = tonumber(ctx.args.columns)
@@ -112,7 +112,7 @@ function M.register(cfg)
 
       {
         path = { "next" },
-        desc = "Zum nächsten Bild des Buffers springen und es zeigen",
+        desc = "Jump to the buffer's next image and show it",
         run = function()
           require("images").step(1)
         end,
@@ -120,7 +120,7 @@ function M.register(cfg)
 
       {
         path = { "prev" },
-        desc = "Zum vorherigen Bild des Buffers springen und es zeigen",
+        desc = "Jump to the buffer's previous image and show it",
         run = function()
           require("images").step(-1)
         end,
@@ -129,7 +129,7 @@ function M.register(cfg)
       {
         path = { "info" },
         args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Format, Abmessungen und Größe eines Bildes",
+        desc = "An image's format, dimensions and size",
         run = function(ctx)
           require("images").info(ctx.args.path)
         end,
@@ -138,7 +138,7 @@ function M.register(cfg)
       {
         path = { "paste" },
         args = { { name = "name", type = "STRING", optional = true } },
-        desc = "Bild aus der Zwischenablage speichern und verlinken; mit {name} direkt benannt statt der konfigurierten Namensabfrage",
+        desc = "Save an image from the clipboard and link it; with {name} named directly instead of the configured name prompt",
         run = function(ctx)
           require("images").paste(ctx.args.name)
         end,
@@ -146,7 +146,7 @@ function M.register(cfg)
 
       {
         path = { "screenshot" },
-        desc = "Bildschirmausschnitt interaktiv aufnehmen, speichern und verlinken",
+        desc = "Capture a screen selection interactively, save it and link it",
         run = function()
           require("images").screenshot()
         end,
@@ -155,7 +155,7 @@ function M.register(cfg)
       {
         path = { "replace" },
         args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen",
+        desc = "Replace an existing image with the clipboard contents",
         run = function(ctx)
           require("images").replace(ctx.args.path)
         end,
@@ -164,7 +164,7 @@ function M.register(cfg)
       {
         path = { "export" },
         args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Bild als PDF exportieren, neben der Quelldatei",
+        desc = "Export an image as a PDF, next to the source file",
         run = function(ctx)
           require("images").export(ctx.args.path)
         end,
@@ -173,7 +173,7 @@ function M.register(cfg)
       {
         path = { "redact" },
         args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Bild in einem Zensur-Modus öffnen: Boxen markieren und schwärzen, Original bleibt",
+        desc = "Open an image in redaction mode: mark boxes and black them out, the original stays",
         run = function(ctx)
           require("images").redact(ctx.args.path)
         end,
@@ -185,7 +185,7 @@ function M.register(cfg)
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
           { name = "dir", type = "DIR", optional = true },
         },
-        desc = "Bilder unterhalb cfile/cwd/path durchsuchen (Live-Vorschau mit snacks.picker)",
+        desc = "Browse images below cfile/cwd/path (live preview with snacks.picker)",
         run = function(ctx)
           require("images").browse(ctx.args.scope, ctx.args.dir)
         end,
@@ -193,7 +193,7 @@ function M.register(cfg)
 
       {
         path = { "orphans" },
-        desc = "Bilder im Zielverzeichnis ohne Link finden und ggf. löschen",
+        desc = "Find images in the target directory with no link, and optionally delete them",
         run = function()
           require("images").orphans()
         end,
@@ -201,7 +201,7 @@ function M.register(cfg)
 
       {
         path = { "calibrate" },
-        desc = "Bildplatzierung dieses Terminals einmessen (Testkarte + Rückfragen), Ergebnis wird gespeichert",
+        desc = "Measure this terminal's image placement (test card, nudged into place); the result is stored",
         run = function()
           require("images.calibrate").run()
         end,
@@ -213,7 +213,7 @@ function M.register(cfg)
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
           { name = "dir", type = "DIR", optional = true },
         },
-        desc = "Zwei Bilder unterhalb cfile/cwd/path auswählen und nebeneinander vergleichen",
+        desc = "Pick two images below cfile/cwd/path and compare them side by side",
         run = function(ctx)
           require("images").compare(ctx.args.scope, ctx.args.dir)
         end,
@@ -222,7 +222,7 @@ function M.register(cfg)
       {
         path = { "zen" },
         args = { { name = "path", type = "FILE", optional = true } },
-        desc = "Bild groß anzeigen, in einem editierbaren Fenster (kein Preview-Fenster)",
+        desc = "Show an image large, in an editable window (not a preview window)",
         run = function(ctx)
           require("images").zen(ctx.args.path)
         end,
@@ -234,7 +234,7 @@ function M.register(cfg)
           { name = "position", type = "STRING", enum = require("images.scale").POSITIONS },
           { name = "path", type = "FILE", optional = true },
         },
-        desc = "Bild an einer benannten Position im aktuellen Fenster zeichnen (ohne Pfad: das unter dem Cursor)",
+        desc = "Draw an image at a named position in the current window (without a path: the one under the cursor)",
         run = function(ctx)
           require("images").draw(nil, ctx.args.position, ctx.args.path)
         end,
@@ -242,7 +242,7 @@ function M.register(cfg)
 
       {
         path = { "pin" },
-        desc = "Anzeige festhalten — kein Aufräumen bei Cursorbewegung",
+        desc = "Pin the display — no clearing on cursor movement",
         run = function()
           require("images").pin()
         end,
@@ -250,7 +250,7 @@ function M.register(cfg)
 
       {
         path = { "check" },
-        desc = "Prüfen, ob dieses Terminal Bilder darstellen kann",
+        desc = "Check whether this terminal can display images",
         run = function()
           require("images").recheck()
         end,
@@ -258,7 +258,7 @@ function M.register(cfg)
 
       {
         path = { "clear" },
-        desc = "Angezeigte Bilder entfernen",
+        desc = "Remove the displayed images",
         run = function()
           require("images").clear()
         end,
