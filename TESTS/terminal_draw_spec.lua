@@ -1,31 +1,30 @@
--- TESTS/terminal_draw_spec.lua — Reihenfolge von Repaint und Bildausgabe.
+-- TESTS/terminal_draw_spec.lua — the ordering of repaint and image output.
 --
--- Die Bildausgabe selbst braucht ein Terminal mit Grafikprotokoll und bleibt
--- headless ungeprüft (siehe run.lua). Prüfbar ist aber die Invariante, an der
--- `:Image zen` einmal gescheitert ist: `nvim_ui_send` schreibt sofort ans
--- Terminal, Neovims eigener Repaint läuft erst beim Rücksprung in die
--- Hauptschleife. Wer ein Fenster öffnet und im selben Tick hineinzeichnet,
--- sendet das Bild und lässt Neovim danach die leeren Zellen dieses Fensters
--- darüber malen — Popup da, Bild weg.
+-- The image output itself needs a terminal with a graphics protocol and stays
+-- unchecked headless (see run.lua). What is testable is the invariant `:Image
+-- zen` once failed on: `nvim_ui_send` writes to the terminal immediately, while
+-- Neovim's own repaint only runs once control returns to the main loop. Open a
+-- window and draw into it in the same tick and the image goes out, after which
+-- Neovim paints that window's empty cells over it — popup there, image gone.
 --
--- Dagegen hilft zweierlei, und beides wird hier festgenagelt:
---   1. `terminal.draw` erzwingt den anstehenden Repaint, BEVOR die Payload
---      rausgeht — räumt weg, was vor dem Senden bereits anstand.
---   2. Jeder Pfad, der ein Fenster öffnet (`zen`, `hover_float`, `redact`),
---      zeichnet erst im nächsten Tick — denn den Repaint, den das Öffnen
---      selbst auslöst, kann kein Flush vor dem Senden abfangen.
--- Geprüft wird die Reihenfolge, nicht das Zeichnen.
+-- Two things guard against that, and both are pinned down here:
+--   1. `terminal.draw` forces the pending repaint BEFORE the payload goes out —
+--      clearing away whatever was already queued before sending.
+--   2. Every path that opens a window (`zen`, `hover_float`, `redact`) draws
+--      only in the next tick — because no flush before sending can cover the
+--      repaint that opening the window itself causes.
+-- The ordering is what is checked, not the drawing.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local terminal = require("images.terminal")
 
-  -- Ohne `nvim_ui_send` (API-Level < 14) gibt es nichts zu ordnen.
+  -- Without `nvim_ui_send` (API level < 14) there is no ordering to check.
   if not terminal.available() then return end
 
-  --- `draw`/`draw_many` mit protokollierten Seiteneffekten ausführen.
+  --- Run `draw`/`draw_many` with its side effects recorded.
   ---@param fn fun()
-  ---@return string[] log  "redraw" bzw. "payload", in Aufrufreihenfolge
+  ---@return string[] log  "redraw" or "payload", in call order
   local function record(fn)
     local log = {}
     local real_send, real_cmd = vim.api.nvim_ui_send, vim.cmd
@@ -45,54 +44,52 @@ return function(H)
     return log
   end
 
-  -- Eine winzige, aber echte Datei: `draw` liest sie, bevor irgendetwas
-  -- gesendet wird — ein nicht lesbarer Pfad würde vor dem Flush aussteigen
-  -- und die Reihenfolge gar nicht erst erreichen.
+  -- A tiny but real file: `draw` reads it before anything is sent — an
+  -- unreadable path would bail out before the flush and never reach the
+  -- ordering at all.
   H.tmpdir(function(dir)
     local img = dir .. "/probe.png"
-    H.write(img, "\137PNG\r\n\26\n-- nicht dekodierbar, aber nicht leer")
+    H.write(img, "\137PNG\r\n\26\n-- not decodable, but not empty")
 
-    -- ── Einzelbild ──────────────────────────────────────────────────────────
+    -- ── A single image ──────────────────────────────────────────────────────
     local log = record(function()
-      H.ok(terminal.draw(img, 1, 1, 10, 5), "draw meldet Erfolg für eine lesbare Datei")
+      H.ok(terminal.draw(img, 1, 1, 10, 5), "draw reports success for a readable file")
     end)
-    H.eq(#log, 2, "draw: genau ein Flush und eine Payload")
-    H.eq(log[1], "redraw", "draw: Repaint kommt VOR der Payload")
-    H.eq(log[2], "payload", "draw: Payload kommt nach dem Repaint")
+    H.eq(#log, 2, "draw: exactly one flush and one payload")
+    H.eq(log[1], "redraw", "draw: the repaint comes BEFORE the payload")
+    H.eq(log[2], "payload", "draw: the payload comes after the repaint")
 
-    -- ── Galerie ─────────────────────────────────────────────────────────────
+    -- ── A gallery ───────────────────────────────────────────────────────────
     log = record(function()
       local drawn = terminal.draw_many({
         { file = img, row = 1, col = 1, cols = 5, rows = 3 },
         { file = img, row = 1, col = 7, cols = 5, rows = 3 },
       })
-      H.eq(drawn, 2, "draw_many zeichnet beide Platzierungen")
+      H.eq(drawn, 2, "draw_many draws both placements")
     end)
-    H.eq(log[1], "redraw", "draw_many: Repaint kommt VOR der ersten Payload")
-    H.eq(#log, 3, "draw_many: ein Flush für den ganzen Block, nicht pro Bild")
+    H.eq(log[1], "redraw", "draw_many: the repaint comes BEFORE the first payload")
+    H.eq(#log, 3, "draw_many: one flush for the whole block, not one per image")
 
-    -- ── Fehlerfall ──────────────────────────────────────────────────────────
-    -- Keine Payload, kein Anspruch auf eine bestimmte Flush-Zahl: Hauptsache,
-    -- ein unlesbarer Pfad meldet sauber statt zu senden.
+    -- ── The failure case ────────────────────────────────────────────────────
+    -- No payload, and no claim about a particular flush count: the point is that
+    -- an unreadable path reports cleanly rather than sending.
     log = record(function()
-      local ok = terminal.draw(dir .. "/gibt-es-nicht.png", 1, 1, 10, 5)
-      H.falsy(ok, "draw meldet Misserfolg für einen fehlenden Pfad")
+      local ok = terminal.draw(dir .. "/does-not-exist.png", 1, 1, 10, 5)
+      H.falsy(ok, "draw reports failure for a missing path")
     end)
     for _, entry in ipairs(log) do
-      H.ok(entry ~= "payload", "fehlende Datei sendet keine Payload")
+      H.ok(entry ~= "payload", "a missing file sends no payload")
     end
 
-    -- ── Fenster-Pfade zeichnen erst im nächsten Tick ────────────────────────
-    -- Die zweite Hälfte derselben Ursache: der Flush oben räumt weg, was VOR
-    -- dem Senden anstand — nicht den Repaint, den das Öffnen des Fensters
-    -- selbst auslöst. Wer ein Fenster erzeugt und im selben Tick zeichnet,
-    -- liegt weiterhin unter Neovims Farbe. Deshalb muss bei `zen` (und
-    -- gleichermaßen `hover_float`/`redact`) NACH dem Aufruf noch nichts
-    -- gesendet sein.
+    -- ── Window paths draw only in the next tick ─────────────────────────────
+    -- The second half of the same cause: the flush above clears what was queued
+    -- BEFORE sending -- not the repaint that opening the window itself causes.
+    -- Create a window and draw in the same tick and you are still under
+    -- Neovim's paint. So for `zen` (and equally `hover_float`/`redact`) nothing
+    -- may have been sent yet once the call returns.
     local zen = require("images.zen")
-    -- Ohne das meldet der Fähigkeits-Guard im Testlauf berechtigt ein
-    -- unerkanntes Terminal — hier nur Rauschen, die Reihenfolge hängt nicht
-    -- daran.
+    -- Without this the capability guard rightly reports an unrecognised terminal
+    -- during the test run -- noise here, and the ordering does not depend on it.
     local prev_cfg = require("images.config").get()
     require("images.config").setup({ display = { assume_supported = true } })
 
@@ -111,8 +108,8 @@ return function(H)
     pcall(zen.close)
     require("images.config").setup(prev_cfg)
 
-    H.ok(ok_open and opened, "zen.open öffnet das Fenster")
-    H.eq(immediate, 0, "zen zeichnet NICHT im selben Tick wie das Fenster-Öffnen")
-    H.eq(deferred, 1, "zen zeichnet genau einmal, sobald der Loop weiterläuft")
+    H.ok(ok_open and opened, "zen.open opens the window")
+    H.eq(immediate, 0, "zen does NOT draw in the same tick as opening the window")
+    H.eq(deferred, 1, "zen draws exactly once, as soon as the loop continues")
   end)
 end
