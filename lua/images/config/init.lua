@@ -1,5 +1,5 @@
 ---@module 'images.config'
----@brief Konfigurations-Einstieg: Defaults mit User-Optionen zusammenführen.
+---@brief Configuration entry point: merge user options over the defaults.
 
 local M = {}
 
@@ -9,14 +9,13 @@ local current = nil
 ---@type table|nil
 local user_opts = nil
 
---- User-Optionen über die Defaults legen.
+--- Layer user options over the defaults.
 ---
---- Dazwischen liegt die gespeicherte Kalibrierung (`:Image calibrate`, siehe
---- `images.calibration`): Defaults < Kalibrierung < explizite Optionen. Wer
---- einen Wert selbst in seine `setup()`-Spec schreibt, überstimmt damit die
---- Messung — das ist Absicht, eine Entscheidung wiegt schwerer als ein
---- Messwert. `pcall`, weil eine unlesbare Zustandsdatei niemals `setup()`
---- scheitern lassen darf.
+--- The stored calibration sits in between (`:Image calibrate`, see
+--- `images.calibration`): defaults < calibration < explicit options. Writing a
+--- value into your own `setup()` spec therefore outranks the measurement — by
+--- design, a decision weighs more than a measurement. `pcall`, because an
+--- unreadable state file must never make `setup()` fail.
 ---@param opts table|nil
 ---@return ImagesNvim.Config
 function M.setup(opts)
@@ -46,8 +45,8 @@ function M.user_opts()
   return user_opts or {}
 end
 
---- Aktive Konfiguration. Fällt auf die Defaults zurück, falls `setup()` nie
---- gelaufen ist — so bleibt die Lua-API auch ohne Setup benutzbar.
+--- The active configuration. Falls back to the defaults if `setup()` never
+--- ran, so the Lua API stays usable without setup.
 ---@return ImagesNvim.Config
 function M.get()
   if not current then return M.setup(nil) end

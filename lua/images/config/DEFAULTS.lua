@@ -1,127 +1,124 @@
 ---@module 'images.config.DEFAULTS'
----@brief Standardkonfiguration für images.nvim.
+---@brief Default configuration for images.nvim.
 
 ---@type ImagesNvim.Config
 return {
   command = "Image",
 
-  -- svg wird vor dem Zeichnen automatisch nach PNG konvertiert (braucht
-  -- ImageMagick, siehe images.convert) — WezTerm kann SVG nicht selbst
-  -- dekodieren. Ohne ImageMagick kommt eine klare Fehlermeldung statt eines
-  -- stillen Fehlschlags.
+  -- svg is converted to PNG automatically before drawing (needs ImageMagick,
+  -- see images.convert) -- WezTerm cannot decode SVG itself. Without
+  -- ImageMagick you get a clear error instead of a silent failure.
   extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" },
 
   display = {
-    -- Angaben in Terminalzellen, nicht in Pixeln: OSC 1337 skaliert selbst,
-    -- zusammen mit preserveAspectRatio. Dadurch wird keine Zellmessung
-    -- gebraucht — der Punkt, an dem snacks.image auf Windows scheitert.
+    -- Given in terminal cells, not pixels: OSC 1337 scales on its own,
+    -- together with preserveAspectRatio. That removes the need to measure a
+    -- cell -- the very point where snacks.image fails on Windows.
     max_cols = 60,
     max_rows = 25,
-    -- Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe). 0 = die
-    -- Annahme 0.5 aus images.scale verwenden. Wirkt sich darauf aus, wie eng
-    -- die Zeichenbox um ein Bild sitzt: ein zu grober Wert lässt einen leeren
-    -- Streifen unter dem Bild stehen. Selbst messen (Terminalbreite in Pixeln
-    -- / Spalten, geteilt durch Zeilenhöhe) — automatisch geht es nicht, siehe
-    -- images.cell und docs/ROADMAP/TERMINALS.md.
+    -- Pixel aspect ratio of a terminal cell (width/height). 0 = use the 0.5
+    -- assumption from images.scale. Affects how tightly the draw box sits
+    -- around an image: too coarse a value leaves an empty strip below it.
+    -- Measure it yourself (terminal width in pixels / columns, divided by row
+    -- height) -- it cannot be detected, see images.cell and
+    -- docs/ROADMAP/TERMINALS.md.
     cell_aspect = 0,
-    -- Marge in Zellen, die beim Zeichnen rundum frei bleibt. Default 1: das
-    -- Bild sitzt mit etwas Luft mittig im Rahmen statt bündig. Grund ist
-    -- Robustheit, nicht Optik — Terminals mit nicht zell-ausgerichtetem
-    -- Fenster-Padding schieben das Bild um Bruchteile einer Zelle, und bündig
-    -- gezeichnet ragt es dann sichtbar über den Rahmen (siehe images.anchor).
-    -- Fängt nur den Rest ab: einen ganzzahligen, systematischen Versatz über
-    -- terminal_padding kompensieren, nicht über eine größere Marge. 0
-    -- zeichnet bündig.
+    -- Margin in cells kept free all round when drawing. Default 1: the image
+    -- sits centred with a little air rather than flush. The reason is
+    -- robustness, not looks -- terminals whose window padding is not
+    -- cell-aligned shift the image by a fraction of a cell, and drawn flush it
+    -- then visibly spills past the frame (see images.anchor). This only
+    -- absorbs the remainder: compensate a systematic, whole-cell offset via
+    -- terminal_padding, not by growing the margin. 0 draws flush.
     draw_inset = 1,
-    -- Fester Zeilen-/Spaltenversatz beim Zeichnen, in ganzen Terminalzellen.
-    -- Ausgleich für Terminals, deren OSC-1337-Platzierung ihr eigenes
-    -- window_padding nicht mitrechnet (siehe images.anchor). Nur relevant,
-    -- wenn das Padding auf ein Zell-Vielfaches gelegt wurde — sonst bleibt
-    -- ein Rest, den kein Zeilen-/Spaltenversatz auflösen kann. Default
-    -- {0,0}: reines No-op für jedes Setup ohne diesen Sonderfall.
+    -- Fixed row/column offset when drawing, in whole terminal cells.
+    -- Compensates terminals whose OSC 1337 placement does not account for
+    -- their own window_padding (see images.anchor). `:Image calibrate`
+    -- measures this for you and stores it; setting it here overrides that
+    -- measurement. Default {0,0}: a plain no-op for any setup without this
+    -- quirk.
     terminal_padding = { row = 0, col = 0 },
     gallery_gap = 1,
-    -- "overlay" (default) zeichnet über den Text, verschwindet bei
-    -- Cursorbewegung per Repaint — das bewährte Verhalten seit Version 1.
-    -- "float" öffnet stattdessen ein kleines, unfokussiertes Fenster unter
-    -- dem Cursor (siehe images.hover_float). Betrifft nur `:Image show`/
-    -- Hover, nicht die Galerie.
+    -- "overlay" (default) draws over the text and disappears on cursor
+    -- movement via repaint -- the behaviour proven since version 1. "float"
+    -- opens a small unfocused window under the cursor instead (see
+    -- images.hover_float). Affects only `:Image show`/hover, not the gallery.
     hover_mode = "overlay",
-    -- Erkennung übergehen: setzen, wenn das Terminal OSC 1337 kann, aber
-    -- nicht erkannt wird (`wezterm imgcat` funktioniert, images.nvim warnt
-    -- trotzdem). Schaltet nur die Warnung ab, ändert am Zeichnen nichts.
+    -- Skip detection: set this when the terminal does speak OSC 1337 but is
+    -- not recognised (`wezterm imgcat` works, images.nvim warns anyway). Only
+    -- silences the warning, changes nothing about drawing.
     assume_supported = false,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
-    -- Verzeichnisnamen, die `:Image pickers` beim Scan überspringt, zusätzlich
-    -- zum immer ausgeschlossenen ".git".
+    -- Directory names `:Image pickers` skips while scanning, in addition to
+    -- ".git", which is always excluded.
     browse_exclude = { ".deps", "node_modules" },
-    -- Größe des `:Image zen`-Fensters, als Anteil der Editorgröße.
+    -- Size of the `:Image zen` window, as a fraction of the editor.
     zen = { width = 0.9, height = 0.85 },
     remote = {
-      -- Standard AUS: ein Hover über einen Remote-Bild-Link soll nicht ohne
-      -- Zustimmung eine Netzwerkanfrage auslösen — dasselbe Prinzip wie
-      -- "externe Bilder laden" in E-Mail-Clients. Siehe images.remote.
-      -- Gilt nur für `:Image show <url>`/Hover, nicht für gallery/compare/
-      -- browse/zen — die unterstützen Remote-Bilder noch nicht.
+      -- Off by default: hovering a remote image link should not fire a network
+      -- request without consent -- the same principle as "load external
+      -- images" in mail clients. See images.remote. Applies to `:Image show
+      -- <url>`/hover only, not to gallery/compare/browse/zen, which do not
+      -- support remote images yet.
       enabled = false,
       timeout_ms = 10000,
       max_bytes = 20 * 1024 * 1024,
     },
-    -- Nur unter Windows relevant, siehe images.screenshot: die einzige
-    -- Plattform, auf der `:Image screenshot` per Polling statt direkt auf
-    -- die Zieldatei wartet.
+    -- Windows only, see images.screenshot: the one platform where `:Image
+    -- screenshot` polls instead of waiting on the target file directly.
     screenshot = {
       windows_timeout_ms = 60000,
       windows_poll_interval_ms = 600,
     },
-    -- `:Image redact`: Sicherheitsmarge um jede markierte Box, in Zellen —
-    -- lieber eine Zelle zu viel geschwärzt als eine zu wenig, siehe
+    -- `:Image redact`: safety margin around each marked box, in cells --
+    -- better one cell too much blacked out than one too little, see
     -- images.scale.cell_box_to_pixels.
     redact = {
       padding_cells = 1,
     },
-    -- Fallback für Terminals ohne OSC 1337 (SSH, tmux ohne passthrough, ein
-    -- nicht erkanntes Terminal): statt der OSC-Sequenz eine farbige
-    -- Blockgrafik über Extmarks, siehe images.ascii. Braucht ImageMagick
-    -- zwingend — vierte bewusste Ausnahme neben SVG/export/redact. Nur der
-    -- Einzelbild-Pfad (`:Image show`/Hover), wie bei den Remote-Bildern.
+    -- Fallback for terminals without OSC 1337 (SSH, tmux without passthrough,
+    -- an unrecognised terminal): coloured block graphics via extmarks instead
+    -- of the OSC sequence, see images.ascii. Requires ImageMagick -- the
+    -- fourth deliberate exception alongside SVG/export/redact. Single-image
+    -- path only (`:Image show`/hover), same scope boundary as remote images.
     ascii_fallback = {
       enabled = true,
     },
   },
 
   paste = {
-    -- Leerer String legt das Bild neben das Dokument. "assets" oder "img"
-    -- sind die üblichen Alternativen; das Verzeichnis wird bei Bedarf angelegt.
+    -- An empty string puts the image next to the document. "assets" or "img"
+    -- are the usual alternatives; the directory is created when needed.
     dir = "assets",
-    -- Existiert im Dokumentverzeichnis bereits ein Ordner mit einem dieser
-    -- Namen (case-insensitiv), wird dieser statt `dir` verwendet und es wird
-    -- kein eigener (z.B. "assets") parallel dazu angelegt. Leere Liste
-    -- schaltet die Erkennung ab.
+    -- If the document's directory already holds a folder with one of these
+    -- names (case-insensitive), that one is used instead of `dir` and no
+    -- separate one (e.g. "assets") is created alongside it. An empty list
+    -- disables the detection.
     existing_dir_names = { "Resources", "Ressourcen" },
     name_template = "%s-%d.png",
     link_template = "![](%s)",
-    -- true fragt vor dem Einfügen nach einem Alt-Text (UI-Kit, sonst
-    -- vim.fn.input). Default false: der Alltagsfall ist Screenshot → ein
-    -- Tastendruck → fertig, ohne Unterbrechung.
+    -- true asks for alt text before inserting (UI kit, otherwise
+    -- vim.fn.input). Default false: the everyday case is screenshot -> one
+    -- keypress -> done, without an interruption.
     ask_alt_text = false,
     alt_link_template = "![%s](%s)",
-    -- true fragt vor dem Einfügen nach einem Dateinamen, vorbelegt mit dem
-    -- Template-Namen; ein eingegebener Pfadanteil wird verworfen, die Endung
-    -- immer auf .png erzwungen (siehe images.paste.sanitize_filename).
-    -- Default false aus demselben Grund wie ask_alt_text.
+    -- true asks for a file name before inserting, prefilled with the template
+    -- name; any path component entered is discarded and the extension is
+    -- always forced to .png (see images.paste.sanitize_filename). Default
+    -- false for the same reason as ask_alt_text.
     ask_filename = false,
   },
 
-  -- Einmaliges "welche CLI-Tools will dieses Plugin, und warum"-Popup beim
-  -- ersten setup() nach der Installation (via lib.nvim.deps). false schaltet
-  -- es für dieses Plugin ab, direkt hier in der setup()-Spec — kein vim.g
-  -- nötig. Siehe README "Optional external tools".
+  -- One-off "which CLI tools does this plugin want, and why" popup on the
+  -- first setup() after installation (via lib.nvim.deps). false disables it
+  -- for this plugin, right here in the setup() spec -- no vim.g needed. See
+  -- README "Optional external tools".
   deps_popup = true,
 
-  -- Rechtsklick-Kontextmenü (nvzone/menu, weiche Abhängigkeit; Einträge aus
-  -- images.integrations.menu). Ohne installiertes nvzone/menu automatisch
-  -- aus -- steuert nur, ob M.items()/M.submenu() überhaupt Einträge liefern.
+  -- Right-click context menu (nvzone/menu, soft dependency; entries from
+  -- images.integrations.menu). Automatically inactive without nvzone/menu
+  -- installed -- this only controls whether M.items()/M.submenu() return any
+  -- entries at all.
   menu = {
     enable = true,
   },

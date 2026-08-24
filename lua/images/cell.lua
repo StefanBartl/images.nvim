@@ -1,44 +1,43 @@
 ---@module 'images.cell'
----@brief Pixel-Seitenverhältnis einer Terminalzelle.
+---@brief Pixel aspect ratio of a terminal cell.
 ---@description
---- `images.scale.CELL_ASPECT` nimmt an, eine Zelle sei doppelt so hoch wie
---- breit (0.5). Das ist für gängige Monospace-Schriften ungefähr richtig und
---- für `images.redact` gut genug, aber es ist eben eine Annahme: liegt die
---- echte Zelle bei 0.46, berechnet `images.scale.fit_cells` eine Box, die
---- ein bis zwei Zeilen höher ist als das Bild darin je füllen kann. Das
---- Terminal skaliert mit `preserveAspectRatio=1` auf "contain", der Rest
---- bleibt sichtbar leer — bei einem Hover-Float, dessen Rahmen genau diese
---- Box ist, fällt der leere Streifen unter dem Bild sofort auf.
+--- `images.scale.CELL_ASPECT` assumes a cell is twice as tall as it is wide
+--- (0.5). That is roughly right for common monospace fonts and good enough for
+--- `images.redact`, but it is an assumption: if the real cell is 0.46,
+--- `images.scale.fit_cells` computes a box one or two rows taller than the
+--- image inside it can ever fill. The terminal scales to "contain" under
+--- `preserveAspectRatio=1` and the remainder stays visibly empty — in a hover
+--- float whose frame *is* that box, the empty strip below the image is
+--- immediately obvious.
 ---
---- **Warum das hier konfiguriert und nicht gemessen wird.** Die naheliegende
---- Abfrage ist `CSI 16 t`; das Terminal antwortet mit
---- `CSI 6 ; <höhe> ; <breite> t`. Aus einem Neovim-Plugin heraus ist diese
---- Antwort nicht erreichbar: `TermResponse` feuert laut `:h TermResponse`
---- ausschließlich für **DA1-, OSC-, DCS- und APC**-Antworten, und
---- `CSI 6 ; … t` ist eine schlichte CSI-Antwort. Sie wird nie durchgereicht,
---- unabhängig vom Terminal. `nvim_list_uis()` kennt nur Zellmaße
---- (`width`/`height` in Zellen), keine Pixel. Damit gibt es aus Neovim heraus
---- keinen Weg zur echten Zellgröße — ein früherer Anlauf über `CSI 16 t` +
---- `TermResponse` stand hier und hat aus genau diesem Grund nie funktioniert.
---- Details und Messprotokoll: `docs/ROADMAP/TERMINALS.md`.
+--- **Why this is configured rather than measured.** The obvious query is
+--- `CSI 16 t`; the terminal answers with `CSI 6 ; <height> ; <width> t`. That
+--- answer is unreachable from a Neovim plugin: per `:h TermResponse`, the
+--- event fires only for **DA1, OSC, DCS and APC** responses, and
+--- `CSI 6 ; … t` is a plain CSI response. It is never forwarded, whatever the
+--- terminal. `nvim_list_uis()` knows only cell dimensions (`width`/`height` in
+--- cells), no pixels. So there is no route from Neovim to the real cell size —
+--- an earlier attempt via `CSI 16 t` + `TermResponse` lived here and never
+--- worked, for exactly that reason. Details and measurements:
+--- `docs/ROADMAP/TERMINALS.md`.
 ---
---- Deshalb: `display.cell_aspect` setzen, wer es genau haben will; sonst
---- bleibt es bei der Annahme. Das ist kein Rückschritt gegenüber vorher — die
---- Annahme war schon immer der tatsächlich wirksame Wert.
+--- Hence: set `display.cell_aspect` if you want it exact; otherwise the
+--- assumption stands. That is no worse than before — the assumption was always
+--- the value actually in effect.
 ---
---- Der Wert wird nach `images.scale.CELL_ASPECT` geschrieben statt an jeden
---- Aufrufer durchgereicht: `fit_cells` hat vier Aufrufer (`ascii`, `redact`,
---- `zen` und markdown.nvims Hover-Canvas), und eine zusätzliche
---- Signaturposition, die alle vier mitschleppen müssten, wäre in jedem
---- einzelnen derselbe Wert. `images.scale` bleibt so auch die reine,
---- terminalfreie Rechenstelle, die es laut eigener Moduldoku sein soll.
+--- The value is written into `images.scale.CELL_ASPECT` rather than passed to
+--- every caller: `fit_cells` has four of them (`ascii`, `redact`, `zen` and
+--- markdown.nvim's hover canvas), and an extra signature slot all four would
+--- have to carry would hold the same value in every single case. It also keeps
+--- `images.scale` the pure, terminal-free computation module its own docs say
+--- it should be.
 
 local M = {}
 
---- `images.scale.CELL_ASPECT` in seinem ursprünglichen Zustand, einmal
---- gesichert: `M.apply` überschreibt das Feld, und ohne diese Kopie wäre der
---- Rückfallwert nach dem ersten `apply` der eigene vorherige Output statt der
---- dokumentierten Annahme.
+--- `images.scale.CELL_ASPECT` in its original state, captured once: `M.apply`
+--- overwrites the field, and without this copy the fallback after the first
+--- `apply` would be its own previous output rather than the documented
+--- assumption.
 ---@type number|nil
 local assumed = nil
 
@@ -48,7 +47,7 @@ local function assumption()
   return assumed
 end
 
---- Das wirksame Verhältnis: Konfiguration schlägt Annahme.
+--- The effective ratio: configuration beats assumption.
 ---@return number
 function M.aspect()
   local ok, config = pcall(require, "images.config")
@@ -59,8 +58,8 @@ function M.aspect()
   return assumption()
 end
 
---- Das wirksame Verhältnis in `images.scale.CELL_ASPECT` schreiben, wo alle
---- vier Aufrufer von `fit_cells` es ohnehin schon lesen.
+--- Write the effective ratio into `images.scale.CELL_ASPECT`, where all four
+--- callers of `fit_cells` already read it.
 ---@return number applied
 function M.apply()
   local aspect = M.aspect()

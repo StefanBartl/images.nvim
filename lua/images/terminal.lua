@@ -1,44 +1,45 @@
 ---@module 'images.terminal'
----@brief Bildausgabe im Terminal über das iTerm2-Protokoll (OSC 1337).
+---@brief Draw images in the terminal via the iTerm2 protocol (OSC 1337).
 ---@description
---- Warum OSC 1337 und nicht das Kitty-Graphics-Protokoll:
+--- Why OSC 1337 and not the Kitty graphics protocol:
 ---
---- Auf nativem Windows-Neovim in WezTerm zeichnet das Terminal aus Neovim heraus
---- ausschließlich OSC 1337. Kitty-APC (`ESC _G`) kommt nie an — in rohem pwsh
---- funktionieren beide Protokolle, der Unterschied entsteht erst durch Neovims
---- Ausgabeschicht. Da `snacks.image` und `image.nvim` beide nur Kitty-APC senden,
---- sind sie dort prinzipiell unbrauchbar, unabhängig von jeder Konfiguration.
+--- On native Windows Neovim in WezTerm, the terminal draws only OSC 1337 when
+--- it comes from Neovim. Kitty APC (`ESC _G`) never arrives — in a raw pwsh
+--- both protocols work, so the difference is introduced by Neovim's output
+--- layer. Since `snacks.image` and `image.nvim` both send Kitty APC only, they
+--- are fundamentally unusable there, whatever the configuration.
 ---
---- Fünf Eigenheiten, die beim Bauen Zeit gekostet haben:
+--- Five peculiarities that cost time while building this:
 ---
---- * Geschrieben wird über `vim.api.nvim_ui_send`, nicht über `io.stdout:write`.
----   Letzteres zeichnet nur beim ersten Mal pro Terminal-Session.
---- * Ohne Cursor-Positionierung landet das Bild am unteren Rand und schiebt die
----   Statusline hoch. Daher `ESC[s` / `ESC[<row>;<col>H` / Payload / `ESC[u`.
---- * Diese Teile müssen in **einem** `nvim_ui_send` rausgehen, siehe
----   `sequence_for`. Neovims eigener TUI-Renderer schreibt in denselben
----   tty-Strom; zwischen zwei Aufrufen kann er flushen und dabei eigene
----   Cursorbewegungen einschieben. Passiert das zwischen Positionierung und
----   Payload, zeichnet das Terminal das Bild dort, wo Neovims Cursor gerade
----   steht — dasselbe Ergebnis wie ganz ohne Positionierung, nur sporadisch
----   statt immer und damit deutlich schwerer zuzuordnen.
---- * Ein Bild, das über die letzte Zeile hinausragt, scrollt den ganzen Schirm
----   — Neovims Grid inklusive. `ESC[u` stellt danach die Cursorposition wieder
----   her, den Scroll aber nicht: die Statusline bleibt hochgerutscht, bis
----   `M.clear` per `:mode` alles neu malt. Dagegen `clamp_to_screen`.
---- * `width`/`height` werden in **Zellen** angegeben, nicht in Pixeln. Zusammen
----   mit `preserveAspectRatio=1` skaliert das Terminal selbst, und die Zellgröße
----   in Pixeln muss nirgends bekannt sein.
+--- * Output goes through `vim.api.nvim_ui_send`, not `io.stdout:write`. The
+---   latter only draws the first time per terminal session.
+--- * Without cursor positioning the image lands at the bottom edge and pushes
+---   the status line up. Hence `ESC[s` / `ESC[<row>;<col>H` / payload /
+---   `ESC[u`.
+--- * Those parts must go out in **one** `nvim_ui_send`, see `sequence_for`.
+---   Neovim's own TUI renderer writes to the same tty stream; between two
+---   calls it may flush and insert cursor movements of its own. If that
+---   happens between positioning and payload, the terminal draws the image
+---   wherever Neovim's cursor currently sits — the same result as no
+---   positioning at all, only sporadic rather than consistent, and therefore
+---   far harder to attribute.
+--- * An image reaching past the last row scrolls the whole screen — Neovim's
+---   grid included. `ESC[u` restores the cursor position afterwards but not the
+---   scroll: the status line stays pushed up until `M.clear` repaints
+---   everything via `:mode`. `clamp_to_screen` prevents it.
+--- * `width`/`height` are given in **cells**, not pixels. Together with
+---   `preserveAspectRatio=1` the terminal scales on its own, and the pixel size
+---   of a cell never has to be known anywhere.
 ---
---- Das Protokoll kennt keine Bild-IDs: Gezeichnetes lässt sich nicht einzeln
---- entfernen, nur der ganze Schirm neu zeichnen. Deshalb hält dieses Modul
---- lediglich ein Flag statt einer Platzierungs-Verwaltung.
+--- The protocol has no image IDs: what has been drawn cannot be removed
+--- individually, only the whole screen can be repainted. Hence this module
+--- keeps a single flag rather than a placement registry.
 
 local M = {}
 
 local ESC, BEL = "\27", "\7"
 
---- Ob gerade mindestens ein Bild auf dem Schirm steht.
+--- Whether at least one image is currently on screen.
 ---@type boolean
 local showing = false
 
@@ -47,26 +48,26 @@ function M.is_showing()
   return showing
 end
 
---- Ob die Terminalausgabe zur Verfügung steht.
---- `nvim_ui_send` gibt es erst ab API-Level 14.
+--- Whether terminal output is available at all.
+--- `nvim_ui_send` exists from API level 14 onwards.
 ---@return boolean
 function M.available()
   return type(vim.api.nvim_ui_send) == "function"
 end
 
 ---@class Images.Capability
----@field ok boolean Ob gezeichnet werden kann
----@field terminal string|nil Erkannter Terminalname
----@field reason string|nil Grund, wenn `ok` false ist
----@field hint string|nil Konkreter nächster Schritt für den User
+---@field ok boolean whether drawing is possible
+---@field terminal string|nil detected terminal name
+---@field reason string|nil why, when `ok` is false
+---@field hint string|nil concrete next step for the user
 
---- Ergebnis der Fähigkeitsprüfung, einmal pro Sitzung ermittelt.
+--- Result of the capability check, determined once per session.
 ---@type Images.Capability|nil
 local capability = nil
 
---- Terminals, die das iTerm2-Protokoll umsetzen, mit der Umgebungsvariable,
---- an der sie erkennbar sind. Bewusst kurz: OSC 1337 kennt keine
---- Fähigkeitsabfrage, deshalb bleibt nur eine Namensliste.
+--- Terminals implementing the iTerm2 protocol, with the environment variable
+--- they can be recognised by. Deliberately short: OSC 1337 has no capability
+--- query, so a list of names is all there is.
 ---@type { name: string, detect: fun(): boolean }[]
 local KNOWN = {
   {
@@ -90,16 +91,16 @@ local KNOWN = {
   },
 }
 
---- Prüfen, ob dieses Terminal Bilder darstellen kann.
+--- Check whether this terminal can display images.
 ---
---- Bewusst *keine* harte Sperre: die Erkennung ist eine Heuristik über
---- Umgebungsvariablen, weil OSC 1337 keine Abfrage kennt. Ein Fehlalarm würde
---- sonst ein funktionierendes Setup abwürgen. Der Aufrufer entscheidet, was
---- mit `ok = false` geschieht — hier wird nur berichtet.
+--- Deliberately *not* a hard block: detection is a heuristic over environment
+--- variables, because OSC 1337 has no query. A false negative would otherwise
+--- break a working setup. The caller decides what to do with `ok = false` —
+--- this only reports.
 ---
---- Das Ergebnis wird gemerkt: die Umgebung ändert sich innerhalb einer Sitzung
---- nicht, und der Aufruf sitzt vor jedem Zeichnen.
----@param force boolean|nil Erkennung übergehen und Unterstützung annehmen
+--- The result is memoized: the environment does not change within a session,
+--- and this call sits in front of every draw.
+---@param force boolean|nil skip detection and assume support
 ---@return Images.Capability
 function M.capability(force)
   if capability then return capability end
@@ -107,8 +108,8 @@ function M.capability(force)
   if not M.available() then
     capability = {
       ok = false,
-      reason = "`nvim_ui_send` fehlt (benötigt API-Level 14)",
-      hint = "Neovim aktualisieren — ohne diese API kann kein Bild gezeichnet werden",
+      reason = "`nvim_ui_send` is missing (requires API level 14)",
+      hint = "update Neovim -- without this API no image can be drawn",
     }
     return capability
   end
@@ -129,36 +130,36 @@ function M.capability(force)
   else
     capability = {
       ok = false,
-      reason = "Terminal nicht erkannt (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "leer") .. ")",
-      hint = "Test: `wezterm imgcat bild.png` bzw. das Äquivalent. "
-        .. "Funktioniert es, `display.assume_supported = true` setzen.",
+      reason = "terminal not recognised (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "empty") .. ")",
+      hint = "test with `wezterm imgcat image.png` or the equivalent. "
+        .. "If that works, set `display.assume_supported = true`.",
     }
   end
 
-  -- tmux reicht die Sequenzen nur mit allow-passthrough durch. Das gilt auch
-  -- für ein erkanntes Terminal, deshalb hier und nicht im else-Zweig.
+  -- tmux only forwards the sequences with allow-passthrough. That holds for a
+  -- recognised terminal too, hence here rather than in the else branch.
   if vim.env.TMUX and vim.env.TMUX ~= "" and capability.ok then
-    capability.hint = "In tmux: `set -g allow-passthrough on` nötig, sonst kommt nichts an"
+    capability.hint = "under tmux: `set -g allow-passthrough on` is required, or nothing arrives"
   end
 
   return capability
 end
 
---- Gemerktes Prüfergebnis verwerfen. Für Tests und für den Fall, dass die
---- Konfiguration nach der ersten Prüfung geändert wurde.
+--- Discard the memoized check result. For tests, and for the case where the
+--- configuration changed after the first check.
 ---@return nil
 function M.reset_capability()
   capability = nil
 end
 
---- Dateiinhalt lesen. SVG wird zuerst nach PNG konvertiert (siehe
---- `images.convert`) — OSC 1337 erwartet Rasterbytes, WezTerm kann SVG selbst
---- nicht dekodieren. Für jedes andere Format ist das ein reiner Durchreicher.
+--- Read a file's contents. SVG is converted to PNG first (see
+--- `images.convert`) — OSC 1337 expects raster bytes and WezTerm cannot decode
+--- SVG itself. For every other format this is a plain pass-through.
 ---@param file string
 ---@return string|nil data
 ---@return string|nil err
 local function read_file(file)
-  if type(file) ~= "string" or file == "" then return nil, "Kein Dateipfad angegeben" end
+  if type(file) ~= "string" or file == "" then return nil, "no file path given" end
 
   local effective = file
   if require("images.convert").is_svg(file) then
@@ -168,19 +169,19 @@ local function read_file(file)
   end
 
   local raw, read_err = require("lib.nvim.fs.read")(effective)
-  if not raw then return nil, ("Datei nicht lesbar: %s (%s)"):format(effective, read_err or "?") end
-  if raw == "" then return nil, "Datei ist leer: " .. effective end
+  if not raw then return nil, ("file not readable: %s (%s)"):format(effective, read_err or "?") end
+  if raw == "" then return nil, "file is empty: " .. effective end
   return raw
 end
 
---- OSC-1337-Sequenz für einen Bilddateiinhalt bauen.
----@param raw string Rohe Dateibytes
----@param cols integer Breite in Zellen
----@param rows integer Höhe in Zellen
+--- Build the OSC 1337 sequence for an image file's contents.
+---@param raw string raw file bytes
+---@param cols integer width in cells
+---@param rows integer height in cells
 ---@return string
 local function payload_for(raw, cols, rows)
-  -- table.concat statt wiederholter `..`-Verkettung: der Base64-Anteil ist
-  -- bei großen Bildern mehrere hundert KB groß, jede Zwischenkopie zählt.
+  -- table.concat rather than repeated `..` concatenation: for large images the
+  -- base64 part runs to several hundred KB, so every intermediate copy counts.
   return table.concat({
     ESC,
     "]1337;File=inline=1",
@@ -194,89 +195,87 @@ local function payload_for(raw, cols, rows)
   })
 end
 
---- Zeichenbox so beschneiden, dass sie auf den Schirm passt.
+--- Clip the draw box so it fits on screen.
 ---
---- Vertikal bleibt eine Zeile frei, und das ist kein Sicherheitsabstand aus
---- Vorsicht: OSC 1337 mit `inline=1` rückt den Cursor nach dem Bild um dessen
---- Höhe nach unten. Endet das Bild auf der letzten Zeile, löst genau dieser
---- eine Schritt den Scroll aus, den die Box selbst gerade noch vermieden
---- hätte — und ein Scroll verschiebt Neovims ganzes Grid, ohne dass Neovim
---- davon erfährt (siehe Moduldoku).
----@param row integer 1-basierte Terminalzeile
----@param col integer 1-basierte Terminalspalte
----@param cols integer gewünschte Breite in Zellen
----@param rows integer gewünschte Höhe in Zellen
+--- One row is left free vertically, and that is not a safety margin out of
+--- caution: OSC 1337 with `inline=1` advances the cursor down by the image's
+--- height. If the image ends on the last row, that single step triggers the
+--- very scroll the box itself only just avoided — and a scroll shifts Neovim's
+--- entire grid without Neovim finding out (see the module docs).
+---@param row integer 1-based terminal row
+---@param col integer 1-based terminal column
+---@param cols integer requested width in cells
+---@param rows integer requested height in cells
 ---@return integer cols
 ---@return integer rows
 local function clamp_to_screen(row, col, cols, rows)
   return math.max(1, math.min(cols, vim.o.columns - col + 1)), math.max(1, math.min(rows, vim.o.lines - row))
 end
 
---- Die vollständige Sequenz für ein Bild an einer Position — als **ein**
---- String, der in einem Stück rausgeht. Warum das zusammenbleiben muss, steht
---- in der Moduldoku; hier nur der Zusatz `ESC[?7l`/`ESC[?7h`: Autowrap aus,
---- damit ein Pixel Überbreite keinen Zeilenumbruch erzwingt, der seinerseits
---- am unteren Rand scrollen würde.
----@param raw string Rohe Dateibytes
----@param row integer 1-basierte Terminalzeile
----@param col integer 1-basierte Terminalspalte
----@param cols integer Breite in Zellen
----@param rows integer Höhe in Zellen
+--- The complete sequence for one image at one position — as **one** string
+--- that goes out in a single piece. Why it has to stay together is in the
+--- module docs; the only addition here is `ESC[?7l`/`ESC[?7h`: autowrap off,
+--- so that a pixel of excess width cannot force a line break, which would in
+--- turn scroll at the bottom edge.
+---@param raw string raw file bytes
+---@param row integer 1-based terminal row
+---@param col integer 1-based terminal column
+---@param cols integer width in cells
+---@param rows integer height in cells
 ---@return string
 local function sequence_for(raw, row, col, cols, rows)
   return table.concat({
-    ESC .. "[s", -- Cursor sichern
-    ESC .. "[?7l", -- Autowrap aus
-    ("%s[%d;%dH"):format(ESC, row, col), -- positionieren
+    ESC .. "[s", -- save cursor
+    ESC .. "[?7l", -- autowrap off
+    ("%s[%d;%dH"):format(ESC, row, col), -- position
     payload_for(raw, cols, rows),
-    ESC .. "[?7h", -- Autowrap zurück
-    ESC .. "[u", -- Cursor zurück
+    ESC .. "[?7h", -- autowrap back on
+    ESC .. "[u", -- restore cursor
   })
 end
 
---- Anstehende Bildschirmausgabe erzwingen, BEVOR gezeichnet wird.
+--- Force pending screen output BEFORE drawing.
 ---
---- Sechste Eigenheit, die Zeit gekostet hat: `nvim_ui_send` schreibt sofort
---- ans Terminal, Neovims eigener Repaint läuft dagegen erst, wenn die
---- Steuerung in die Hauptschleife zurückkehrt. Wer also ein Fenster öffnet
---- und im selben Tick hineinzeichnet, sendet das Bild und lässt Neovim
---- danach die (leeren) Zellen dieses Fensters darüber malen — Popup da,
---- Bild weg. Genau so verhielt sich `:Image zen`.
+--- A sixth peculiarity that cost time: `nvim_ui_send` writes to the terminal
+--- immediately, whereas Neovim's own repaint only runs once control returns to
+--- the main loop. Open a window and draw into it in the same tick and the
+--- image goes out, after which Neovim paints that window's (empty) cells over
+--- it — popup there, image gone. That is exactly how `:Image zen` behaved.
 ---
---- Deshalb hier und nicht beim Aufrufer: Es ist eine Invariante des
---- Zeichenpfads, nicht der Fensterlogik. Wo der Schirm ohnehin steht
---- (`images.browse`s Picker-Preview, `images.gallery` über bestehendem
---- Text), ist es ein wirkungsloses Flush.
+--- Hence here and not at the caller: it is an invariant of the draw path, not
+--- of window logic. Where the screen is settled anyway (`images.browse`'s
+--- picker preview, `images.gallery` over existing text) it is an ineffective
+--- flush.
 ---@return nil
 local function flush_pending_redraw()
   pcall(vim.cmd, "redraw")
 end
 
---- Ein Bild an einer Terminalposition zeichnen.
+--- Draw an image at a terminal position.
 ---
---- `cols`/`rows` sind ein Wunsch, keine Zusage: was von `row`/`col` aus nicht
---- mehr auf den Schirm passt, wird vorher weggeschnitten (`clamp_to_screen`).
---- Ein zu großer Wert kostet also Bildgröße, nicht die Bildschirmordnung.
----@param file string Absoluter Pfad zu einer Bilddatei
----@param row integer 1-basierte Terminalzeile
----@param col integer 1-basierte Terminalspalte
----@param cols integer Gewünschte Breite in Zellen, auf den Schirm beschnitten
----@param rows integer Gewünschte Höhe in Zellen, auf den Schirm beschnitten
+--- `cols`/`rows` are a request, not a promise: whatever no longer fits on
+--- screen from `row`/`col` onwards is clipped away first (`clamp_to_screen`).
+--- An oversized value therefore costs image size, not the screen's integrity.
+---@param file string absolute path to an image file
+---@param row integer 1-based terminal row
+---@param col integer 1-based terminal column
+---@param cols integer requested width in cells, clipped to the screen
+---@param rows integer requested height in cells, clipped to the screen
 ---@return boolean ok
 ---@return string|nil err
 function M.draw(file, row, col, cols, rows)
-  if not M.available() then return false, "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt, benötigt API-Level 14)" end
+  if not M.available() then return false, "terminal output unavailable (nvim_ui_send missing, requires API level 14)" end
 
-  -- Vor dem Lesen: schlägt das Lesen fehl, war der Flush umsonst, aber
-  -- harmlos — umgekehrt käme er zu spät.
+  -- Before reading: if the read fails the flush was pointless but harmless --
+  -- the other way round it would come too late.
   local raw, err = read_file(file)
   if not raw then return false, err end
 
-  -- `display.terminal_padding` darf negativ sein (siehe `images.anchor`), und
-  -- nahe am oberen/linken Rand kann das rechnerisch unter 1 fallen. `CSI 0;0H`
-  -- ist zwar in der Praxis wie `CSI 1;1H`, aber darauf soll sich hier nichts
-  -- verlassen — und `clamp_to_screen` würde aus einem zu kleinen `row` eine zu
-  -- große Höhe ableiten.
+  -- `display.terminal_padding` may be negative (see `images.anchor`), and near
+  -- the top/left edge that can arithmetically fall below 1. `CSI 0;0H` does
+  -- behave like `CSI 1;1H` in practice, but nothing here should rely on it --
+  -- and `clamp_to_screen` would derive an oversized height from too small a
+  -- `row`.
   row = math.max(1, row)
   col = math.max(1, col)
 
@@ -291,25 +290,25 @@ function M.draw(file, row, col, cols, rows)
 end
 
 ---@class Images.Placement
----@field file string Absoluter Pfad
----@field row integer 1-basierte Terminalzeile
----@field col integer 1-basierte Terminalspalte
----@field cols integer Breite in Zellen
----@field rows integer Höhe in Zellen
+---@field file string absolute path
+---@field row integer 1-based terminal row
+---@field col integer 1-based terminal column
+---@field cols integer width in cells
+---@field rows integer height in cells
 
---- Mehrere Bilder in einem Rutsch zeichnen.
+--- Draw several images in one go.
 ---
---- Jede Kachel geht als eigene, in sich vollständige Sequenz raus (Cursor
---- sichern, positionieren, zeichnen, zurück) statt einmal für den ganzen
---- Block. Das kostet pro Kachel ein paar Bytes mehr, ist aber der Punkt der
---- Übung: nur so klebt jede Positionierung untrennbar an ihrer Payload. Alles
---- zu einem einzigen String zu verketten wäre noch strenger, hielte dann aber
---- sämtliche Base64-Anteile einer Galerie gleichzeitig im Speicher.
+--- Every tile goes out as its own self-contained sequence (save cursor,
+--- position, draw, restore) rather than one save for the whole block. That
+--- costs a few extra bytes per tile but is the entire point: only this way
+--- does each positioning stick inseparably to its payload. Concatenating
+--- everything into a single string would be stricter still, but would then
+--- hold every base64 payload of a gallery in memory at once.
 ---@param placements Images.Placement[]
----@return integer drawn Anzahl tatsächlich gezeichneter Bilder
----@return string[] errors Fehlermeldungen der übersprungenen Bilder
+---@return integer drawn number of images actually drawn
+---@return string[] errors messages for the skipped images
 function M.draw_many(placements)
-  if not M.available() then return 0, { "Terminalausgabe nicht verfügbar (nvim_ui_send fehlt)" } end
+  if not M.available() then return 0, { "terminal output unavailable (nvim_ui_send missing)" } end
 
   local send = vim.api.nvim_ui_send
   local drawn, errors = 0, {}
@@ -323,7 +322,7 @@ function M.draw_many(placements)
       send(sequence_for(raw, p.row, p.col, cols, rows))
       drawn = drawn + 1
     else
-      errors[#errors + 1] = err or ("Übersprungen: " .. tostring(p.file))
+      errors[#errors + 1] = err or ("skipped: " .. tostring(p.file))
     end
   end
 
@@ -331,8 +330,8 @@ function M.draw_many(placements)
   return drawn, errors
 end
 
---- Alle angezeigten Bilder entfernen. `:mode` erzwingt einen vollständigen
---- Repaint, der die belegten Zellen überschreibt, ohne den Schirm zu leeren.
+--- Remove every displayed image. `:mode` forces a full repaint that overwrites
+--- the occupied cells without clearing the screen.
 ---@return nil
 function M.clear()
   if not showing then return end

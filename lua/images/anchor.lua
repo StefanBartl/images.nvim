@@ -1,39 +1,37 @@
 ---@module 'images.anchor'
----@brief Ein Bild zuverlässig in einem Fenster (oder dem Fenster, das einen
---- Buffer zeigt) an einer benannten Position zeichnen.
+---@brief Reliably draw an image at a named position inside a window (or the
+--- window showing a given buffer).
 ---@description
---- Die eine kanonische Stelle für ein Muster, das vorher viermal unabhängig
---- voneinander nachgebaut wurde — `images.zen`, `images.hover_float` und
---- `images.redact` öffnen je ein Fenster und zeichnen an dessen Geometrie,
---- `images.browse`s Picker-Vorschau zeichnet an der Geometrie eines
---- fremden (snacks-)Fensters. Jede Kopie hatte ihre eigene Sorgfaltsstufe:
---- nur zen/hover_float/redact hatten den `vim.schedule`-Fix für ein im
---- selben Tick geöffnetes Fenster (siehe unten), browse nicht, weil sein
---- Zielfenster beim Aufruf schon länger stand. Ab hier gibt es nur noch
---- eine Implementierung, die alle vier Aufrufer teilen.
+--- The one canonical home for a pattern that was previously rebuilt four times
+--- independently — `images.zen`, `images.hover_float` and `images.redact` each
+--- open a window and draw against its geometry, and `images.browse`'s picker
+--- preview draws against the geometry of a foreign (snacks) window. Every copy
+--- had its own level of care: only zen/hover_float/redact carried the
+--- `vim.schedule` fix for a window opened in the same tick (see below), browse
+--- did not, because its target window had been standing for a while by then.
+--- From here on there is one implementation, shared by all four callers.
 ---
---- **Warum `defer` ein expliziter Parameter ist, keine automatische
---- Erkennung:** `nvim_ui_send` schreibt sofort ans Terminal, Neovims eigener
---- Repaint läuft aber erst, wenn die Steuerung in die Hauptschleife
---- zurückkehrt — und zwar über alles, was seit dem letzten Rücksprung
---- schmutzig wurde. Wer ein Fenster öffnet und im selben Tick hineinzeichnet,
---- sendet das Bild, und Neovim malt die (leeren) Zellen dieses gerade erst
---- geöffneten Fensters danach darüber — Fenster da, Bild weg. `images.
---- terminal.draw`s eigener Flush (`:redraw`) fängt nur ab, was VOR dem
---- Senden bereits anstand, nicht den Repaint, den das Öffnen selbst nach
---- sich zieht — dafür muss der Sprung in den nächsten Tick sein
---- (`vim.schedule`). Ob ein Fenster "gerade erst" geöffnet wurde, lässt sich
---- von hier aus nicht zuverlässig erkennen (kein API-Feld dafür); deshalb
---- entscheidet der Aufrufer, der es weiß, statt einer Heuristik, die in
---- beide Richtungen falsch liegen kann.
+--- **Why `defer` is an explicit parameter rather than auto-detected:**
+--- `nvim_ui_send` writes to the terminal immediately, but Neovim's own repaint
+--- only runs once control returns to the main loop — and then covers
+--- everything that turned dirty since the last return. Open a window and draw
+--- into it in the same tick and the image goes out, after which Neovim paints
+--- that freshly opened window's (empty) cells over it — window there, image
+--- gone. `images.terminal.draw`'s own flush (`:redraw`) only catches what was
+--- already pending BEFORE sending, not the repaint that opening the window
+--- itself causes; for that the jump into the next tick is required
+--- (`vim.schedule`). Whether a window was "just" opened cannot be detected
+--- reliably from here (there is no API field for it), so the caller — who
+--- knows — decides, instead of a heuristic that can be wrong in both
+--- directions.
 
 local M = {}
 
---- `target` zu einem konkreten, validen Fenster auflösen.
----   nil / 0                → aktuelles Fenster
----   valides Fenster-Handle → unverändert
----   valides Buffer-Handle  → ein Fenster, das diesen Buffer zeigt (das
----                            aktuelle zuerst, sonst das erste gefundene)
+--- Resolve `target` to a concrete, valid window.
+---   nil / 0              → current window
+---   valid window handle  → unchanged
+---   valid buffer handle  → a window showing that buffer (the current one
+---                          first, otherwise the first one found)
 ---@param target integer|nil
 ---@return integer|nil winid
 ---@return string|nil err
@@ -48,42 +46,40 @@ function M.resolve_window(target)
     for _, w in ipairs(vim.api.nvim_list_wins()) do
       if vim.api.nvim_win_get_buf(w) == target then return w end
     end
-    return nil, ("Kein Fenster zeigt Buffer %d"):format(target)
+    return nil, ("no window shows buffer %d"):format(target)
   end
 
-  return nil, ("Ungültiges Fenster- oder Buffer-Handle: %s"):format(tostring(target))
+  return nil, ("invalid window or buffer handle: %s"):format(tostring(target))
 end
 
---- Wie viele Zeilen/Spalten der Rahmen eines Fensters dessen Inhalt nach
---- innen schiebt.
+--- How many rows/columns a window's border pushes its content inwards.
 ---
---- `nvim_win_get_position` bleibt vom Rahmen unberührt: es liefert für ein
---- gerahmtes wie für ein rahmenloses Fenster mit identischer `row`/`col`-
---- Konfiguration denselben Wert — nämlich die Position der Rahmen-
---- AUSSENKANTE, nicht die des Inhalts. Ein Fenster mit oberem und linkem
---- Rahmensegment rückt seinen tatsächlichen Inhalt deshalb um je eine Zelle
---- nach unten/rechts ein, ohne dass sich das in `pos` niederschlägt (per
---- `screenpos()` gegengeprüft: ohne Rahmen deckungsgleich mit `pos + 1`, mit
---- `rounded`/`single` genau eine Zelle mehr in Zeile und Spalte). Wer diesen
---- Versatz ignoriert, zeichnet eine Zelle zu früh — sichtbar als Bild, das
---- den Rahmen überlappt statt in ihm zu sitzen. `images.scale.anchor_box`
---- ist davon nicht betroffen: `nvim_win_get_width`/`_height` geben bereits
---- nur den Inhaltsbereich zurück, mit oder ohne Rahmen identisch.
----@param winid integer bereits als gültig geprüft
----@return integer row_inset 0 oder 1
----@return integer col_inset 0 oder 1
+--- `nvim_win_get_position` is unaffected by the border: for a bordered and an
+--- unbordered window with identical `row`/`col` configuration it returns the
+--- same value — namely the position of the border's OUTER edge, not of the
+--- content. A window with a top and left border segment therefore indents its
+--- actual content by one cell down/right without that showing up in `pos`
+--- (verified against `screenpos()`: without a border it coincides with
+--- `pos + 1`, with `rounded`/`single` it is exactly one cell more in both row
+--- and column). Ignore that offset and you draw one cell too early — visible
+--- as an image overlapping the border instead of sitting inside it.
+--- `images.scale.anchor_box` is not affected: `nvim_win_get_width`/`_height`
+--- already report the content area only, identically with or without a border.
+---@param winid integer already verified as valid
+---@return integer row_inset 0 or 1
+---@return integer col_inset 0 or 1
 local function border_inset(winid)
   local ok, config = pcall(vim.api.nvim_win_get_config, winid)
   if not ok then return 0, 0 end
 
   local border = config.border
-  if type(border) ~= "table" then return 0, 0 end -- "none" oder kein Rahmen gesetzt
+  if type(border) ~= "table" then return 0, 0 end -- "none", or no border set
 
-  -- Reihenfolge laut `:h nvim_open_win()`: {top-left, top, top-right, right,
-  -- bottom-right, bottom, bottom-left, left}. Jedes Segment ist entweder ein
-  -- Zeichen oder ein {Zeichen, Highlight}-Paar. Oben/links schieben den
-  -- Inhalt ein, sobald eines ihrer drei beteiligten Segmente belegt ist —
-  -- ein reiner Top-Rahmen ohne linkes Segment verschiebt z.B. nur die Zeile.
+  -- Order per `:h nvim_open_win()`: {top-left, top, top-right, right,
+  -- bottom-right, bottom, bottom-left, left}. Each segment is either a
+  -- character or a {character, highlight} pair. Top/left indent the content as
+  -- soon as one of their three participating segments is filled -- a top-only
+  -- border without a left segment shifts the row but not the column.
   local function present(...)
     for _, i in ipairs({ ... }) do
       local seg = border[i]
@@ -96,29 +92,28 @@ local function border_inset(winid)
   return (present(1, 2, 3) and 1 or 0), (present(1, 7, 8) and 1 or 0)
 end
 
---- Zusätzlicher, fest konfigurierter Zeilen-/Spalten-Versatz aus
---- `display.terminal_padding` — Default `{ row = 0, col = 0 }`, für alle
---- ohne diese Einstellung ein reines No-op.
+--- Additional fixed row/column offset from `display.terminal_padding` —
+--- default `{ row = 0, col = 0 }`, a plain no-op for anyone without it.
 ---
---- Grund: manche Terminals (WezTerm nachweislich, siehe docs/ROADMAP/
---- TERMINALS.md) berücksichtigen ihr eigenes `window_padding` beim Malen von
---- Text/Rahmen korrekt, aber nicht beim Platzieren eines OSC-1337-Bildes —
---- das Bild landet dann so viele Pixel zu tief/weit rechts, wie das Fenster
---- Padding hat. `CSI row;col H` positioniert nur in ganzen Zellen; ein
---- Padding, das kein glattes Vielfaches der Zellgröße ist, lässt sich damit
---- grundsätzlich nicht ausgleichen (dafür bräuchte es einen Pixel-Offset,
---- den OSC 1337 nicht kennt). Wer sein Padding auf ein Zell-Vielfaches legt,
---- kann den Rest — jetzt ein ganzzahliger Zeilen-/Spaltenversatz — hierüber
---- kompensieren. Messprotokoll: `docs/ROADMAP/TERMINALS.md`.
----@param override { row: integer?, col: integer? }|nil Wert aus `Images.Anchor.Opts.padding`
+--- The reason: some terminals (WezTerm demonstrably, see
+--- docs/ROADMAP/TERMINALS.md) account for their own `window_padding` correctly
+--- when painting text and borders, but not when placing an OSC 1337 image —
+--- the image then lands as many pixels too low/too far right as the window has
+--- padding. `CSI row;col H` positions in whole cells only; padding that is not
+--- an even multiple of the cell size therefore cannot be compensated at all
+--- (that would need a pixel offset, which OSC 1337 does not have). Put the
+--- padding on a cell multiple and the remainder — now a whole-cell row/column
+--- offset — can be compensated here. `:Image calibrate` measures it
+--- interactively; see `images.calibrate`.
+---@param override { row: integer?, col: integer? }|nil value from `Images.Anchor.Opts.padding`
 ---@return integer row
 ---@return integer col
 local function terminal_padding(override)
   local padding = override
 
-  -- Nur die Konfiguration befragen, wenn der Aufrufer nichts mitgebracht hat.
-  -- `images.calibrate` probiert Werte durch und darf dafür nicht die globale
-  -- Konfiguration umschreiben — ein Probierwert ist keine Einstellung.
+  -- Only consult the configuration when the caller brought nothing.
+  -- `images.calibrate` tries values out and must not rewrite the global
+  -- configuration to do so -- a value being tried is not a setting.
   if type(padding) ~= "table" then
     local ok, config = pcall(require, "images.config")
     if not ok then return 0, 0 end
@@ -131,30 +126,28 @@ local function terminal_padding(override)
   return row, col
 end
 
---- Marge in Zellen, die rundum im Fenster frei bleibt.
+--- Margin in cells kept free all round inside the window.
 ---
---- **Warum überhaupt.** Ein Bild exakt in den Rahmen zu legen sieht nur dann
---- gut aus, wenn die Platzierung zellgenau stimmt. Das lässt sich nicht
---- garantieren: Terminals mit einem Fenster-Padding, das kein Vielfaches der
---- Zellgröße ist, verschieben das Bild um Bruchteile einer Zelle (WezTerm
---- nachweislich, siehe docs/ROADMAP/TERMINALS.md), und weder Zellgröße noch
---- Padding sind aus Neovim heraus abfragbar (`:h TermResponse` reicht keine
---- CSI-Antworten durch). Bündig gezeichnet wird aus so einem Versatz ein
---- sichtbarer Überstand über den Rahmen.
+--- **Why at all.** Placing an image flush against the frame only looks good if
+--- the placement is cell-accurate. That cannot be guaranteed: terminals whose
+--- window padding is not a multiple of the cell size shift the image by a
+--- fraction of a cell (WezTerm demonstrably, see docs/ROADMAP/TERMINALS.md),
+--- and neither cell size nor padding can be queried from inside Neovim (`:h
+--- TermResponse` forwards no CSI replies). Drawn flush, such an offset turns
+--- into a visible overhang past the frame.
 ---
---- **Warum rundum und nicht nur dort, wo der Versatz hinläuft.** Einseitig
---- wäre die halbe Fläche — und sieht trotzdem schlechter aus. Am Testfall
---- gemessen: mit Reserve nur unten/rechts klebt das Bild links am Rahmen und
---- lässt rechts eine Lücke, und genau diese Asymmetrie liest der Betrachter
---- als Fehler, unabhängig davon, ob sie einen verhindert. Rundum verteilt
---- ergibt dieselbe Toleranz als gleichmäßiger Innenrand, der wie Absicht
---- aussieht. Ein *systematischer* Versatz gehört ohnehin nicht hierher,
---- sondern in `display.terminal_padding` — die Marge fängt nur den Rest ab.
+--- **Why all round rather than only where the offset goes.** One-sided would
+--- cost half the area — and still looks worse. Measured on the test case: with
+--- the reserve only at bottom/right, the image clings to the left border and
+--- leaves a gap on the right, and that asymmetry reads as a defect regardless
+--- of what it prevents. Spread all round, the same tolerance becomes an even
+--- inner margin that looks deliberate. A *systematic* offset does not belong
+--- here anyway but in `display.terminal_padding` — the margin only absorbs the
+--- remainder.
 ---
---- Wer sein Setup vermessen hat (`display.cell_aspect`,
---- `display.terminal_padding`), setzt `display.draw_inset = 0` und zeichnet
---- bündig.
----@param explicit integer|nil Wert aus `Images.Anchor.Opts.inset`
+--- Once a setup is measured (`display.cell_aspect`,
+--- `display.terminal_padding`), `display.draw_inset = 0` draws flush.
+---@param explicit integer|nil value from `Images.Anchor.Opts.inset`
 ---@return integer cells >= 0
 local function draw_inset(explicit)
   if type(explicit) == "number" then return math.max(0, math.floor(explicit)) end
@@ -166,15 +159,16 @@ local function draw_inset(explicit)
   return type(configured) == "number" and math.max(0, math.floor(configured)) or 0
 end
 
----@param winid integer bereits als gültig geprüft
----@param position string siehe `images.scale.POSITIONS`
+---@param winid integer already verified as valid
+---@param position string see `images.scale.POSITIONS`
 ---@param file string
 ---@param scale number|nil
 ---@param inset integer|nil
+---@param padding { row: integer?, col: integer? }|nil
 ---@return boolean ok
 ---@return string|nil err
 local function draw_now(winid, position, file, scale, inset, padding)
-  if not vim.api.nvim_win_is_valid(winid) then return false, "Fenster nicht mehr gültig" end
+  if not vim.api.nvim_win_is_valid(winid) then return false, "window is no longer valid" end
 
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
@@ -185,9 +179,9 @@ local function draw_now(winid, position, file, scale, inset, padding)
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
 
-  -- Marge rundum, die Box bleibt mittig. Pro Achse gedeckelt, damit selbst in
-  -- einem sehr kleinen Fenster mindestens eine Zelle Bild übrig bleibt — eine
-  -- Marge, die das Bild ganz auffrisst, wäre schlechter als gar keine.
+  -- Margin all round, box stays centred. Capped per axis so that even in a
+  -- very small window at least one cell of image survives -- a margin that
+  -- eats the image entirely would be worse than none.
   local margin = draw_inset(inset)
   if margin > 0 then
     local mc = math.min(margin, math.floor((cols - 1) / 2))
@@ -211,18 +205,18 @@ local function draw_now(winid, position, file, scale, inset, padding)
 end
 
 ---@class Images.Anchor.Opts
----@field scale number|nil 0 < scale <= 1; ignoriert bei `position = "full"`; sonst Default `images.scale.DEFAULT_ANCHOR_SCALE`
----@field defer boolean|nil `vim.schedule` vor dem Zeichnen — nötig, wenn `target` im selben Tick geöffnet/befüllt wurde (siehe Modul-Doku). Default `false`.
----@field inset integer|nil Sicherheitsmarge in Zellen rundum; `nil` = `display.draw_inset` aus der Konfiguration, `0` = bündig. Siehe `draw_inset`.
----@field padding { row: integer?, col: integer? }|nil Zell-Versatz statt `display.terminal_padding`; für Aufrufer, die Werte durchprobieren, ohne die Konfiguration zu ändern
----@field on_done fun(ok: boolean, err: string|nil)|nil läuft in jedem Fall genau einmal — synchron bei `defer = false` (oder wenn `target` sich gar nicht auflösen lässt), sonst sobald der aufgeschobene Zeichenversuch feststeht
+---@field scale number|nil 0 < scale <= 1; ignored for `position = "full"`; otherwise defaults to `images.scale.DEFAULT_ANCHOR_SCALE`
+---@field defer boolean|nil `vim.schedule` before drawing — required when `target` was opened/filled in the same tick (see module docs). Default `false`.
+---@field inset integer|nil safety margin in cells all round; `nil` = `display.draw_inset` from the configuration, `0` = flush. See `draw_inset`.
+---@field padding { row: integer?, col: integer? }|nil cell offset instead of `display.terminal_padding`; for callers trying values out without changing the configuration
+---@field on_done fun(ok: boolean, err: string|nil)|nil runs exactly once in every case — synchronously for `defer = false` (or when `target` cannot be resolved at all), otherwise as soon as the deferred draw attempt has settled
 
---- Ein Bild in `target` an `position` zeichnen.
----@param target integer|nil Fenster- oder Buffer-Handle; nil/0 = aktuelles Fenster
----@param position string siehe `images.scale.POSITIONS`
----@param file string absoluter Pfad
+--- Draw an image into `target` at `position`.
+---@param target integer|nil window or buffer handle; nil/0 = current window
+---@param position string see `images.scale.POSITIONS`
+---@param file string absolute path
 ---@param opts Images.Anchor.Opts|nil
----@return boolean ok bei `defer = true`: ob der Aufruf angenommen wurde, nicht ob bereits gezeichnet ist
+---@return boolean ok for `defer = true`: whether the call was accepted, not whether anything was drawn yet
 ---@return string|nil err
 function M.draw(target, position, file, opts)
   opts = opts or {}

@@ -1,35 +1,35 @@
 ---@module 'images.guard'
----@brief Terminal-Fähigkeits-Guard, gemeinsam für jeden Zeichenpfad.
+---@brief Terminal capability guard, shared by every draw path.
 ---@description
---- Warnt einmal pro Sitzung und lässt trotzdem zeichnen. Ein harter Abbruch
---- wäre falsch — die Erkennung ist eine Heuristik über Umgebungsvariablen,
---- weil OSC 1337 keine Fähigkeitsabfrage kennt, und ein Fehlalarm würde ein
---- funktionierendes Setup abwürgen. Die Meldung nennt deshalb den Test, mit
---- dem sich das klären lässt, und die Option, die sie abstellt.
+--- Warns once per session and draws anyway. A hard refusal would be wrong —
+--- detection is a heuristic over environment variables, because OSC 1337 has
+--- no capability query, and a false negative would break a working setup. The
+--- message therefore names the test that settles the question, and the option
+--- that silences it.
 ---
---- Ursprünglich privat in `images.init`; hierher gezogen, sobald ein zweiter
---- und dritter Aufrufer (`images.browse`, `images.zen`) denselben Guard vor
---- demselben Zeichenpfad brauchten — sonst würde jeder Aufrufer sein eigenes
---- `warned`-Flag mitschleppen und die Warnung mehrfach pro Sitzung zeigen.
+--- Originally private to `images.init`; moved here as soon as a second and
+--- third caller (`images.browse`, `images.zen`) needed the same guard in front
+--- of the same draw path — otherwise every caller would carry its own `warned`
+--- flag and the warning would appear several times per session.
 
 local M = {}
 
----@return table notify-Handle aus lib.nvim
+---@return Lib.Notify.Notifier
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
---- Ob die Fähigkeitswarnung in dieser Sitzung schon erschienen ist.
+--- Whether the capability warning has already appeared this session.
 ---@type boolean
 local warned = false
 
---- Guard vor dem ersten Zeichnen: kann dieses Terminal überhaupt Bilder?
+--- Guard before the first draw: can this terminal show images at all?
 ---@return nil
 function M.check()
   local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
 
   if cap.ok then
-    -- Auch bei ok kann ein Hinweis anstehen, etwa tmux ohne passthrough.
+    -- Even when ok there may be a hint pending, e.g. tmux without passthrough.
     if cap.hint and not warned then
       warned = true
       notify().warn(cap.hint)
@@ -39,11 +39,11 @@ function M.check()
 
   if warned then return end
   warned = true
-  notify().warn(table.concat({ cap.reason or "Terminal kann vermutlich keine Bilder", cap.hint }, "\n"))
+  notify().warn(table.concat({ cap.reason or "this terminal probably cannot show images", cap.hint }, "\n"))
 end
 
---- `warned`-Flag zurücksetzen. Für `images.recheck()` (nach einer
---- Konfigurationsänderung) und für Tests.
+--- Reset the `warned` flag. For `images.recheck()` (after a configuration
+--- change) and for tests.
 ---@return nil
 function M.reset()
   warned = false
