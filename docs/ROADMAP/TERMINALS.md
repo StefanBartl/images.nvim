@@ -102,8 +102,17 @@ model) at `window_padding = "1cell"` all round and `tab_bar_at_bottom = true`:
 
 The values sent match the specification exactly (`80−2`, and `18−2` / `19−2`) —
 so the arithmetic is not the cause. That a 44 px reserve at the bottom does not
-contain the overhang means the offset is **larger than two cells**, and hence
-not a pure sub-cell effect but predominantly a whole-cell shift.
+contain the overhang means the offset is not a pure sub-cell effect but
+predominantly a whole-cell shift.
+
+**Measured afterwards, on that same setup:** `terminal_padding = { row = -2,
+col = 0 }` with `draw_inset = 1` places both files correctly. So the shift is
+exactly two cells downward — the earlier inference that it must be *more* than
+two was wrong, and wrong for an instructive reason: the one-cell margin the
+reserve was measured against sits on *both* edges, so a 2-cell correction and a
+1-cell margin do not add up to a 3-cell budget at the bottom. A reserve is not a
+correction, and reading one as evidence about the other is how this measurement
+went astray twice.
 
 **Rule.** The integer part belongs in `display.terminal_padding` (negative, to
 correct upwards), not in the margin. Only what remains below that is the real,
