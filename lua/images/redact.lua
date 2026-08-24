@@ -1,33 +1,33 @@
 ---@module 'images.redact'
----@brief Zensur-Modus: Bild in einem Zen-artigen Fenster schwärzen, Original bleibt.
+---@brief Redaction mode: black out parts of an image in a zen-like window,
+--- leaving the original intact.
 ---@description
---- Konzept: docs/ROADMAP/REDACT.md. Motivation: casedesk-Anhänge (Screenshots
---- mit Kundendaten in `Ressources/`), die vor einer künftigen KI-Übergabe
---- unkenntlich gemacht werden müssen können.
+--- Concept: docs/ROADMAP/REDACT.md. Motivation: casedesk attachments
+--- (screenshots containing customer data under `Ressources/`) that have to be
+--- made unrecognisable before any future handover to an AI.
 ---
---- Die eigentliche Hürde ist, dass ein per OSC 1337 gezeichnetes Bild für
---- Neovim nicht interaktiv ist — Maus/Cursor liefern nur Zellkoordinaten,
---- nie Pixelkoordinaten im Bild. Die Lösung hier: die Auswahl selbst passiert
---- komplett in Zellen, über echten Neovim-Visual-Mode auf einem mit
---- Leerzeichen gefüllten Scratch-Buffer in Bildgröße (`v`/`<C-v>` + `<CR>`
---- markiert eine Box, dieselbe Idee wie Visual-Block) — kein neues
---- Eingabe-System, keine Pixelmathematik während der Auswahl. Erst beim
---- Schreiben (`w`) wird einmalig umgerechnet: `images.scale.fit_cells` wählt
---- die Zeichenbox so, dass `preserveAspectRatio=1` kaum noch etwas zu
---- letterboxen hat (die Zellzahl wird an das Bildseitenverhältnis über eine
---- angenommene, dokumentierte Zellbreite/-höhe angepasst, `images.scale.
---- CELL_ASPECT` — keine echte Zellmessung, siehe dort), und `images.scale.
---- cell_box_to_pixels` rechnet mit einer Sicherheitsmarge in Pixelkoordinaten
---- um. Gebrannt wird über `images.convert.redact` (ImageMagick, dritte
---- bewusste Ausnahme von der "kein ImageMagick als Pflicht"-Leitplanke neben
---- SVG-Anzeige und `:Image export`).
+--- The real obstacle is that an image drawn via OSC 1337 is not interactive as
+--- far as Neovim is concerned — mouse and cursor yield cell coordinates only,
+--- never pixel coordinates within the image. The solution here: the selection
+--- happens entirely in cells, through genuine Neovim visual mode on a
+--- space-filled scratch buffer sized to the image (`v`/`<C-v>` + `<CR>` marks a
+--- box, the same idea as visual block) — no new input system, no pixel
+--- arithmetic during selection. The conversion happens once, on write (`w`):
+--- `images.scale.fit_cells` picks the draw box so `preserveAspectRatio=1` has
+--- almost nothing left to letterbox (the cell count is fitted to the image's
+--- aspect ratio via an assumed, documented cell width/height,
+--- `images.scale.CELL_ASPECT` — not a real cell measurement, see there), and
+--- `images.scale.cell_box_to_pixels` converts to pixel coordinates with a
+--- safety margin. The burn-in goes through `images.convert.redact`
+--- (ImageMagick, the third deliberate exception to the "ImageMagick is never
+--- required" guardrail, alongside SVG display and `:Image export`).
 ---
---- **Nicht Teil der automatisierten Testsuite**: die Tastenlogik selbst
---- (Visual-Mode-Erfassung, Fensteraufbau) braucht ein echtes Terminal mit
---- OSC-1337-Unterstützung, um wirklich verifiziert zu werden — wie überall
---- in dieser Suite bleibt "Zeichnen" ungeprüft (siehe TESTS/zen_spec.lua).
---- Die reine Geometrie (`images.scale.fit_cells`/`cell_box_to_pixels`) und
---- das Brennen (`images.convert.redact`) sind dagegen getestet.
+--- **Not part of the automated test suite**: the key logic itself (visual mode
+--- capture, window construction) needs a real terminal with OSC 1337 support to
+--- be verified meaningfully — as everywhere in this suite, "drawing" stays
+--- unchecked (see TESTS/zen_spec.lua). The pure geometry
+--- (`images.scale.fit_cells`/`cell_box_to_pixels`) and the burn-in
+--- (`images.convert.redact`) are tested.
 
 local M = {}
 
@@ -36,7 +36,7 @@ local function cfg()
   return require("images.config").get()
 end
 
----@return table notify-Handle aus lib.nvim
+---@return Lib.Notify.Notifier
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
@@ -65,15 +65,15 @@ local boxes = {}
 
 local ns = vim.api.nvim_create_namespace("images.redact")
 
---- Ob gerade ein Redact-Fenster offen ist.
+--- Whether a redaction window is currently open.
 ---@return boolean
 function M.is_open()
   return winid ~= nil and vim.api.nvim_win_is_valid(winid)
 end
 
---- Redact-Fenster aktiv schließen (No-op, wenn keines offen ist). Verwirft
---- unbestätigte Boxen — Original wie Zieldatei sind zu diesem Zeitpunkt
---- ohnehin unangetastet, nur `w` schreibt tatsächlich.
+--- Close the redaction window (a no-op when none is open). Discards
+--- unconfirmed boxes — original and target file are untouched at that point
+--- anyway, only `w` actually writes.
 ---@return nil
 function M.close()
   if winid and vim.api.nvim_win_is_valid(winid) then pcall(vim.api.nvim_win_close, winid, true) end
@@ -98,17 +98,17 @@ end
 ---@return nil
 local function undo_box()
   if #boxes == 0 then
-    notify().warn("Keine Box zum Entfernen")
+    notify().warn("no box to remove")
     return
   end
   table.remove(boxes)
   redraw_boxes()
-  notify().info(("Box entfernt (%d verbleiben)"):format(#boxes))
+  notify().info(("box removed (%d remaining)"):format(#boxes))
 end
 
---- Die aktuelle Visual-Selektion als Redaktionsbox übernehmen. Läuft als
---- Visual-Mode-Mapping — `getpos("v")`/`getpos(".")` sind während der
---- Callback-Ausführung noch gültig, danach verlässt ein `<Esc>` den Modus.
+--- Take the current visual selection as a redaction box. Runs as a visual mode
+--- mapping — `getpos("v")`/`getpos(".")` are still valid while the callback
+--- executes; an `<Esc>` afterwards leaves the mode.
 ---@return nil
 local function confirm_box()
   local vstart = vim.fn.getpos("v")
@@ -126,13 +126,13 @@ local function confirm_box()
 
   boxes[#boxes + 1] = { row1 = row1, col1 = col1, row2 = row2, col2 = col2 }
   redraw_boxes()
-  notify().info(("Box %d markiert"):format(#boxes))
+  notify().info(("box %d marked"):format(#boxes))
 end
 
 ---@return nil
 local function write_redacted()
   if #boxes == 0 then
-    notify().warn("Keine Box markiert — nichts zu schwärzen")
+    notify().warn("no box marked — nothing to redact")
     return
   end
   if not file or not image_px then return end
@@ -143,34 +143,34 @@ local function write_redacted()
     pixel_boxes[#pixel_boxes + 1] = require("images.scale").cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding)
   end
 
-  -- convert.redact() ist asynchron: magick blockierte hier vorher für die
-  -- gesamte Konvertierung. Das Fenster bleibt bis zum Ergebnis stehen und
-  -- wird erst im Callback geschlossen — die Reihenfolge ist damit dieselbe
-  -- wie vorher, nur ohne eingefrorenen Editor.
+  -- convert.redact() is asynchronous: magick used to block here for the whole
+  -- conversion. The window stays up until the result arrives and is closed only
+  -- in the callback — so the ordering is the same as before, just without a
+  -- frozen editor.
   require("images.convert").redact(file, pixel_boxes, function(out, err)
     if not out then
-      notify().error(err or "Schwärzen fehlgeschlagen")
+      notify().error(err or "redaction failed")
       return
     end
 
-    notify().info("Geschwärzte Kopie gespeichert: " .. vim.fn.fnamemodify(out, ":~"))
+    notify().info("redacted copy saved: " .. vim.fn.fnamemodify(out, ":~"))
     M.close()
   end)
 end
 
---- Bild — oder das unter dem Cursor — im Zensur-Modus öffnen.
----@param path string|nil nil = Bild unter dem Cursor
+--- Open an image — or the one under the cursor — in redaction mode.
+---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.open(path)
   local target = require("images.resolve").path_or_cursor(path)
   if not target then
-    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
+    notify().warn("no image under the cursor or at the given path")
     return false
   end
 
   local px, info_err = require("images.info").collect(target)
   if not px or not px.width or not px.height then
-    notify().error(info_err or "Bildmaße nicht ermittelbar — `:Image redact` braucht ImageMagick")
+    notify().error(info_err or "cannot determine the image dimensions — `:Image redact` needs ImageMagick")
     return false
   end
 
@@ -195,7 +195,7 @@ function M.open(path)
     title = " Redact: " .. vim.fn.fnamemodify(target, ":t") .. " ",
   })
   if not win or not buf then
-    notify().error("Redact-Fenster konnte nicht geöffnet werden")
+    notify().error("could not open the redaction window")
     return false
   end
 
@@ -203,9 +203,9 @@ function M.open(path)
   boxes = {}
 
   local map = require("lib.nvim.map")
-  map("n", "w", write_redacted, { buffer = buf, nowait = true }, "images.redact: schwärzen und speichern")
-  map("n", "u", undo_box, { buffer = buf, nowait = true }, "images.redact: letzte Box entfernen")
-  map("x", "<CR>", confirm_box, { buffer = buf, nowait = true }, "images.redact: Auswahl als Box markieren")
+  map("n", "w", write_redacted, { buffer = buf, nowait = true }, "images.redact: redact and save")
+  map("n", "u", undo_box, { buffer = buf, nowait = true }, "images.redact: remove the last box")
+  map("x", "<CR>", confirm_box, { buffer = buf, nowait = true }, "images.redact: mark the selection as a box")
 
   local autocmd = require("lib.nvim.autocmd")
   autocmd.create("WinClosed", function()
@@ -215,22 +215,22 @@ function M.open(path)
     group = autocmd.group("images.redact", true),
     pattern = tostring(win),
     once = true,
-    desc = "images.redact: Aufräumen beim Schließen",
+    desc = "images.redact: clean up on close",
   })
 
-  -- `defer = true` aus demselben Grund wie in `images.zen` — siehe
-  -- `images.anchor`s Moduldoku: das Fenster wurde gerade erst geöffnet.
-  -- `inset = 0`: hier ist die Zeichenbox keine Darstellungsfrage, sondern die
-  -- Grundlage der Rückrechnung. `draw_cols`/`draw_rows` oben und
-  -- `images.scale.cell_box_to_pixels` setzen voraus, dass die gezeichnete Box
-  -- exakt die ist, die `fit_cells` bestimmt hat. Eine Sicherheitsmarge würde
-  -- jede markierte Box auf die falsche Bildstelle abbilden — geschwärzt würde
-  -- dann nicht das, was der User markiert hat.
+  -- `defer = true` for the same reason as in `images.zen` — see
+  -- `images.anchor`'s module docs: the window has only just been opened.
+  -- `inset = 0`: here the draw box is not a presentation choice but the basis
+  -- for mapping back. `draw_cols`/`draw_rows` above and
+  -- `images.scale.cell_box_to_pixels` assume the box drawn is exactly the one
+  -- `fit_cells` determined. A safety margin would map every marked box onto the
+  -- wrong part of the image — what got blacked out would not be what the user
+  -- marked.
   require("images.anchor").draw(win, "full", target, {
     defer = true,
     inset = 0,
     on_done = function(ok, err)
-      if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+      if not ok then notify().error(err or "could not display the image") end
     end,
   })
 

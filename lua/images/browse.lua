@@ -1,18 +1,18 @@
 ---@module 'images.browse'
----@brief Bilder in einem Verzeichnisbaum finden und mit Live-Vorschau auswählen.
+---@brief Find images in a directory tree and pick one with a live preview.
 ---@description
---- Anders als `images.scan` (Bildlinks *eines Buffers*) durchsucht dieses
---- Modul das Dateisystem selbst: alle Bilddateien unterhalb eines Root, egal
---- ob irgendwo verlinkt. Drei Scopes lösen den Root auf — `cfile` (Verzeichnis
---- der aktuellen Datei), `cwd`, `path <dir>` (explizit).
+--- Unlike `images.scan` (image links in *one buffer*) this module searches the
+--- filesystem itself: every image file below a root, linked or not. Three
+--- scopes resolve that root — `cfile` (the current file's directory), `cwd`,
+--- and `path <dir>` (explicit).
 ---
---- Kein Dep auf pickers.nvim: dessen Engine-Abstraktion (telescope/fzf-lua/
---- snacks einheitlich) hat keinen Weg, eine plugin-eigene Live-Vorschau über
---- alle drei Engines zu legen — nur snacks erlaubt eine custom
---- `preview`-Funktion pro Picker. Da genau diese Live-Vorschau der Punkt
---- dieses Features ist, bindet dieses Modul direkt an `snacks.picker` (Soft-
---- Dependency, gleiches Muster wie `images.bindings.which_key`) und fällt
---- ohne snacks auf eine einfache Auswahl ohne Vorschau zurück.
+--- No dependency on pickers.nvim: its engine abstraction (telescope/fzf-lua/
+--- snacks behind one interface) has no way to put a plugin's own live preview
+--- across all three engines — only snacks allows a custom `preview` function
+--- per picker. Since that live preview is the entire point of this feature,
+--- this module binds directly to `snacks.picker` (a soft dependency, the same
+--- pattern as `images.bindings.which_key`) and falls back to a plain selection
+--- without preview when snacks is absent.
 
 local M = {}
 
@@ -21,22 +21,22 @@ local function cfg()
   return require("images.config").get()
 end
 
---- Verzeichnisnamen, die immer übersprungen werden — unabhängig von
---- `display.browse_exclude`, das der User zusätzlich erweitern kann.
+--- Directory names always skipped — independent of `display.browse_exclude`,
+--- which the user can extend on top.
 ---@type table<string, boolean>
 local ALWAYS_EXCLUDE = { [".git"] = true }
 
---- Obergrenze besuchter Einträge, als Sicherheitsnetz gegen einen riesigen
---- `cwd`-Scan (z.B. versehentlich im Home-Verzeichnis). Kein Fehler, nur ein
---- stiller Stopp — die Trefferliste bis dahin ist immer noch brauchbar.
+--- Upper bound on visited entries, as a safety net against a huge `cwd` scan
+--- (e.g. accidentally started in the home directory). Not an error, just a
+--- quiet stop — the results found so far are still useful.
 local MAX_ENTRIES = 20000
 
---- Bilddateien unterhalb `root` einsammeln (Breitensuche, iterativ statt
---- rekursiv — vermeidet Stack-Tiefe bei sehr verschachtelten Bäumen).
----@param root string absoluter Pfad
----@param exclude string[]|nil zusätzliche Verzeichnisnamen zum Überspringen
----@param extensions string[] erlaubte Endungen, ohne Punkt
----@return string[] gefundene Bildpfade, sortiert
+--- Collect image files below `root` (breadth-first, iterative rather than
+--- recursive — avoids stack depth on deeply nested trees).
+---@param root string absolute path
+---@param exclude string[]|nil additional directory names to skip
+---@param extensions string[] permitted extensions, without the dot
+---@return string[] image paths found, sorted
 local function walk(root, exclude, extensions)
   local exclude_set = vim.deepcopy(ALWAYS_EXCLUDE)
   for _, name in ipairs(exclude or {}) do
@@ -77,75 +77,75 @@ local function walk(root, exclude, extensions)
   table.sort(found)
   return found
 end
--- Für Tests exponiert: reine Funktion, kein Terminal nötig.
+-- Exposed for tests: a pure function, no terminal required.
 M.walk = walk
 
---- Bilddateien unterhalb `root` sammeln, mit der konfigurierten
---- Ausschlussliste und den konfigurierten Endungen.
----@param root string absoluter Verzeichnispfad
----@return string[] absolute Pfade, sortiert
+--- Collect image files below `root`, using the configured exclusion list and
+--- the configured extensions.
+---@param root string absolute directory path
+---@return string[] absolute paths, sorted
 function M.scan(root)
   local c = cfg()
   return walk(root, c.display.browse_exclude, c.extensions)
 end
 
---- Scope-Argument zu einem einzelnen Root-Verzeichnis auflösen.
+--- Resolve the scope argument to a single root directory.
 ---@param scope string|nil "cfile"|"cwd"|"path"; nil = "cwd"
----@param arg string|nil bei scope="path": das Zielverzeichnis
----@return string|nil root normalisiert (siehe `images.resolve.normalize_path`)
+---@param arg string|nil for scope="path": the target directory
+---@return string|nil root normalised (see `images.resolve.normalize_path`)
 ---@return string|nil err
 function M.roots(scope, arg)
   scope = scope or "cwd"
   local resolve = require("images.resolve")
 
   if scope == "path" then
-    if not arg or arg == "" then return nil, "`path`-Scope braucht ein Verzeichnis: :Image pickers path <dir>" end
+    if not arg or arg == "" then return nil, "the `path` scope needs a directory: :Image pickers path <dir>" end
     local expanded = vim.fn.fnamemodify(vim.fn.expand(arg), ":p")
-    if vim.fn.isdirectory(expanded) == 0 then return nil, "Kein Verzeichnis: " .. arg end
+    if vim.fn.isdirectory(expanded) == 0 then return nil, "not a directory: " .. arg end
     return resolve.normalize_path(expanded)
   end
 
   if scope == "cfile" then
     local name = vim.api.nvim_buf_get_name(0)
-    if name == "" then return nil, "Aktueller Buffer hat keinen Dateipfad" end
+    if name == "" then return nil, "the current buffer has no file path" end
     return resolve.normalize_path(vim.fn.fnamemodify(name, ":p:h"))
   end
 
   if scope == "cwd" then return resolve.normalize_path(vim.uv.cwd() or vim.fn.getcwd()) end
 
-  return nil, "Unbekannter Scope: " .. tostring(scope) .. " (erwartet cfile|cwd|path)"
+  return nil, "unknown scope: " .. tostring(scope) .. " (expected cfile|cwd|path)"
 end
 
----@return table notify-Handle aus lib.nvim
+---@return Lib.Notify.Notifier
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
----@return table|nil snacks.picker, falls installiert
+---@return table|nil snacks.picker, if installed
 local function snacks_picker()
   local ok, picker = pcall(require, "snacks.picker")
   return (ok and type(picker) == "table") and picker or nil
 end
 
---- Ob `snacks.picker` verfügbar ist — für `:checkhealth images`.
+--- Whether `snacks.picker` is available — for `:checkhealth images`.
 ---@return boolean
 function M.snacks_available()
   return snacks_picker() ~= nil
 end
 
---- Ein Bild anhand der Geometrie eines Fensters zeichnen, statt anhand der
---- Cursorposition (anders als `images.show`) — für die Vorschau innerhalb
---- eines Picker-Fensters, dessen Lage der Aufrufer nicht selbst kennt.
+--- Draw an image against a window's geometry rather than the cursor position
+--- (unlike `images.show`) — for the preview inside a picker window whose
+--- location the caller does not know itself.
 ---
---- Dünner Wrapper um `images.anchor.draw` (die kanonische Implementierung);
---- Name und Signatur bleiben unverändert, weil markdown.nvim diese Funktion
---- bereits als öffentliche API konsumiert (siehe README.md/CROSS-PLUGIN.md).
+--- A thin wrapper around `images.anchor.draw` (the canonical implementation);
+--- name and signature stay unchanged because markdown.nvim already consumes
+--- this function as public API (see README.md/CROSS-PLUGIN.md).
 ---@param file string
 ---@param winid integer
----@param factor number|nil 0 < factor <= 1; nil/1 = volle Fenstergröße.
----            Kleiner als 1 zentriert eine entsprechend kleinere Box im
----            Fenster, statt es zu füllen — siehe `images.scale`, das für
----            `:Image compare` den Faktor aus den echten Bildmaßen ableitet.
+---@param factor number|nil 0 < factor <= 1; nil/1 = the full window size.
+---            Below 1 centres a correspondingly smaller box inside the window
+---            instead of filling it — see `images.scale`, which derives the
+---            factor from the real image dimensions for `:Image compare`.
 ---@return boolean ok
 local function draw_in_window(file, winid, factor)
   local position = (factor and factor < 1) and "center" or "full"
@@ -154,13 +154,13 @@ local function draw_in_window(file, winid, factor)
 end
 M.draw_in_window = draw_in_window
 
---- Picker mit Live-Bildvorschau über `snacks.picker` öffnen.
+--- Open a picker with a live image preview via `snacks.picker`.
 ---@param root string
 ---@param files string[]
 local function open_snacks(root, files)
   local Picker = snacks_picker()
   if not Picker then
-    notify().error("snacks.picker nicht verfügbar")
+    notify().error("snacks.picker is not available")
     return
   end
 
@@ -171,17 +171,17 @@ local function open_snacks(root, files)
 
   Picker.pick({
     source = "images_browse",
-    title = "Bilder: " .. root,
+    title = "Images: " .. root,
     items = items,
     format = "file",
     preview = function(ctx)
       ctx.preview:reset()
-      if not draw_in_window(ctx.item.file, ctx.win) then ctx.preview:notify("Bild kann hier nicht gezeichnet werden", "warn") end
+      if not draw_in_window(ctx.item.file, ctx.win) then ctx.preview:notify("the image cannot be drawn here", "warn") end
     end,
-    -- `<Tab>` ist snacks' eigene Multi-Select-Taste (nicht von images.nvim
-    -- verdrahtet). `picker:selected({fallback=true})` liefert die markierten
-    -- Treffer, oder — ohne Markierung — den einen hervorgehobenen: mehrere
-    -- Bilder ergeben eine Galerie, ein einzelnes die normale Einzelanzeige.
+    -- `<Tab>` is snacks' own multi-select key (not wired up by images.nvim).
+    -- `picker:selected({fallback=true})` returns the marked results, or — with
+    -- nothing marked — the single highlighted one: several images make a
+    -- gallery, one makes the ordinary single display.
     confirm = function(picker, item)
       local selected = picker:selected({ fallback = true })
       picker:close()
@@ -195,17 +195,17 @@ local function open_snacks(root, files)
         require("images").show(item.file)
       end
     end,
-    -- Das Overlay hängt am Terminal, nicht am Picker-Fenster — beim Schließen
-    -- (egal ob per Auswahl oder Esc) bleibt es sonst hängen bis zum nächsten
-    -- vollen Repaint.
+    -- The overlay belongs to the terminal, not to the picker window — on close
+    -- (whether by selection or Esc) it would otherwise linger until the next
+    -- full repaint.
     on_close = function()
       require("images.terminal").clear()
     end,
   })
 end
 
---- Fallback ohne snacks: einfache Auswahl ohne Live-Vorschau, gleiches
---- Muster wie `images.list`.
+--- Fallback without snacks: a plain selection with no live preview, the same
+--- pattern as `images.list`.
 ---@param root string
 ---@param files string[]
 local function open_select(root, files)
@@ -220,27 +220,27 @@ local function open_select(root, files)
 
   local ok, kit = pcall(require, "lib.nvim.ui.kit")
   if ok and kit.select then
-    kit.select({ items = files, title = "Bilder: " .. root, format_item = format_item, on_select = on_pick })
+    kit.select({ items = files, title = "Images: " .. root, format_item = format_item, on_select = on_pick })
     return
   end
 
-  vim.ui.select(files, { prompt = "Bild anzeigen", format_item = format_item }, on_pick)
+  vim.ui.select(files, { prompt = "Show image", format_item = format_item }, on_pick)
 end
 
---- Bilder unterhalb eines Scopes durchsuchen und eines zur Anzeige auswählen.
+--- Search for images below a scope and pick one to display.
 ---@param scope string|nil "cfile"|"cwd"|"path"; nil = "cwd"
----@param arg string|nil bei scope="path": das Zielverzeichnis
+---@param arg string|nil for scope="path": the target directory
 ---@return nil
 function M.open(scope, arg)
   local root, err = M.roots(scope, arg)
   if not root then
-    notify().warn(err or "Kein Root gefunden")
+    notify().warn(err or "no root found")
     return
   end
 
   local files = M.scan(root)
   if #files == 0 then
-    notify().info("Keine Bilder gefunden unter: " .. root)
+    notify().info("no images found below: " .. root)
     return
   end
 
