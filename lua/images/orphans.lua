@@ -1,21 +1,21 @@
 ---@module 'images.orphans'
----@brief Bilddateien im Zielverzeichnis finden, auf die kein Link mehr zeigt.
+---@brief Find image files in the target directory that no link points to.
 ---@description
---- Das Gegenstück zu `images.scan`, das unauflösbare Links meldet — hier ist
---- es umgekehrt: Dateien, die niemand mehr referenziert. Betrachtet wird
---- ausschließlich das konfigurierte `paste.dir`, nicht der ganze Baum: das
---- ist das einzige Verzeichnis, in das images.nvim selbst schreibt, und ein
---- Bild irgendwo sonst im Projekt kann aus gutem Grund unverlinkt liegen.
+--- The counterpart to `images.scan`, which reports unresolvable links — here it
+--- is the other way round: files nobody references any more. Only the
+--- configured `paste.dir` is considered, not the whole tree: it is the one
+--- directory images.nvim writes to itself, and an image anywhere else in the
+--- project may well be unlinked for a good reason.
 
 local M = {}
 
 ---@class Images.Orphan
----@field path string Absoluter Pfad
----@field rel string Pfad relativ zum Zielverzeichnis
+---@field path string absolute path
+---@field rel string path relative to the target directory
 
---- Zielverzeichnis wie beim Einfügen bestimmen (Dokumentverzeichnis +
---- `paste.dir`). Normalisiert, damit Pfadvergleiche in `M.find` nicht an
---- gemischten `/`/`\` scheitern (siehe `images.resolve.normalize_path`).
+--- Determine the target directory the same way pasting does (document
+--- directory + `paste.dir`). Normalised, so that path comparisons in `M.find`
+--- do not fail on mixed `/`/`\` (see `images.resolve.normalize_path`).
 ---@param buf integer
 ---@return string|nil
 local function target_dir(buf)
@@ -27,9 +27,9 @@ local function target_dir(buf)
   return (sub ~= "") and (doc_dir .. "/" .. sub) or doc_dir
 end
 
---- Bilddateien in `dir` auflisten. Nicht rekursiv — das Paste-Ziel ist ein
---- flaches Verzeichnis, kein Baum.
----@param dir string Bereits normalisiert (siehe `target_dir`)
+--- List image files in `dir`. Not recursive — the paste target is a flat
+--- directory, not a tree.
+---@param dir string already normalised (see `target_dir`)
 ---@return string[]
 local function list_images(dir)
   local out = {}
@@ -44,9 +44,9 @@ local function list_images(dir)
   return out
 end
 
---- Verwaiste Bilder finden: im Zielverzeichnis vorhanden, aber von keinem
---- Link im Buffer referenziert.
----@param buf integer|nil default: aktueller Buffer
+--- Find orphaned images: present in the target directory but referenced by no
+--- link in the buffer.
+---@param buf integer|nil default: current buffer
 ---@return Images.Orphan[]
 function M.find(buf)
   buf = buf or vim.api.nvim_get_current_buf()

@@ -1,5 +1,5 @@
 ---@module 'images.resolve'
----@brief Bildziele im Buffer finden und zu absoluten Pfaden auflösen.
+---@brief Find image targets in the buffer and resolve them to absolute paths.
 
 local M = {}
 
@@ -8,7 +8,7 @@ local function cfg()
   return require("images.config").get()
 end
 
---- Ob ein Ziel nach einer Bilddatei aussieht (rein anhand der Endung).
+--- Whether a target looks like an image file (by extension alone).
 ---@param target string
 ---@return boolean
 function M.is_image(target)
@@ -21,16 +21,16 @@ function M.is_image(target)
   return false
 end
 
---- Alle Link-Ziele einer Zeile mit ihren Spaltenbereichen (1-basiert,
---- beide Grenzen inklusive).
+--- Every link target on a line, with its column range (1-based, both bounds
+--- inclusive).
 ---
---- Bevorzugt markdown.nvims Scanner, der neben `![alt](ziel)` auch rohes
---- HTML kennt — `<img src="…">` in einem `<figure>`-Block ist genau das
---- Muster, mit dem man in Markdown eine Bildunterschrift bekommt, und ohne
---- diese Delegation wäre jedes Bild mit Caption für `:Image` unsichtbar.
---- Ohne markdown.nvim bleibt es beim eigenen Markdown-Muster.
+--- Prefers markdown.nvim's scanner, which understands raw HTML alongside
+--- `![alt](target)` — `<img src="…">` inside a `<figure>` block is exactly the
+--- pattern that gives a caption in Markdown, and without this delegation every
+--- captioned image would be invisible to `:Image`. Without markdown.nvim the
+--- built-in Markdown pattern stands.
 ---@param line string
----@param lnum integer|nil nur für die Weitergabe an markdown.nvim relevant
+---@param lnum integer|nil only relevant for passing on to markdown.nvim
 ---@return { target: string, from: integer, to: integer }[]
 function M.links_in_line(line, lnum)
   local ok, scan = pcall(require, "markdown.core.link_scan")
@@ -47,8 +47,8 @@ function M.links_in_line(line, lnum)
   while true do
     local s, e, target = line:find("%]%(([^)]+)%)", init)
     if not s then break end
-    -- Beginn des Links inklusive `![alt` bzw. `[text`, damit der Cursor
-    -- irgendwo im Link genügt und nicht nur im Klammerteil stehen muss.
+    -- Start of the link including `![alt` or `[text`, so that the cursor may
+    -- sit anywhere in the link rather than only inside the parentheses.
     local from = line:sub(1, s):find("!?%[[^%[]*$") or s
     out[#out + 1] = { target = target, from = from, to = e }
     init = e + 1
@@ -56,15 +56,14 @@ function M.links_in_line(line, lnum)
   return out
 end
 
---- Pfad normalisieren: konsequent `/` statt eines Mixes aus `/` und `\`.
+--- Normalise a path: consistently `/` rather than a mix of `/` and `\`.
 ---
---- `fnamemodify(p, ":p")` normalisiert auf Windows nicht durchgehend — ein mit
---- `/` zusammengesetzter Pfad kam im Test als
---- `C:\...\0/assets\a.png` zurück, Slash und Backslash gemischt in derselben
---- Zeichenkette. Für `io.open`/`nvim_ui_send` ist das unerheblich, Windows
---- akzeptiert beides; als Schlüssel in einer String-Menge (siehe
---- `images.orphans`, das genau darüber verglichene Pfade dedupliziert) macht
---- es zwei tatsächlich identische Dateien zu zwei verschiedenen Strings.
+--- `fnamemodify(p, ":p")` does not normalise consistently on Windows — a path
+--- assembled with `/` came back in testing as `C:\...\0/assets\a.png`, slash
+--- and backslash mixed within the same string. For `io.open`/`nvim_ui_send`
+--- that is immaterial, Windows accepts both; as a key in a string set (see
+--- `images.orphans`, which deduplicates compared paths exactly that way) it
+--- turns two genuinely identical files into two different strings.
 ---@param p string
 ---@return string
 local function normalize(p)
@@ -74,15 +73,15 @@ local function normalize(p)
 end
 M.normalize_path = normalize
 
---- Relativen Pfad auflösen. Nutzt den Resolver aus markdown.nvim, falls
---- vorhanden — der kennt bereits mehrere Basisverzeichnisse und normalisiert
---- Windows-Pfade korrekt. Sonst Buffer-Verzeichnis, dann cwd.
+--- Resolve a relative path. Uses markdown.nvim's resolver when present — it
+--- already knows several base directories and normalises Windows paths
+--- correctly. Otherwise the buffer's directory, then cwd.
 ---@param target string
----@param buf integer|nil Buffer, gegen dessen Verzeichnis aufgelöst wird
----@return string|nil absoluter Pfad, falls die Datei existiert
+---@param buf integer|nil buffer whose directory to resolve against
+---@return string|nil absolute path, if the file exists
 function M.to_path(target, buf)
   if target:match("^%a+://") then
-    return nil -- Remote-URLs werden (noch) nicht geladen
+    return nil -- remote URLs are not downloaded (yet)
   end
 
   local ok, path_util = pcall(require, "markdown.util.path")
@@ -108,26 +107,27 @@ function M.to_path(target, buf)
   return nil
 end
 
---- Ein rohes Ziel (Link-Text oder `<cfile>`) zu einem `Target` auflösen.
+--- Resolve a raw target (link text or `<cfile>`) into a `Target`.
 ---
---- Eine Remote-URL wird NICHT hier heruntergeladen — `path` ist dann einfach
---- die URL selbst. Der Download passiert erst in `images.init.M.show`, dem
---- einzigen Ort, an dem ein einzelnes Bild tatsächlich gezeichnet wird (siehe
---- `images.remote`s Moduldoc für den Grund: Auflösen soll nie ungefragt
---- Netzwerkanfragen auslösen, nur Anzeigen darf das).
+--- A remote URL is NOT downloaded here — `path` is then simply the URL itself.
+--- The download happens later in `images.init.M.show`, the one place where a
+--- single image is actually drawn (see `images.remote`'s module docs for the
+--- reason: resolving must never trigger network requests unasked, only
+--- displaying may).
 ---@param raw string
 ---@param lnum integer
 ---@return ImagesNvim.Target|nil
 ---@return string|nil err
 local function resolve_target(raw, lnum)
-  if not M.is_image(raw) then return nil, "Kein Bildziel: " .. raw end
+  if not M.is_image(raw) then return nil, "not an image target: " .. raw end
   if require("images.remote").is_remote(raw) then return { raw = raw, path = raw, lnum = lnum } end
   local path = M.to_path(raw)
-  if not path then return nil, "Bild nicht gefunden: " .. raw end
+  if not path then return nil, "image not found: " .. raw end
   return { raw = raw, path = path, lnum = lnum }
 end
 
---- Bildziel unter dem Cursor: erst Markdown-Links der Zeile, sonst `<cfile>`.
+--- Image target under the cursor: the line's Markdown links first, otherwise
+--- `<cfile>`.
 ---@return ImagesNvim.Target|nil
 ---@return string|nil err
 function M.under_cursor()
@@ -139,10 +139,9 @@ function M.under_cursor()
     if col >= link.from and col <= link.to then return resolve_target(link.target, lnum) end
   end
 
-  -- Cursor in einem `<figure>`-Block, aber nicht auf dem `<img>` selbst
-  -- (typischerweise auf der `<figcaption>`-Zeile): markdown.nvim löst den
-  -- Block als Ganzes auf, damit die Unterschrift dasselbe Bild meint wie
-  -- das Tag darüber.
+  -- Cursor inside a `<figure>` block but not on the `<img>` itself (typically
+  -- on the `<figcaption>` line): markdown.nvim resolves the block as a whole,
+  -- so the caption refers to the same image as the tag above it.
   local ok_html, html = pcall(require, "markdown.core.html_links")
   if ok_html and type(html.figure_at) == "function" then
     local fig = html.figure_at(vim.api.nvim_get_current_buf(), lnum)
@@ -150,16 +149,16 @@ function M.under_cursor()
   end
 
   local cfile = vim.fn.expand("<cfile>")
-  if cfile == "" then return nil, "Kein Link oder Dateiname unter dem Cursor" end
+  if cfile == "" then return nil, "no link or file name under the cursor" end
   return resolve_target(cfile, lnum)
 end
 
---- `path` auflösen, oder wenn `nil` das Bild unter dem Cursor — dasselbe
---- Muster, das `:Image replace`, `:Image zen` und `:Image export` alle
---- brauchen ("expliziter Pfad oder Cursor-Ziel"), an einer Stelle statt
---- dreifach dupliziert.
+--- Resolve `path`, or the image under the cursor when it is `nil` — the same
+--- pattern `:Image replace`, `:Image zen` and `:Image export` all need
+--- ("explicit path or cursor target"), in one place rather than duplicated
+--- three times.
 ---@param path string|nil
----@return string|nil absoluter Pfad
+---@return string|nil absolute path
 function M.path_or_cursor(path)
   if path then return M.to_path(path) end
   local target = M.under_cursor()

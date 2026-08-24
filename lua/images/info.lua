@@ -1,35 +1,36 @@
 ---@module 'images.info'
----@brief Metadaten einer Bilddatei ermitteln.
+---@brief Determine an image file's metadata.
 ---@description
---- Format und Abmessungen kommen von ImageMagick, falls vorhanden. Ohne
---- ImageMagick bleiben Größe und Änderungsdatum — nutzlos wird das Feature
---- dadurch nicht, deshalb ist `magick` bewusst optional.
+--- Format and dimensions come from ImageMagick, when it is present. Without
+--- ImageMagick, size and modification time remain — the feature does not
+--- become useless, which is why `magick` is deliberately optional.
 
 local M = {}
 
 ---@internal
---- Ergebnis-Cache, Schlüssel ist Pfad + Änderungszeit + Größe.
+--- Result cache, keyed by path plus modification time plus size.
 ---
---- `magick identify` läuft über `vim.system(...):wait()` und blockiert damit
---- den UI-Thread. Asynchron geht hier nicht ohne Weiteres: alle sechs
---- Aufrufer (`ascii`, `compare` — zweimal pro Vergleich —, `init`, `redact`,
---- `zen`) brauchen die Abmessungen sofort für ihre Layout-Rechnung, die
---- Rückgabe ist also Teil des Vertrags. Was aber geht: dieselbe Datei nicht
---- immer wieder befragen. Format und Abmessungen ändern sich nur, wenn die
---- Datei sich ändert — und genau das steckt im Schlüssel. `:Image compare`
---- spart damit die Hälfte, jedes wiederholte Anzeigen desselben Bildes alles.
+--- `magick identify` runs through `vim.system(...):wait()` and therefore
+--- blocks the UI thread. Going async is not straightforward here: all six
+--- callers (`ascii`, `compare` — twice per comparison —, `init`, `redact`,
+--- `zen`) need the dimensions immediately for their layout arithmetic, so the
+--- return value is part of the contract. What is possible: not asking about
+--- the same file over and over. Format and dimensions only change when the
+--- file changes — and that is exactly what the key captures. `:Image compare`
+--- saves half its calls that way, and any repeated display of the same image
+--- saves all of them.
 ---@type table<string, Images.Info>
 local cache = {}
 
 ---@class Images.Info
----@field path string Absoluter Pfad
----@field bytes integer Dateigröße
----@field mtime integer Änderungszeitpunkt (Unix)
----@field format string|nil z.B. "PNG"
----@field width integer|nil Pixel
----@field height integer|nil Pixel
+---@field path string absolute path
+---@field bytes integer file size
+---@field mtime integer modification time (Unix)
+---@field format string|nil e.g. "PNG"
+---@field width integer|nil pixels
+---@field height integer|nil pixels
 
---- Bytes menschenlesbar formatieren.
+--- Format bytes for humans.
 ---@param bytes integer
 ---@return string
 function M.human_size(bytes)
@@ -43,13 +44,13 @@ function M.human_size(bytes)
   return ("%.1f %s"):format(value, units[unit])
 end
 
---- Metadaten sammeln.
----@param path string Absoluter Pfad
+--- Collect metadata.
+---@param path string absolute path
 ---@return Images.Info|nil
 ---@return string|nil err
 function M.collect(path)
   local stat = vim.uv.fs_stat(path)
-  if not stat then return nil, "Datei nicht gefunden: " .. path end
+  if not stat then return nil, "file not found: " .. path end
 
   local mtime = stat.mtime and stat.mtime.sec or 0
   local key = ("%s:%d:%d"):format(path, mtime, stat.size)
@@ -64,9 +65,9 @@ function M.collect(path)
   }
 
   if require("lib.nvim.cross.executable").exists("magick") then
-    -- `identify` als Subcommand von `magick`, nicht als eigenes Binary: auf
-    -- Windows kollidiert `convert.exe`/`identify.exe` mit den gleichnamigen
-    -- Systemprogrammen in System32.
+    -- `identify` as a subcommand of `magick`, not as its own binary: on
+    -- Windows `convert.exe`/`identify.exe` collide with the system programs of
+    -- the same name in System32.
     local res = vim.system({ "magick", "identify", "-format", "%m %w %h", path .. "[0]" }, { text = true }):wait()
     if res.code == 0 and res.stdout then
       local fmt, w, h = res.stdout:match("^(%S+)%s+(%d+)%s+(%d+)")
@@ -80,20 +81,20 @@ function M.collect(path)
   return info
 end
 
---- Metadaten als Zeilen für eine Anzeige.
+--- Metadata as lines, ready to display.
 ---@param info Images.Info
 ---@return string[]
 function M.lines(info)
   local out = {
-    "Pfad:    " .. vim.fn.fnamemodify(info.path, ":~"),
-    "Größe:   " .. M.human_size(info.bytes),
+    "Path:     " .. vim.fn.fnamemodify(info.path, ":~"),
+    "Size:     " .. M.human_size(info.bytes),
   }
   if info.width and info.height then
-    table.insert(out, 2, ("Format:  %s %dx%d"):format(info.format or "?", info.width, info.height))
+    table.insert(out, 2, ("Format:   %s %dx%d"):format(info.format or "?", info.width, info.height))
   elseif not require("lib.nvim.cross.executable").exists("magick") then
-    out[#out + 1] = "Format:  (ImageMagick nicht installiert)"
+    out[#out + 1] = "Format:   (ImageMagick not installed)"
   end
-  if info.mtime > 0 then out[#out + 1] = "Geändert: " .. os.date("%Y-%m-%d %H:%M", info.mtime) end
+  if info.mtime > 0 then out[#out + 1] = "Modified: " .. os.date("%Y-%m-%d %H:%M", info.mtime) end
   return out
 end
 
