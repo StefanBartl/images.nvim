@@ -1,24 +1,23 @@
 ---@module 'images.paste'
----@brief Bild aus der Zwischenablage als Datei ablegen und den Link einfügen.
+---@brief Save the clipboard image to a file and insert the link.
 ---@description
---- Der Alltagsfall für Dokumentation: Screenshot machen, `:Image paste`, fertig.
---- Das Bild landet als PNG neben dem Dokument (oder im konfigurierten
---- Unterverzeichnis), der Markdown-Link wird an der Cursorposition eingefügt.
+--- The everyday case for documentation: take a screenshot, `:Image paste`,
+--- done. The image lands as a PNG next to the document (or in the configured
+--- subdirectory) and the markdown link is inserted at the cursor.
 ---
---- Mit `paste.ask_alt_text = true` fragt `M.run` vor dem Einfügen nach einem
---- Alt-Text (über das UI-Kit aus lib.nvim, falls vorhanden). Default `false`,
---- damit der schnelle Fall — Screenshot, ein Tastendruck, fertig — nicht
---- durch eine Eingabeaufforderung unterbrochen wird, die die meisten
---- Aufrufe nicht brauchen.
+--- With `paste.ask_alt_text = true`, `M.run` asks for alt text before inserting
+--- (through lib.nvim's UI kit when present). Default `false`, so the fast case
+--- — screenshot, one keypress, done — is not interrupted by a prompt most
+--- invocations do not need.
 ---
---- Plattformen:
---- * Windows — `powershell.exe -STA` mit `System.Windows.Forms.Clipboard`.
----   Das `-STA` ist zwingend: die Zwischenablage-API verlangt einen
----   Single-Threaded-Apartment-Thread, sonst kommt immer `null` zurück.
----   Bewusst `powershell.exe` (5.1) statt `pwsh`, weil PowerShell 7 kein `-STA`
----   kennt und WinForms dort nicht zuverlässig verfügbar ist.
---- * Linux — `wl-paste` (Wayland), sonst `xclip` (X11).
---- * macOS — `pngpaste`, falls installiert.
+--- Platforms:
+--- * Windows — `powershell.exe -STA` with `System.Windows.Forms.Clipboard`.
+---   The `-STA` is mandatory: the clipboard API requires a single-threaded
+---   apartment thread, otherwise it always returns `null`. Deliberately
+---   `powershell.exe` (5.1) rather than `pwsh`, because PowerShell 7 has no
+---   `-STA` and WinForms is not reliably available there.
+--- * Linux — `wl-paste` (Wayland), otherwise `xclip` (X11).
+--- * macOS — `pngpaste`, if installed.
 
 local M = {}
 
@@ -27,27 +26,27 @@ local function cfg()
   return require("images.config").get()
 end
 
----@return table notify-Handle aus lib.nvim
+---@return Lib.Notify.Notifier
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
---- Optionales UI-Kit aus lib.nvim. Fehlt es, fallen die Aufrufer auf die
---- Neovim-Bordmittel zurück — das Kit ist Komfort, keine Voraussetzung.
+--- lib.nvim's optional UI kit. Without it callers fall back to Neovim's own
+--- primitives — the kit is a convenience, not a prerequisite.
 ---@return table|nil
 local function kit()
   local ok, k = pcall(require, "lib.nvim.ui.kit")
   return ok and k or nil
 end
 
---- Zwischenablage-Bild nach `out` schreiben. Async wie `images.screenshot`s
---- `capture`, damit beide demselben Aufruf-Vertrag folgen und
---- `capture_with_optional_name` nicht zwischen sync/async unterscheiden muss
---- — der Lesevorgang selbst ist aber ein einzelner, schneller Prozessaufruf
---- (Millisekunden), kein mehrsekündiger interaktiver Vorgang wie bei einer
---- Bildschirmauswahl; ein `:wait()` wäre hier unschädlich, die einheitliche
---- Signatur ist trotzdem sauberer als eine Sonderregel für diesen einen Fall.
----@param out string Zielpfad (PNG)
+--- Write the clipboard image to `out`. Asynchronous like `images.screenshot`'s
+--- `capture`, so both follow the same call contract and
+--- `capture_with_optional_name` need not distinguish sync from async — the read
+--- itself is a single fast process call (milliseconds), not a multi-second
+--- interactive procedure like a screen selection; a `:wait()` would be harmless
+--- here, but a uniform signature is still cleaner than a special rule for this
+--- one case.
+---@param out string target path (PNG)
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 local function clipboard_to_file(out, callback)
@@ -64,7 +63,7 @@ local function clipboard_to_file(out, callback)
     cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
   elseif require("lib.nvim.cross.platform.is_macos")() then
     if not executable.exists("pngpaste") then
-      callback(false, "`pngpaste` nicht gefunden (brew install pngpaste)")
+      callback(false, "`pngpaste` not found (brew install pngpaste)")
       return
     end
     cmd = { "pngpaste", out }
@@ -74,7 +73,7 @@ local function clipboard_to_file(out, callback)
     elseif executable.exists("xclip") then
       cmd = { "sh", "-c", ("xclip -selection clipboard -t image/png -o > '%s'"):format(out) }
     else
-      callback(false, "Weder `wl-paste` noch `xclip` gefunden")
+      callback(false, "neither `wl-paste` nor `xclip` found")
       return
     end
   end
@@ -82,21 +81,18 @@ local function clipboard_to_file(out, callback)
   vim.system(cmd, { text = true }, function(result)
     vim.schedule(function()
       if result.code == 3 then
-        callback(false, "Kein Bild in der Zwischenablage")
+        callback(false, "no image in the clipboard")
         return
       end
       if result.code ~= 0 then
-        callback(
-          false,
-          ("Zwischenablage konnte nicht gelesen werden (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
-        )
+        callback(false, ("could not read the clipboard (exit %d): %s"):format(result.code, vim.trim(result.stderr or "")))
         return
       end
 
       local stat = vim.uv.fs_stat(out)
       if not stat or stat.size == 0 then
         pcall(vim.uv.fs_unlink, out)
-        callback(false, "Kein Bild in der Zwischenablage")
+        callback(false, "no image in the clipboard")
         return
       end
       callback(true)
@@ -104,10 +100,10 @@ local function clipboard_to_file(out, callback)
   end)
 end
 
---- Vorgeschlagener Dateiname nach dem Template — Vorbelegung für die
---- Namensabfrage und Fallback, wenn keine eigene Eingabe kommt.
+--- The suggested file name from the template — the prefill for the name prompt
+--- and the fallback when no input of the user's own arrives.
 ---@param buf integer
----@return string|nil suggestion nil, falls der Buffer keinen Dateinamen hat
+---@return string|nil suggestion nil when the buffer has no file name
 local function default_filename(buf)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then return nil end
@@ -115,38 +111,37 @@ local function default_filename(buf)
   return cfg().paste.name_template:format(doc_stem, os.time())
 end
 
---- User-Eingabe zu einem sicheren Dateinamen machen.
+--- Turn user input into a safe file name.
 ---
---- Nur der Dateiname selbst zählt: ein eingegebener Pfadanteil (Verzeichnisse,
---- `..`) wird über `:t` verworfen statt respektiert — sonst könnte eine
---- Eingabe wie `../../x` außerhalb von `paste.dir` schreiben. Die Endung wird
---- immer auf `.png` erzwungen, weil `clipboard_to_file` unabhängig vom Namen
---- immer PNG-Bytes schreibt; eine andere Endung wäre nur falsch beschriftet.
----@param input string Roher User-Input
----@return string|nil bereinigter Dateiname mit `.png`, oder nil ohne brauchbaren Rest
+--- Only the file name itself counts: any path component entered (directories,
+--- `..`) is discarded via `:t` rather than honoured — otherwise input like
+--- `../../x` could write outside `paste.dir`. The extension is always forced to
+--- `.png`, because `clipboard_to_file` writes PNG bytes regardless of the name;
+--- any other extension would merely be mislabelled.
+---@param input string raw user input
+---@return string|nil the cleaned file name with `.png`, or nil when nothing usable remains
 local function sanitize_filename(input)
-  -- `fnamemodify(":t")` erkennt `\` nur unter Windows als Pfadtrenner -- unter
-  -- Linux/macOS ist Backslash ein gültiges Dateinamenszeichen, also bliebe ein
-  -- eingegebenes "C:\Windows\name" dort unverändert stehen. Erst manuell auf
-  -- `/` normalisieren macht die Trennung plattformunabhängig.
+  -- `fnamemodify(":t")` treats `\` as a path separator on Windows only -- on
+  -- Linux/macOS a backslash is a valid file name character, so an entered
+  -- "C:\Windows\name" would survive intact there. Normalising to `/` manually
+  -- first makes the split platform-independent.
   local normalized = vim.trim(input or ""):gsub("\\", "/")
   local base = vim.fn.fnamemodify(normalized, ":t")
   local stem = vim.trim(vim.fn.fnamemodify(base, ":r"))
   if stem == "" or stem == "." or stem == ".." then return nil end
   return stem .. ".png"
 end
--- Für Tests exponiert: reine Funktion, kein Terminal/Dateisystem nötig.
+-- Exposed for tests: a pure function, no terminal or filesystem needed.
 M.sanitize_filename = sanitize_filename
 
---- Bereits vorhandenes Ressourcen-Verzeichnis im Dokumentverzeichnis finden
---- (z.B. "Resources"/"Ressourcen", siehe `paste.existing_dir_names`) — falls
---- eins existiert, wird dieses statt `paste.dir` verwendet, damit nicht ein
---- zweiter Ablage-Ordner ("assets") parallel zu einem bereits gepflegten
---- entsteht. Case-insensitiver Abgleich: Windows-Dateisysteme sind selbst
---- schon case-insensitiv, und ein exaktes `"resources"` würde sonst an einem
---- vorhandenen `Resources` vorbeisuchen.
+--- Find an existing resource directory in the document's directory (e.g.
+--- "Resources"/"Ressourcen", see `paste.existing_dir_names`) — when one exists
+--- it is used instead of `paste.dir`, so that a second storage folder
+--- ("assets") does not appear alongside one already being maintained.
+--- Case-insensitive matching: Windows filesystems are case-insensitive anyway,
+--- and an exact `"resources"` would otherwise miss an existing `Resources`.
 ---@param doc_dir string
----@return string|nil Name des gefundenen Verzeichnisses, wie im Dateisystem
+---@return string|nil name of the directory found, as it appears on disk
 local function find_existing_resource_dir(doc_dir)
   local candidates = cfg().paste.existing_dir_names
   if not candidates or #candidates == 0 then return nil end
@@ -162,21 +157,21 @@ local function find_existing_resource_dir(doc_dir)
   end
   return nil
 end
--- Für Tests exponiert: liest nur, schreibt nichts.
+-- Exposed for tests: reads only, never writes.
 M.find_existing_resource_dir = find_existing_resource_dir
 
---- Zielpfad für ein neues Bild bestimmen und das Verzeichnis anlegen. Läuft
---- erst NACH einer erfolgreichen Aufnahme (siehe `paste_with_name`) — sonst
---- würde z.B. eine leere Zwischenablage trotzdem ein `assets`-Verzeichnis
---- anlegen, obwohl gar nichts hineingeschrieben wird.
+--- Determine the target path for a new image and create the directory. Runs
+--- only AFTER a successful capture (see `paste_with_name`) — otherwise an empty
+--- clipboard, for instance, would still create an `assets` directory with
+--- nothing written into it.
 ---@param buf integer
----@param filename_override string|nil bereits sanitisierter Name; nil = Template
----@return string|nil absoluter Pfad
----@return string|nil relativer Pfad für den Link
+---@param filename_override string|nil an already sanitised name; nil = template
+---@return string|nil absolute path
+---@return string|nil relative path for the link
 ---@return string|nil err
 local function target_paths(buf, filename_override)
   local name = vim.api.nvim_buf_get_name(buf)
-  if name == "" then return nil, nil, "Buffer hat keinen Dateinamen — bitte zuerst speichern" end
+  if name == "" then return nil, nil, "the buffer has no file name — save it first" end
 
   local c = cfg().paste
   local doc_dir = vim.fn.fnamemodify(name, ":p:h")
@@ -186,7 +181,7 @@ local function target_paths(buf, filename_override)
   local dir = (sub ~= "") and (doc_dir .. "/" .. sub) or doc_dir
   if vim.fn.isdirectory(dir) == 0 then
     local ok = pcall(vim.fn.mkdir, dir, "p")
-    if not ok then return nil, nil, "Verzeichnis konnte nicht angelegt werden: " .. dir end
+    if not ok then return nil, nil, "could not create the directory: " .. dir end
   end
 
   local file = filename_override or c.name_template:format(doc_stem, os.time())
@@ -195,9 +190,9 @@ local function target_paths(buf, filename_override)
   return abs, rel, nil
 end
 
---- `src` nach `dst` verschieben. `fs_rename` scheitert über Laufwerksgrenzen
---- hinweg (EXDEV, unter Windows der Normalfall zwischen Temp- und
---- Projektlaufwerk) — dann wird stattdessen kopiert und das Original gelöscht.
+--- Move `src` to `dst`. `fs_rename` fails across drive boundaries (EXDEV, the
+--- normal case on Windows between the temp and project drives) — then it copies
+--- instead and deletes the original.
 ---@param src string
 ---@param dst string
 ---@return boolean ok
@@ -210,29 +205,29 @@ local function move_file(src, dst)
   return false
 end
 
---- Link an der zum Zeitpunkt des Aufrufs gültigen Cursorposition einfügen.
---- Läuft nach dem Clipboard-Schreiben — synchron direkt danach, oder
---- asynchron nach der Alt-Text-Abfrage — und prüft deshalb den Buffer-Zustand
---- erneut: zwischen dem Ermitteln des Buffers und hier lag mindestens ein
---- synchroner Prozessaufruf, bei der Alt-Text-Abfrage zusätzlich eine
---- User-Eingabe. Der Buffer kann in der Zwischenzeit geschlossen oder auf
---- `nomodifiable` gesetzt worden sein — das Bild ist dann trotzdem
---- geschrieben, nur der Link fehlt, und das soll der User erfahren.
+--- Insert the link at the cursor position valid at the time of the call. Runs
+--- after the clipboard write — synchronously right afterwards, or
+--- asynchronously after the alt-text prompt — and therefore rechecks the
+--- buffer's state: between determining the buffer and reaching here there was
+--- at least one synchronous process call, plus user input in the alt-text case.
+--- The buffer may have been closed or set `nomodifiable` in the meantime — the
+--- image is written either way, only the link is missing, and the user should
+--- hear about it.
 ---@param buf integer
----@param rel string Pfad relativ zum Dokument
----@param alt string|nil Alt-Text; leer oder nil = kein Alt-Text
+---@param rel string path relative to the document
+---@param alt string|nil alt text; empty or nil = no alt text
 ---@return nil
 local function insert_link(buf, rel, alt)
   if not vim.api.nvim_buf_is_valid(buf) then
-    notify().warn("Buffer nicht mehr vorhanden — Bild liegt unter " .. rel)
+    notify().warn("the buffer is gone — the image is at " .. rel)
     return
   end
   if not vim.bo[buf].modifiable then
-    notify().warn("Buffer nicht änderbar — Bild liegt unter " .. rel)
+    notify().warn("the buffer is not modifiable — the image is at " .. rel)
     return
   end
 
-  -- Backslashes im Link vermeiden: Markdown-Pfade sind portabler mit `/`.
+  -- Avoid backslashes in the link: markdown paths travel better with `/`.
   local forward = (rel:gsub("\\", "/"))
   local c = cfg().paste
   local link = (alt and alt ~= "") and c.alt_link_template:format(alt, forward) or c.link_template:format(forward)
@@ -240,36 +235,34 @@ local function insert_link(buf, rel, alt)
   local pos = vim.api.nvim_win_get_cursor(0)
   local inserted = pcall(vim.api.nvim_buf_set_text, buf, pos[1] - 1, pos[2], pos[1] - 1, pos[2], { link })
   if not inserted then
-    notify().warn("Link konnte nicht eingefügt werden — Bild liegt unter " .. rel)
+    notify().warn("could not insert the link — the image is at " .. rel)
     return
   end
   pcall(vim.api.nvim_win_set_cursor, 0, { pos[1], pos[2] + #link })
 
-  notify().info("Bild gespeichert: " .. rel)
+  notify().info("image saved: " .. rel)
 end
 
---- Zweiter Teil von `M.run`/`M.screenshot`, nach einer optionalen
---- Namensabfrage: Bilddatei über `capture(out, cb)` erzeugen und danach
---- optional nach Alt-Text fragen. `capture` ist austauschbar —
---- `clipboard_to_file` für `:Image paste`, `images.screenshot.capture` für
---- `:Image screenshot` — alles danach (Zielpfad, Link, Alt-Text) ist für
---- beide identisch. Async, weil eine interaktive Bildschirmauswahl
---- Sekunden bis zu einer Minute dauern kann und ein blockierendes Warten
---- darauf Neovim für diese ganze Zeit einfrieren würde.
+--- The second half of `M.run`/`M.screenshot`, after an optional name prompt:
+--- produce the image file via `capture(out, cb)` and then optionally ask for
+--- alt text. `capture` is interchangeable — `clipboard_to_file` for `:Image
+--- paste`, `images.screenshot.capture` for `:Image screenshot` — and everything
+--- after it (target path, link, alt text) is identical for both. Asynchronous,
+--- because an interactive screen selection can take anywhere from seconds to a
+--- minute, and blocking on that would freeze Neovim for the duration.
 ---
---- `capture` schreibt zuerst in eine temporäre Datei, nicht direkt in
---- `paste.dir` — erst nach einer erfolgreichen Aufnahme wird das Zielverzeichnis
---- bestimmt (inkl. `find_existing_resource_dir`), bei Bedarf angelegt und die
---- Datei dorthin verschoben. Bricht `capture` ab (z.B. kein Bild in der
---- Zwischenablage, Screenshot mit <Esc> abgebrochen), bleibt dadurch auch kein
---- leeres `paste.dir` zurück.
+--- `capture` writes to a temporary file first, not straight into `paste.dir` —
+--- only after a successful capture is the target directory determined
+--- (including `find_existing_resource_dir`), created if needed, and the file
+--- moved there. If `capture` aborts (no image in the clipboard, a screenshot
+--- cancelled with <Esc>), no empty `paste.dir` is left behind either.
 ---@param buf integer
----@param filename_override string|nil bereits sanitisiert; nil = Template
+---@param filename_override string|nil already sanitised; nil = template
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@return nil
 local function paste_with_name(buf, filename_override, capture)
   if vim.api.nvim_buf_get_name(buf) == "" then
-    notify().error("Buffer hat keinen Dateinamen — bitte zuerst speichern")
+    notify().error("the buffer has no file name — save it first")
     return
   end
 
@@ -278,20 +271,20 @@ local function paste_with_name(buf, filename_override, capture)
   capture(tmp, function(ok, cap_err)
     if not ok then
       pcall(vim.uv.fs_unlink, tmp)
-      notify().warn(cap_err or "Einfügen fehlgeschlagen")
+      notify().warn(cap_err or "paste failed")
       return
     end
 
     local abs, rel, err = target_paths(buf, filename_override)
     if not abs or not rel then
       pcall(vim.uv.fs_unlink, tmp)
-      notify().error(err or "Zielpfad unbestimmbar")
+      notify().error(err or "cannot determine the target path")
       return
     end
 
     if not move_file(tmp, abs) then
       pcall(vim.uv.fs_unlink, tmp)
-      notify().error("Datei konnte nicht verschoben werden: " .. abs)
+      notify().error("could not move the file: " .. abs)
       return
     end
 
@@ -303,36 +296,36 @@ local function paste_with_name(buf, filename_override, capture)
     local k = kit()
     if k and k.input then
       k.input({
-        title = "Alt-Text (leer = ohne)",
+        title = "Alt text (empty = none)",
         on_submit = function(alt)
           insert_link(buf, rel, alt)
         end,
-        -- Abbrechen soll den Link trotzdem setzen, nur ohne Alt-Text — das
-        -- Bild liegt an dieser Stelle bereits auf der Platte, ein verlorener
-        -- Link (kit.input ruft ohne on_cancel bei <Esc> gar nichts auf) wäre
-        -- die schlechtere Überraschung als ein Link ohne Alt-Text.
+        -- Cancelling should still insert the link, just without alt text — by
+        -- this point the image is already on disk, and a lost link (kit.input
+        -- calls nothing at all on <Esc> without on_cancel) would be the worse
+        -- surprise than a link without alt text.
         on_cancel = function()
           insert_link(buf, rel, nil)
         end,
       })
     else
-      local alt = vim.fn.input("Alt-Text (leer = ohne): ")
+      local alt = vim.fn.input("Alt text (empty = none): ")
       insert_link(buf, rel, alt)
     end
   end)
 end
 
---- Optional nach einem Dateinamen fragen, dann `paste_with_name` mit
---- `capture` als Aufnahmefunktion ausführen. Gemeinsamer Kern von `M.run`
---- (Zwischenablage) und `M.screenshot` (interaktive Bildschirmauswahl) —
---- beide unterscheiden sich nur darin, WIE die Bilddatei entsteht.
+--- Optionally ask for a file name, then run `paste_with_name` with `capture` as
+--- the capture function. The shared core of `M.run` (clipboard) and
+--- `M.screenshot` (interactive screen selection) — the two differ only in HOW
+--- the image file comes into being.
 ---
---- `direct_name` kommt von `:Image paste {name}` — ist er gesetzt, wird er
---- (sanitisiert) direkt verwendet und weder die interaktive Abfrage noch
---- `paste.ask_filename` greifen: der Name wurde bereits beim Aufruf
---- angegeben, es gibt nichts mehr zu erfragen.
+--- `direct_name` comes from `:Image paste {name}` — when set it is used
+--- (sanitised) directly and neither the interactive prompt nor
+--- `paste.ask_filename` applies: the name was already given at the call site,
+--- so there is nothing left to ask.
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
----@param direct_name string|nil bereits als Kommandoargument angegebener Name
+---@param direct_name string|nil a name already given as a command argument
 ---@return nil
 local function capture_with_optional_name(capture, direct_name)
   local buf = vim.api.nvim_get_current_buf()
@@ -340,7 +333,7 @@ local function capture_with_optional_name(capture, direct_name)
   if direct_name then
     local sanitized = sanitize_filename(direct_name)
     if not sanitized then
-      notify().error("Ungültiger Dateiname: " .. direct_name)
+      notify().error("invalid file name: " .. direct_name)
       return
     end
     paste_with_name(buf, sanitized, capture)
@@ -356,44 +349,43 @@ local function capture_with_optional_name(capture, direct_name)
   local k = kit()
   if k and k.input then
     k.input({
-      title = "Dateiname",
+      title = "File name",
       default = suggested,
       on_submit = function(name)
         paste_with_name(buf, sanitize_filename(name), capture)
       end,
-      -- Anders als bei der Alt-Text-Abfrage: hier wurde noch nichts
-      -- aufgenommen oder geschrieben — Abbrechen heißt also tatsächlich
-      -- "nichts tun", nicht "mit Standardwerten weitermachen".
+      -- Unlike the alt-text prompt: nothing has been captured or written yet, so
+      -- cancelling really does mean "do nothing" rather than "carry on with
+      -- defaults".
       on_cancel = function()
-        notify().info("Abgebrochen")
+        notify().info("cancelled")
       end,
     })
   else
-    local name = vim.fn.input("Dateiname: ", suggested or "")
+    local name = vim.fn.input("File name: ", suggested or "")
     if name == "" then
-      notify().info("Abgebrochen")
+      notify().info("cancelled")
       return
     end
     paste_with_name(buf, sanitize_filename(name), capture)
   end
 end
 
---- Bild aus der Zwischenablage speichern und den Link an der Cursorposition
---- einfügen.
----@param name string|nil bereits vorgegebener Dateiname (`:Image paste {name}`) — überspringt jede Namensabfrage
+--- Save the clipboard image and insert the link at the cursor.
+---@param name string|nil a file name already given (`:Image paste {name}`) — skips any name prompt
 ---@return nil
 function M.run(name)
   capture_with_optional_name(clipboard_to_file, name)
 end
 
--- Für Tests exponiert: beide nehmen `capture` als Parameter entgegen, ein
--- Fake genügt also, ohne echte Zwischenablage/echten interaktiven Screenshot.
+-- Exposed for tests: both take `capture` as a parameter, so a fake suffices --
+-- no real clipboard and no real interactive screenshot needed.
 M.paste_with_name = paste_with_name
 M.capture_with_optional_name = capture_with_optional_name
 
---- Interaktive Bildschirm-Auswahl direkt in eine Datei aufnehmen und wie
---- `M.run` weiterverarbeiten — der Alltagsfall in einem Schritt statt drei
---- (Screenshot-Tool von Hand starten, Zwischenablage, `:Image paste`).
+--- Capture an interactive screen selection straight into a file and process it
+--- like `M.run` — the everyday case in one step instead of three (launch a
+--- screenshot tool by hand, clipboard, `:Image paste`).
 ---@return nil
 function M.screenshot()
   local screenshot = require("images.screenshot")
@@ -404,24 +396,24 @@ function M.screenshot()
   capture_with_optional_name(screenshot.capture)
 end
 
---- Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen, ohne den Link
---- zu ändern. Nützlich, um einen veralteten Screenshot in-place zu
---- aktualisieren, statt Datei und Link neu anzulegen.
----@param path string|nil nil = Bild unter dem Cursor
+--- Replace an existing image with the clipboard contents, without touching the
+--- link. Useful for updating a stale screenshot in place rather than creating a
+--- new file and link.
+---@param path string|nil nil = the image under the cursor
 ---@return nil
 function M.replace(path)
   local file = require("images.resolve").path_or_cursor(path)
   if not file then
-    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
+    notify().warn("no image under the cursor or at the given path")
     return
   end
 
   clipboard_to_file(file, function(ok, err)
     if not ok then
-      notify().warn(err or "Ersetzen fehlgeschlagen")
+      notify().warn(err or "replacement failed")
       return
     end
-    notify().info("Ersetzt: " .. vim.fn.fnamemodify(file, ":~"))
+    notify().info("replaced: " .. vim.fn.fnamemodify(file, ":~"))
   end)
 end
 
