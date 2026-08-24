@@ -1,98 +1,104 @@
 # ROADMAP — images.nvim
 
-Ideensammlung. Nichts hier ist eine Zusage, und die Reihenfolge ist keine
-Priorisierung.
+A collection of ideas. Nothing here is a commitment, and the order is not a
+prioritisation.
 
-| Datei | Inhalt |
+| File | Contents |
 | --- | --- |
-| [FEATURES.md](./FEATURES.md) | Features im Plugin selbst — Anzeige, Bearbeitung, Zwischenablage |
-| [CROSS-PLUGIN.md](./CROSS-PLUGIN.md) | Kreuzfeatures mit den übrigen `*.nvim`-Repos |
-| [TERMINALS.md](./TERMINALS.md) | Protokolle, Backends, Terminal-Erkennung |
+| [FEATURES.md](./FEATURES.md) | Features in the plugin itself — display, editing, clipboard |
+| [CROSS-PLUGIN.md](./CROSS-PLUGIN.md) | Cross-cutting features with the other `*.nvim` repos |
+| [TERMINALS.md](./TERMINALS.md) | Protocols, backends, terminal detection |
 
-## Bereits umgesetzt
+## Already implemented
 
-Damit die Liste oben (FEATURES.md) nicht mit Erledigtem vermischt wird:
+So that the list above (FEATURES.md) does not get mixed up with what is done:
 
-- Anzeige über OSC 1337 mit Cursor-Positionierung (`:Image`, `:Image show`)
-- Galerie mehrerer Bilder im Raster (`:Image gallery [columns]`), auch über
-  einen Range (`:'<,'>Image`, `:'<,'>Image gallery`)
-- Auswahl über das UI-Kit aus lib.nvim, Fallback `vim.ui.select` (`:Image list`)
-- Navigation durch die Bilder eines Buffers (`:Image next` / `prev`)
-- Metadaten via ImageMagick, optional (`:Image info`)
-- SVG-Anzeige über automatische PNG-Konvertierung, gecacht (`images.convert`)
-- Remote-Bilder für `:Image show`/Hover, gecacht, default aus
-  (`display.remote`, `images.remote`) — gallery/compare/pickers/zen noch nicht
-- Zwischenablage → Datei + Link (`:Image paste`), optional mit Alt-Text- und
-  Dateinamen-Abfrage (`paste.ask_alt_text`, `paste.ask_filename`)
-- Interaktiver Screenshot statt Zwischenablage-Umweg (`:Image screenshot`,
-  `images.screenshot`), asynchron auf allen drei Plattformen — der
-  Windows-Weg (Zwischenablage-Polling nach `ms-screenclip:`) ist die
-  unsicherste der drei Implementierungen, siehe Moduldoc
-- Bild ersetzen, Link bleibt (`:Image replace`)
-- Bild als PDF exportieren, neben der Quelldatei (`:Image export`,
-  `images.convert.to_pdf`); braucht ImageMagick zwingend
-- Zensur-Modus: Boxen in Zellen markieren (Visual-Mode + `<CR>`, echtes
-  Zen-artiges Fenster), schwärzen und als neue Datei speichern, Original
-  bleibt (`:Image redact`, `images.redact`, `images.convert.redact`) —
-  Geometrie über `images.scale.fit_cells`/`cell_box_to_pixels` mit einer
-  konfigurierbaren Sicherheitsmarge (`display.redact.padding_cells`);
-  braucht ImageMagick zwingend. Konzept: [REDACT.md](./REDACT.md)
-- Verwaiste Bilder in `paste.dir` finden und mit Bestätigung löschen
+- Display via OSC 1337 with cursor positioning (`:Image`, `:Image show`)
+- A gallery of several images on a grid (`:Image gallery [columns]`), including
+  over a range (`:'<,'>Image`, `:'<,'>Image gallery`)
+- Selection through lib.nvim's UI kit, falling back to `vim.ui.select`
+  (`:Image list`)
+- Navigation through a buffer's images (`:Image next` / `prev`)
+- Metadata via ImageMagick, optional (`:Image info`)
+- SVG display through automatic PNG conversion, cached (`images.convert`)
+- Remote images for `:Image show`/hover, cached, off by default
+  (`display.remote`, `images.remote`) — not gallery/compare/pickers/zen yet
+- Clipboard -> file + link (`:Image paste`), optionally with alt-text and file
+  name prompts (`paste.ask_alt_text`, `paste.ask_filename`)
+- An interactive screenshot instead of the clipboard detour (`:Image
+  screenshot`, `images.screenshot`), asynchronous on all three platforms — the
+  Windows route (clipboard polling after `ms-screenclip:`) is the least certain
+  of the three implementations, see the module docs
+- Replace an image, keeping the link (`:Image replace`)
+- Export an image as a PDF next to the source file (`:Image export`,
+  `images.convert.to_pdf`); requires ImageMagick
+- Redaction mode: mark boxes in cells (visual mode + `<CR>`, a real zen-like
+  window), black them out and save as a new file; the original stays
+  (`:Image redact`, `images.redact`, `images.convert.redact`) — geometry via
+  `images.scale.fit_cells`/`cell_box_to_pixels` with a configurable safety
+  margin (`display.redact.padding_cells`); requires ImageMagick. Concept:
+  [REDACT.md](./REDACT.md)
+- Find orphaned images in `paste.dir` and delete them on confirmation
   (`:Image orphans`)
-- Dateisystem-weite Suche mit Live-Vorschau über `snacks.picker`, Soft-Dependency
-  (`:Image pickers cfile|cwd|path`)
-- Vergleichsmodus mit echter relativer Skalierung: kennt `images.info` beide
-  Pixelmaße (ImageMagick), bekommt das kleinere Bild eine proportional
-  kleinere, zentrierte Box statt seine Pane zu füllen — siehe `images.scale`
-  und `lib.nvim.ui.kit.compare`'s `on_compare`-Hook, der dafür ergänzt wurde
+- A filesystem-wide search with a live preview via `snacks.picker`, a soft
+  dependency (`:Image pickers cfile|cwd|path`)
+- A comparison mode with genuine relative scaling: when `images.info` knows both
+  pixel dimensions (ImageMagick), the smaller image gets a proportionally
+  smaller, centred box instead of filling its pane — see `images.scale` and
+  `lib.nvim.ui.kit.compare`'s `on_compare` hook, added for exactly this
   (`:Image compare cfile|cwd|path`)
-- Große Einzelanzeige in einem echten, editierbaren Fenster statt eines
-  Preview-Floats (`:Image zen`)
-- Floating-Window statt Draw-over-text für `:Image show`/Hover, opt-in
-  (`display.hover_mode = "float"`, `images.hover_float`) — dieselbe
-  Fenster-dann-zeichnen-Technik wie `:Image zen`
-- Anzeige festhalten (`:Image pin`)
-- Statusline-Indikator (`require("images").statusline`)
-- which-key-Gruppe für den `<leader>i`-Präfix, aus den konfigurierten Keys
-  hergeleitet
-- Doppelklick auf einen Markdown-Link
-- Terminal-Fähigkeitsprüfung mit einmaliger Warnung, nie hartem Abbruch
+- A large single display in a real, editable window rather than a preview float
+  (`:Image zen`)
+- A floating window instead of draw-over-text for `:Image show`/hover, opt-in
+  (`display.hover_mode = "float"`, `images.hover_float`) — the same
+  open-a-window-then-draw technique as `:Image zen`
+- Pin the display (`:Image pin`)
+- A status line indicator (`require("images").statusline`)
+- A which-key group for the `<leader>i` prefix, derived from the configured keys
+- Double-clicking a markdown link
+- Terminal capability detection with a one-off warning, never a hard refusal
   (`:Image check`, `display.assume_supported`)
-- Backend in `filetree.nvim`, Handler `:Open image` in `open.nvim`
-- ASCII-Fallback für Terminals ohne OSC 1337: farbige Blockgrafik über
-  ImageMagick-Sampling + Extmarks statt der wirkungslosen Sequenz
-  (`display.ascii_fallback`, `images.ascii`) — nur der Einzelbild-Pfad, wie
-  bei den Remote-Bildern. Ursprünglich als color_my_ascii.nvim-Integration
-  angedacht (siehe CROSS-PLUGIN.md); dessen Highlighter färbt aber
-  Muster-basiert bekannte Zeichenklassen gegen ein Schema, nicht beliebige
-  Pixel-RGB pro Zelle — für echte Bildfarben ein Fehlgriff, deshalb eigener
-  Pfad ohne die Abhängigkeit.
+- An ASCII fallback for terminals without OSC 1337: coloured block graphics via
+  ImageMagick sampling plus extmarks, instead of the ineffective sequence
+  (`display.ascii_fallback`, `images.ascii`) — the single-image path only, as
+  with remote images. Originally considered as a color_my_ascii.nvim
+  integration (see CROSS-PLUGIN.md); but its highlighter colours known character
+  classes against a scheme, pattern-based, not arbitrary per-cell pixel RGB —
+  the wrong fit for real image colours, hence a dedicated path without the
+  dependency.
+- Placement calibration (`:Image calibrate`, `images.calibrate`): nudge a
+  generated test card into place, store the correction per machine
+  (`images.calibration`). See TERMINALS.md for why this cannot be automatic.
 
-## Leitplanken
+## Guardrails
 
-Drei Entscheidungen, die bei jedem neuen Feature gelten sollen:
+Three decisions meant to hold for every new feature:
 
-**Kein ImageMagick als Pflicht — mit vier bewussten Ausnahmen.** WezTerm
-dekodiert PNG/JPEG/GIF/WebP/BMP selbst. ImageMagick darf Features
-*verbessern* (`:Image info`, `:Image compare`s relative Skalierung), nie
-*ermöglichen* — sonst ist das Plugin auf Windows wieder von einer
-Installation abhängig, die erfahrungsgemäß der Grund ist, warum am Ende
-nichts funktioniert. Die erste Ausnahme ist SVG: WezTerm kann es
-grundsätzlich nicht dekodieren, es gibt also keinen Weg ohne Konvertierung.
-Die zweite ist `:Image export`: eine PDF entsteht nur über `magick`, es gibt
-keine Terminal-native Alternative. Die dritte ist `:Image redact`: das
-Schwärzen selbst (Pixel schwarz übermalen) läuft ebenfalls nur über
-`magick`. Die vierte ist der ASCII-Fallback (`images.ascii`): Pixelfarben
-aus einer beliebigen Rasterdatei zu lesen braucht einen echten Decoder, den
-reines Lua nicht hat. Alle vier melden eine klare Fehlermeldung statt eines
-stillen Fehlschlags, wenn ImageMagick fehlt.
+**ImageMagick is never required — with four deliberate exceptions.** WezTerm
+decodes PNG/JPEG/GIF/WebP/BMP itself. ImageMagick may *improve* features
+(`:Image info`, `:Image compare`'s relative scaling) but never *enable* them —
+otherwise the plugin depends on an installation on Windows again, and
+experience says that is exactly why nothing ends up working. The first
+exception is SVG: WezTerm fundamentally cannot decode it, so there is no route
+without conversion. The second is `:Image export`: a PDF only comes out of
+`magick`, there is no terminal-native alternative. The third is `:Image
+redact`: the blacking out itself (painting pixels black) likewise only runs
+through `magick`. The fourth is the ASCII fallback (`images.ascii`): reading
+pixel colours out of an arbitrary raster file needs a real decoder, which plain
+Lua does not have. All four report a clear error rather than failing silently
+when ImageMagick is missing.
 
-**Keine Zellmessung.** `width`/`height` in Zellen plus
-`preserveAspectRatio=1` erledigt das Terminal. Sobald irgendwo Pixel gerechnet
-werden, ist der Weg zurück zu `ioctl(TIOCGWINSZ)` offen — und genau daran
-scheitert `snacks.image` unter Windows.
+**No cell measurement.** `width`/`height` in cells plus
+`preserveAspectRatio=1` leaves the work to the terminal. The moment pixels are
+computed anywhere, the road back to `ioctl(TIOCGWINSZ)` is open — and that is
+precisely where `snacks.image` fails on Windows.
 
-**Low-Level meldet nicht.** `terminal`, `gallery`, `info` geben `ok, err`
-zurück und rufen nie `notify`. Nur `lua/images/init.lua` entscheidet, was den User
-erreicht. Sonst doppeln sich Meldungen, sobald ein Modul aus zwei Richtungen
-aufgerufen wird.
+This is also a limit rather than only a preference: the cell size cannot be
+queried from inside Neovim at all (`:h TermResponse` forwards no CSI replies).
+`display.cell_aspect` is therefore a configured value, and `:Image calibrate`
+asks the user rather than the terminal. See TERMINALS.md.
+
+**Low-level code does not notify.** `terminal`, `gallery` and `info` return
+`ok, err` and never call `notify`. Only `lua/images/init.lua` decides what
+reaches the user. Otherwise messages double up as soon as a module is called
+from two directions.

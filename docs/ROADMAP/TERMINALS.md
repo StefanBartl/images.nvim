@@ -1,236 +1,226 @@
-# TERMINALS — Protokolle, Backends, Erkennung
+# TERMINALS — protocols, backends, detection
 
-## Ausgangslage
+## Starting point
 
-Der Befund, auf dem dieses Plugin beruht, in Kurzform:
+The finding this plugin rests on, in short:
 
-| Umgebung | Kitty-APC (`ESC _G`) | iTerm2-OSC-1337 |
+| Environment | Kitty APC (`ESC _G`) | iTerm2 OSC 1337 |
 | --- | --- | --- |
-| pwsh in WezTerm/Windows | funktioniert | funktioniert |
-| **nvim** in WezTerm/Windows | **nie gezeichnet** | funktioniert |
+| pwsh in WezTerm/Windows | works | works |
+| **nvim** in WezTerm/Windows | **never drawn** | works |
 
-ConPTY ist nicht die Ursache — beide Protokolle passieren die Pipe
-unbeschädigt, nachweisbar mit `wezterm imgcat`. Der Unterschied entsteht erst
-durch Neovims Ausgabeschicht. Da `snacks.image` und `image.nvim` beide
-ausschließlich Kitty-APC senden, sind sie dort unbrauchbar.
+ConPTY is not the cause — both protocols cross the pipe intact, demonstrably so
+with `wezterm imgcat`. The difference is introduced by Neovim's output layer.
+Since `snacks.image` and `image.nvim` both send Kitty APC exclusively, they are
+unusable there.
 
-Zwei Fallstricke beim Nachmessen, die viel Zeit gekostet haben:
+Two pitfalls when measuring, both of which cost time:
 
-- OSC-Bilder bleiben stehen. Zwei Testphasen an **derselben** Position führen
-  dazu, dass ein Restbild als Erfolg der zweiten Phase gelesen wird. Immer
-  verschiedene Positionen verwenden.
-- Der Terminalzustand ist relevant. Für belastbare Messungen WezTerm komplett
-  neu starten, nicht nur einen neuen Tab öffnen.
+- OSC images persist. Two test phases at the **same** position lead to a
+  leftover image being read as the second phase's success. Always use different
+  positions.
+- Terminal state matters. For reliable measurements restart WezTerm completely,
+  not merely open a new tab.
 
-## Platzierung: was gemessen wurde, und was daraus folgt
+## Placement: what was measured, and what follows from it
 
-Ein Hover-Float zeichnet das Bild in ein Fenster, dessen Geometrie zugleich
-die Zeichenbox ist. Dabei traten vier verschiedene Fehlbilder auf. Drei ließen
-sich abstellen, eines ist eine Grenze des Protokolls. Die Messungen stammen
-aus WezTerm `20240203-110809` auf Windows 11, Neovim 0.12.2, JetBrainsMono
-Nerd Font 12pt — die abgeleiteten Regeln gelten allgemein, die konkreten
-Zahlen nur für dieses Setup.
+A hover float draws the image into a window whose geometry is simultaneously
+the draw box. Four distinct failure modes appeared in the process. Three could
+be fixed; one is a limit of the protocol. The measurements come from WezTerm
+`20240203-110809` on Windows 11, Neovim 0.12.2, JetBrainsMono Nerd Font 12pt —
+the derived rules hold generally, the concrete numbers only for this setup.
 
-### 1. Bild sitzt an falscher Stelle, Statusline rutscht hoch
+### 1. The image sits in the wrong place, the status line rides up
 
-**Befund.** Die vier Teile der Sequenz (`ESC[s`, Positionierung, Payload,
-`ESC[u`) gingen als vier getrennte `nvim_ui_send`-Aufrufe raus. Neovims
-eigener TUI-Renderer schreibt in denselben tty-Strom und kann dazwischen
-flushen; passiert das zwischen Positionierung und Payload, landet das Bild
-dort, wo Neovims Cursor gerade steht.
+**Finding.** The four parts of the sequence (`ESC[s`, positioning, payload,
+`ESC[u`) went out as four separate `nvim_ui_send` calls. Neovim's own TUI
+renderer writes to the same tty stream and may flush in between; when that
+happens between positioning and payload, the image lands wherever Neovim's
+cursor currently is.
 
-**Regel.** Die vollständige Sequenz muss in **einem** `nvim_ui_send` rausgehen.
-Umgesetzt in `images.terminal.sequence_for`.
+**Rule.** The complete sequence must go out in **one** `nvim_ui_send`.
+Implemented in `images.terminal.sequence_for`.
 
-### 2. Terminal scrollt, Neovims Grid wandert mit
+### 2. The terminal scrolls, and Neovim's grid travels with it
 
-**Befund.** OSC 1337 mit `inline=1` rückt den Cursor nach dem Bild um dessen
-Höhe nach unten. Endet das Bild auf der letzten Zeile, scrollt dieser eine
-Schritt den ganzen Schirm — Neovims Grid inklusive, ohne dass Neovim davon
-erfährt. `ESC[u` stellt danach die Cursorposition wieder her, den Scroll nicht.
+**Finding.** OSC 1337 with `inline=1` advances the cursor down by the image's
+height. If the image ends on the last row, that single step scrolls the whole
+screen — Neovim's grid included, without Neovim finding out. `ESC[u` restores
+the cursor position afterwards but not the scroll.
 
-**Regel.** Zeichenbox auf den Schirm beschneiden, mit **einer Zeile
-Sicherheitsabstand** für den Cursor-Vorschub. Umgesetzt in
-`images.terminal.clamp_to_screen`.
+**Rule.** Clip the draw box to the screen, with **one row of safety margin**
+for the cursor advance. Implemented in `images.terminal.clamp_to_screen`.
 
-### 3. Bild überlappt den Fensterrahmen
+### 3. The image overlaps the window border
 
-**Befund.** `nvim_win_get_position` liefert für ein gerahmtes und ein
-rahmenloses Fenster mit identischer Konfiguration **denselben** Wert — die
-Rahmen-Außenkante, nicht den Inhaltsanfang. Gegengeprüft mit `screenpos()`
-bei angehängter UI:
+**Finding.** `nvim_win_get_position` returns the **same** value for a bordered
+and an unbordered window with identical configuration — the border's outer
+edge, not the start of the content. Verified against `screenpos()` with a UI
+attached:
 
-| Rahmen | `screenpos(1,1)` relativ zu `pos + 1` |
+| Border | `screenpos(1,1)` relative to `pos + 1` |
 | --- | --- |
-| `none` | +0 Zeile / +0 Spalte |
+| `none` | +0 rows / +0 columns |
 | `rounded`, `single` | **+1 / +1** |
-| nur oben | +1 / +0 |
-| nur links | +0 / +1 |
+| top only | +1 / +0 |
+| left only | +0 / +1 |
 
-`nvim_win_get_width`/`_height` sind davon **nicht** betroffen: sie melden
-immer nur den Inhaltsbereich.
+`nvim_win_get_width`/`_height` are **not** affected: they always report the
+content area only.
 
-**Regel.** Pro Achse eine Zelle einrücken, sobald das jeweilige Rahmensegment
-gesetzt ist. Umgesetzt in `images.anchor.border_inset`.
+**Rule.** Indent by one cell per axis as soon as the corresponding border
+segment is set. Implemented in `images.anchor.border_inset`.
 
-### 4. Bild sitzt Bruchteile einer Zelle daneben (nicht lösbar)
+### 4. The image sits a fraction of a cell off (not solvable)
 
-**Befund.** Isolationstests mit vollständigem WezTerm-Neustart zwischen jedem
-Durchlauf:
+**Finding.** Isolation tests with a full WezTerm restart between every run:
 
-| `window_padding` | `tab_bar_at_bottom` | Ergebnis |
+| `window_padding` | `tab_bar_at_bottom` | Result |
 | --- | --- | --- |
-| `9/8/8/8` | `true` | Bild sichtbar zu tief, unten Überstand |
-| `0/0/0/0` | `true` | **Bild exakt richtig** (Rest nur bei einem Seitenverhältnis) |
-| `9/8/8/8` | `false` | vertikal richtig, dafür horizontal deutlich daneben |
+| `9/8/8/8` | `true` | image visibly too low, overhanging at the bottom |
+| `0/0/0/0` | `true` | **image exactly right** (a remainder on one aspect ratio only) |
+| `9/8/8/8` | `false` | vertically right, but clearly off horizontally |
 
-Erste Ableitung: **`window_padding` ist die Ursache**, nicht die
-Tab-Leisten-Position. Zweite Ableitung, aus der dritten Zeile: an
-`tab_bar_at_bottom` zu drehen tauscht den Fehler nur gegen einen anderen —
-kein Workaround, sondern eine Verschiebung.
+First inference: **`window_padding` is the cause**, not the tab bar position.
+Second inference, from the third row: turning `tab_bar_at_bottom` merely trades
+one error for another — not a workaround, just a displacement.
 
-**Warum ein Teil davon nicht wegzurechnen ist.** `CSI row;col H` positioniert
-ausschließlich in **ganzen Zellen**; OSC 1337 kennt keinen Pixel-Offset. Ein
-Padding, das kein glattes Vielfaches der Zellgröße ist (hier: 9 px links bei
-rund 10 px Zellbreite), erzeugt einen Sub-Zellen-Versatz, den kein
-Zeilen-/Spaltenwert auflösen kann — unabhängig davon, wie genau man das
-Padding kennt.
+**Why part of this cannot be computed away.** `CSI row;col H` positions in
+**whole cells** only; OSC 1337 has no pixel offset. Padding that is not an even
+multiple of the cell size (here: 9 px on the left against a cell roughly 10 px
+wide) produces a sub-cell offset no row/column value can resolve — however
+precisely the padding is known.
 
-**Der Versatz ist aber nicht nur sub-zellig.** Spätere Messung mit einer Sonde
-direkt auf `images.terminal.draw` (die tatsächlich gesendeten Koordinaten,
-nicht das Modell) bei `window_padding = "1cell"` rundum und
-`tab_bar_at_bottom = true`:
+**But the offset is not only sub-cell.** A later measurement with a probe
+directly on `images.terminal.draw` (the coordinates actually sent, not the
+model) at `window_padding = "1cell"` all round and `tab_bar_at_bottom = true`:
 
-| Datei | gesendet | Reserve unten | Beobachtung |
+| File | sent | reserve at the bottom | Observation |
 | --- | --- | --- | --- |
-| `pdf_inline_hover.png` | `row=16 col=45 cols=78 rows=16` | 2 Zellen (44 px) | oben Spalt, unten **trotzdem** Überstand |
-| `image_inline_hover.png` | `row=21 col=45 cols=78 rows=17` | 2 Zellen (44 px) | dito |
+| `pdf_inline_hover.png` | `row=16 col=45 cols=78 rows=16` | 2 cells (44 px) | a gap at the top, and **still** an overhang at the bottom |
+| `image_inline_hover.png` | `row=21 col=45 cols=78 rows=17` | 2 cells (44 px) | likewise |
 
-Die gesendeten Werte stimmen exakt mit der Spezifikation überein (`80−2`,
-`18−2` bzw. `19−2`) — der Rechenweg ist also nicht die Ursache. Dass eine
-Reserve von 44 px unten den Überstand nicht auffängt, heißt: der Versatz ist
-**größer als zwei Zellen** und damit kein reiner Sub-Zellen-Effekt, sondern
-zum überwiegenden Teil ein ganzzahliger Zellversatz.
+The values sent match the specification exactly (`80−2`, and `18−2` / `19−2`) —
+so the arithmetic is not the cause. That a 44 px reserve at the bottom does not
+contain the overhang means the offset is **larger than two cells**, and hence
+not a pure sub-cell effect but predominantly a whole-cell shift.
 
-**Regel.** Ganzzahliger Anteil gehört in `display.terminal_padding` (negativ,
-um nach oben zu korrigieren), nicht in die Marge. Erst der Rest darunter ist
-die eigentliche, nicht auflösbare Protokollgrenze. Die Marge ist also kein
-Ersatz für die Kompensation, sondern ihr Puffer.
+**Rule.** The integer part belongs in `display.terminal_padding` (negative, to
+correct upwards), not in the margin. Only what remains below that is the real,
+unresolvable protocol limit. The margin is therefore not a substitute for the
+compensation but a buffer for it.
 
-**Was das Plugin daraus macht.** Weil ein Plugin diesen Versatz weder messen
-noch erfragen kann, ist der Default **nicht** bündiges Zeichnen, sondern eine
-Marge von einer Zelle rundum (`display.draw_inset = 1`). Ein
-Sub-Zellen-Versatz bleibt damit *innerhalb* des Rahmens statt sichtbar
-darüber hinauszuragen — auf jedem Terminal, ohne Konfiguration und ohne
-Erkennung.
+**What the plugin makes of this.** Because a plugin can neither measure nor
+query the offset, the default is **not** flush drawing but a margin of one cell
+all round (`display.draw_inset = 1`). A sub-cell offset then stays *inside* the
+frame rather than visibly spilling past it — on every terminal, with no
+configuration and no detection.
 
-Rundum, nicht nur dort, wo der Versatz hinläuft: eine einseitige Reserve
-(unten/rechts, wohin Padding den Inhalt schiebt) wäre halb so teuer, wurde
-gebaut und wieder verworfen. Sie lässt das Bild links am Rahmen kleben und
-rechts eine Lücke — und diese Asymmetrie liest der Betrachter als Fehler,
-unabhängig davon, ob sie einen verhindert. Ein *systematischer* Versatz
-gehört ohnehin nicht in die Marge, sondern in `display.terminal_padding`;
-die Marge fängt nur den Rest ab.
+All round rather than only where the offset goes: a one-sided reserve
+(bottom/right, the direction padding pushes content) would cost half as much;
+it was built and discarded again. It leaves the image clinging to the left
+border with a gap on the right — and the viewer reads that asymmetry as a
+defect regardless of what it prevents. A *systematic* offset does not belong in
+the margin anyway but in `display.terminal_padding`; the margin only absorbs
+the remainder.
 
-**Warum daraus ein Werkzeug wurde und keine Doku-Zeile.** Der nötige
-Korrekturwert ist nicht konstant: dieselbe Datei brauchte an einer
-Cursorposition `-2`, an einer anderen `-3`, und an einer dritten war `-2`
-bereits überkorrigiert. Ein in die Doku geschriebener Wert wäre also schon für
-*ein* Setup falsch, von fremden Installationen ganz zu schweigen. Deshalb
-`:Image calibrate` (siehe `images.calibrate`): eine erzeugte Testkarte, die
-die Zeichenbox exakt ausfüllt, und Rückfragen in Zeilen und Spalten — der
-Einheit, in der das Protokoll rechnet und die ein Mensch am Bildschirm
-abschätzen kann. Das Ergebnis landet maschinenlokal unter `stdpath("data")`
-(`images.calibration`), nicht in der User-Spec.
+**Why this became a tool rather than a line of documentation.** The correction
+needed is not constant: the same file wanted `-2` at one cursor position, `-3`
+at another, and at a third `-2` was already overshooting. A value written into
+the docs would therefore be wrong even for *one* setup, let alone someone
+else's installation. Hence `:Image calibrate` (see `images.calibrate`): a
+generated test card that fills the draw box exactly, nudged into place with
+`hjkl`/arrows one cell at a time. Nobody has to estimate how far off it is —
+the answer is "push until it sits". The result is stored per machine under
+`stdpath("data")` (`images.calibration`), not in the user's spec.
 
-**Für ein vermessenes Setup, in dieser Reihenfolge.**
+**For a measured setup, in this order.**
 
-1. `window_padding` auf **0** setzen. Einzige restlos saubere Variante.
-2. Sonst `window_padding` auf ein **glattes Vielfaches der Zellgröße** legen —
-   in WezTerm über die `cell`-Einheit (`"1cell"`) statt über Pixel. Achtung:
-   nach eigener Messung bezieht sich `"1cell"` auf die Zell**breite**, auch
-   für `top`/`bottom`; vertikal ist das also kein Vielfaches der Zellhöhe und
-   der Versatz bleibt. Vertikal entweder `0` oder ein Pixelwert, der ein
-   Vielfaches der Zellhöhe ist.
-3. Verbleibt danach ein ganzzahliger Versatz, ihn über
-   `display.terminal_padding = { row = …, col = … }` kompensieren und mit
-   `display.draw_inset = 0` bündig zeichnen.
+1. Set `window_padding` to **0**. The only entirely clean variant.
+2. Otherwise put `window_padding` on an **even multiple of the cell size** — in
+   WezTerm via the `cell` unit (`"1cell"`) rather than pixels. Careful: by our
+   own measurement `"1cell"` refers to the cell **width**, for `top`/`bottom`
+   as well; vertically that is therefore not a multiple of the cell height and
+   the offset remains. Vertically use either `0` or a pixel value that is a
+   multiple of the cell height.
+3. If an integer offset remains after that, compensate it via
+   `display.terminal_padding = { row = …, col = … }` and draw flush with
+   `display.draw_inset = 0`.
 
-Dass genau dieselbe Mechanik in anderen Terminals mit eigenem Fensterrand
-auftritt, ist zu erwarten; gemessen wurde sie nur in WezTerm.
-`display.terminal_padding` ist deshalb terminal-neutral formuliert und
-standardmäßig `{ row = 0, col = 0 }`, also ein reines No-op.
+That the very same mechanics appear in other terminals with window chrome of
+their own is to be expected; it was only measured in WezTerm.
+`display.terminal_padding` is therefore worded terminal-neutrally and defaults
+to `{ row = 0, col = 0 }`, a plain no-op.
 
-### Was aus Neovim heraus grundsätzlich nicht geht
+### What is fundamentally impossible from inside Neovim
 
-Zur Zellgröße gibt es die Abfrage `CSI 16 t`, beantwortet mit
-`CSI 6 ; <höhe> ; <breite> t`. **Diese Antwort erreicht ein Plugin nie:**
-`:h TermResponse` nennt ausdrücklich nur **DA1-, OSC-, DCS- und
-APC**-Antworten, und `CSI 6 ; … t` ist eine schlichte CSI-Antwort.
-`nvim_list_uis()` liefert ebenfalls nur Zellmaße, keine Pixel — mit
-angehängter UI geprüft.
+For the cell size there is the query `CSI 16 t`, answered with
+`CSI 6 ; <height> ; <width> t`. **That answer never reaches a plugin:** `:h
+TermResponse` explicitly names only **DA1, OSC, DCS and APC** responses, and
+`CSI 6 ; … t` is a plain CSI response. `nvim_list_uis()` likewise reports cell
+dimensions only, no pixels — verified with a UI attached.
 
-Damit gibt es **keinen** Weg, Zellgröße oder Fenster-Padding automatisch zu
-ermitteln. Ein erster Anlauf über `CSI 16 t` + `TermResponse` wurde gebaut,
-lief ins Leere und wurde wieder entfernt; `display.cell_aspect` und
-`display.terminal_padding` sind bewusst manuelle Werte. Das ist auch der Grund,
-warum die Leitplanke "keine Zellmessung" (siehe [README](./README.md)) steht:
-nicht aus Aufwandsgründen, sondern weil es die Schnittstelle nicht hergibt.
+There is therefore **no** way to determine cell size or window padding
+automatically. A first attempt via `CSI 16 t` + `TermResponse` was built, came
+to nothing and was removed again; `display.cell_aspect` and
+`display.terminal_padding` are deliberately manual values. This is also why the
+"no cell measurement" guardrail (see [README](./README.md)) exists: not for
+reasons of effort, but because the interface does not allow it.
 
-Ausdrücklich **nicht** betroffen ist XTVERSION (`ESC [ > q`) aus dem Abschnitt
-[Erkennung](#erkennung): dessen Antwort ist DCS und wird durchgereicht.
+Explicitly **not** affected is XTVERSION (`ESC [ > q`) from the
+[Detection](#detection) section: its answer is DCS and is forwarded.
 
-## Weitere Backends
+## Further backends
 
-- **Sixel** für Terminals, die es können, aber kein OSC 1337 (xterm mit
-  `--enable-sixel-graphics`, mlterm, Windows Terminal ab 1.22). Zweitgrößte
-  Reichweite nach OSC 1337.
-- **Kitty-APC** für Kitty und Ghostty, wo es funktioniert. Dort gäbe es
-  zusätzlich Unicode-Placeholders und damit **echtes Inline-Rendering im
-  Textfluss** — das einzige, was dieses Plugin heute grundsätzlich nicht kann.
-- **ASCII-Art** als universeller Fallback, siehe `color_my_ascii.nvim` in
+- **Sixel** for terminals that can do it but not OSC 1337 (xterm with
+  `--enable-sixel-graphics`, mlterm, Windows Terminal from 1.22). The
+  second-widest reach after OSC 1337.
+- **Kitty APC** for Kitty and Ghostty, where it works. There it would also bring
+  Unicode placeholders and with them **genuine inline rendering in the text
+  flow** — the one thing this plugin fundamentally cannot do today.
+- **ASCII art** as a universal fallback, see `color_my_ascii.nvim` in
   [CROSS-PLUGIN.md](./CROSS-PLUGIN.md).
-- **Systemanwendung** als letzte Stufe. `open.nvim` macht das bereits; im
-  Plugin selbst wäre es die ehrlichste Reaktion auf ein Terminal ohne jede
-  Grafikfähigkeit.
+- **The system application** as a last resort. `open.nvim` already does this; in
+  the plugin itself it would be the most honest response to a terminal with no
+  graphics capability at all.
 
-## Erkennung
+## Detection
 
-Heute rät `images.health` anhand von `TERM_PROGRAM` und `WEZTERM_*`. Besser
-wäre eine echte Abfrage:
+Today `images.health` guesses from `TERM_PROGRAM` and `WEZTERM_*`. A real query
+would be better:
 
-- `ESC [ > q` (XTVERSION) liefert Terminalname und Version über `TermResponse`.
-  Dieser Weg funktioniert unter Windows nachweislich — `snacks.image` erkennt
-  WezTerm damit korrekt, auch wenn es danach nichts zeichnet.
-- Für Kitty gibt es eine Protokoll-eigene Abfrage; für OSC 1337 nicht, dort
-  bliebe es bei einer Namensliste.
+- `ESC [ > q` (XTVERSION) returns the terminal name and version via
+  `TermResponse`. That route demonstrably works on Windows — `snacks.image`
+  detects WezTerm correctly with it, even though it then draws nothing.
+- Kitty has a protocol-native query; OSC 1337 does not, so there it would remain
+  a list of names.
 
-Solange nur ein Backend existiert, ist der Aufwand nicht gerechtfertigt: die
-Erkennung würde nur bestimmen, ob eine Warnung erscheint. Mit einem zweiten
-Backend wird sie zur Voraussetzung.
+As long as only one backend exists the effort is not justified: detection would
+only determine whether a warning appears. With a second backend it becomes a
+prerequisite.
 
-## tmux und SSH
+## tmux and SSH
 
-- **tmux** braucht `set -g allow-passthrough on`, sonst verschluckt es die
-  Sequenzen. Die Health-Prüfung warnt bereits, setzt es aber nicht — das wäre
-  ein Eingriff in die Konfiguration des Users.
-- **SSH** funktioniert grundsätzlich, weil die Bilddaten inline in der Sequenz
-  stehen und nicht als Dateipfad. Bei großen Bildern wird die Übertragung
-  spürbar; eine Vorab-Verkleinerung wäre hier der Fall, in dem ImageMagick
-  echten Nutzen bringt.
+- **tmux** needs `set -g allow-passthrough on`, or it swallows the sequences.
+  The health check already warns but does not set it — that would be an
+  intrusion into the user's configuration.
+- **SSH** works in principle, because the image data travels inline in the
+  sequence rather than as a file path. With large images the transfer becomes
+  noticeable; downscaling beforehand would be the case where ImageMagick brings
+  real benefit.
 
-## Literatur und Referenzen
+## Reading and references
 
 - [iTerm2 Inline Images Protocol](https://iterm2.com/documentation-images.html)
-  — die OSC-1337-`File=`-Sequenz, die dieses Plugin sendet, samt der Angabe von
-  `width`/`height` in Zellen und `preserveAspectRatio`.
+  — the OSC 1337 `File=` sequence this plugin sends, including giving
+  `width`/`height` in cells and `preserveAspectRatio`.
 - [Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/)
-  — das Protokoll von snacks.image und image.nvim, inklusive der
-  Unicode-Placeholders, die für echtes Inline-Rendering nötig sind.
-- [WezTerm — imgcat](https://wezfurlong.org/wezterm/imgcat.html) — welche
-  Protokolle WezTerm implementiert; `wezterm imgcat` ist der schnellste Test,
-  ob ein Terminal überhaupt Bilder kann.
-- [Sixel Graphics](https://en.wikipedia.org/wiki/Sixel) — Hintergrund zum
-  ältesten der drei Protokolle und seiner Verbreitung.
-- [Neovim `nvim_ui_send()`](https://neovim.io/doc/user/api.html) — der
-  Ausgabeweg, über den dieses Plugin schreibt; verfügbar ab API-Level 14.
+  — the protocol used by snacks.image and image.nvim, including the Unicode
+  placeholders needed for genuine inline rendering.
+- [WezTerm — imgcat](https://wezfurlong.org/wezterm/imgcat.html) — which
+  protocols WezTerm implements; `wezterm imgcat` is the quickest test of
+  whether a terminal can show images at all.
+- [Sixel Graphics](https://en.wikipedia.org/wiki/Sixel) — background on the
+  oldest of the three protocols and its adoption.
+- [Neovim `nvim_ui_send()`](https://neovim.io/doc/user/api.html) — the output
+  route this plugin writes through; available from API level 14.
