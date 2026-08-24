@@ -89,27 +89,48 @@ Tab-Leisten-Position. Zweite Ableitung, aus der dritten Zeile: an
 `tab_bar_at_bottom` zu drehen tauscht den Fehler nur gegen einen anderen —
 kein Workaround, sondern eine Verschiebung.
 
-**Warum das nicht wegzurechnen ist.** `CSI row;col H` positioniert
+**Warum ein Teil davon nicht wegzurechnen ist.** `CSI row;col H` positioniert
 ausschließlich in **ganzen Zellen**; OSC 1337 kennt keinen Pixel-Offset. Ein
 Padding, das kein glattes Vielfaches der Zellgröße ist (hier: 9 px links bei
 rund 10 px Zellbreite), erzeugt einen Sub-Zellen-Versatz, den kein
 Zeilen-/Spaltenwert auflösen kann — unabhängig davon, wie genau man das
 Padding kennt.
 
+**Der Versatz ist aber nicht nur sub-zellig.** Spätere Messung mit einer Sonde
+direkt auf `images.terminal.draw` (die tatsächlich gesendeten Koordinaten,
+nicht das Modell) bei `window_padding = "1cell"` rundum und
+`tab_bar_at_bottom = true`:
+
+| Datei | gesendet | Reserve unten | Beobachtung |
+| --- | --- | --- | --- |
+| `pdf_inline_hover.png` | `row=16 col=45 cols=78 rows=16` | 2 Zellen (44 px) | oben Spalt, unten **trotzdem** Überstand |
+| `image_inline_hover.png` | `row=21 col=45 cols=78 rows=17` | 2 Zellen (44 px) | dito |
+
+Die gesendeten Werte stimmen exakt mit der Spezifikation überein (`80−2`,
+`18−2` bzw. `19−2`) — der Rechenweg ist also nicht die Ursache. Dass eine
+Reserve von 44 px unten den Überstand nicht auffängt, heißt: der Versatz ist
+**größer als zwei Zellen** und damit kein reiner Sub-Zellen-Effekt, sondern
+zum überwiegenden Teil ein ganzzahliger Zellversatz.
+
+**Regel.** Ganzzahliger Anteil gehört in `display.terminal_padding` (negativ,
+um nach oben zu korrigieren), nicht in die Marge. Erst der Rest darunter ist
+die eigentliche, nicht auflösbare Protokollgrenze. Die Marge ist also kein
+Ersatz für die Kompensation, sondern ihr Puffer.
+
 **Was das Plugin daraus macht.** Weil ein Plugin diesen Versatz weder messen
 noch erfragen kann, ist der Default **nicht** bündiges Zeichnen, sondern eine
-Sicherheitsreserve von einer Zelle am **unteren und rechten** Rand
-(`display.draw_inset = 1`). Ein Sub-Zellen-Versatz bleibt damit *innerhalb*
-des Rahmens statt sichtbar darüber hinauszuragen — auf jedem Terminal, ohne
-Konfiguration und ohne Erkennung.
+Marge von einer Zelle rundum (`display.draw_inset = 1`). Ein
+Sub-Zellen-Versatz bleibt damit *innerhalb* des Rahmens statt sichtbar
+darüber hinauszuragen — auf jedem Terminal, ohne Konfiguration und ohne
+Erkennung.
 
-Einseitig, nicht rundum: der Versatz hat immer dasselbe Vorzeichen, weil
-Fenster-Padding Inhalt vom Ursprung *weg* schiebt. Eine Reserve oben/links
-schützt vor einem Fall, der nicht eintritt, kostet aber die volle Zellhöhe —
-nachgemessen an einem 1702×892-Bild in einem 80×19-Float: rundum verteilt
-bleiben 22 px Leerraum über dem Bild stehen und die Zeichenbox schrumpft auf
-78×17; einseitig ist der Streifen oben weg und die Box wächst auf 79×18, bei
-identischer Unterkante. Halb so teuer, gleich robust.
+Rundum, nicht nur dort, wo der Versatz hinläuft: eine einseitige Reserve
+(unten/rechts, wohin Padding den Inhalt schiebt) wäre halb so teuer, wurde
+gebaut und wieder verworfen. Sie lässt das Bild links am Rahmen kleben und
+rechts eine Lücke — und diese Asymmetrie liest der Betrachter als Fehler,
+unabhängig davon, ob sie einen verhindert. Ein *systematischer* Versatz
+gehört ohnehin nicht in die Marge, sondern in `display.terminal_padding`;
+die Marge fängt nur den Rest ab.
 
 **Für ein vermessenes Setup, in dieser Reihenfolge.**
 

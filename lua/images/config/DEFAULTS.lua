@@ -24,15 +24,14 @@ return {
     -- / Spalten, geteilt durch Zeilenhöhe) — automatisch geht es nicht, siehe
     -- images.cell und docs/ROADMAP/TERMINALS.md.
     cell_aspect = 0,
-    -- Sicherheitsreserve in Zellen am unteren/rechten Rand. Default 1: das
-    -- Bild beginnt am Fensterursprung, unten und rechts bleibt eine Zelle
-    -- frei. Grund ist Robustheit, nicht Optik — Terminals mit nicht
-    -- zell-ausgerichtetem Fenster-Padding schieben das Bild um Bruchteile
-    -- einer Zelle nach unten/rechts, und ohne Reserve ragt es dann sichtbar
-    -- über den Rahmen (siehe images.anchor; dort auch, warum die Reserve
-    -- einseitig ist). Ragt es trotzdem über, auf 2 erhöhen. 0 zeichnet
-    -- bündig; sinnvoll, wenn cell_aspect und terminal_padding für das eigene
-    -- Setup stimmen.
+    -- Marge in Zellen, die beim Zeichnen rundum frei bleibt. Default 1: das
+    -- Bild sitzt mit etwas Luft mittig im Rahmen statt bündig. Grund ist
+    -- Robustheit, nicht Optik — Terminals mit nicht zell-ausgerichtetem
+    -- Fenster-Padding schieben das Bild um Bruchteile einer Zelle, und bündig
+    -- gezeichnet ragt es dann sichtbar über den Rahmen (siehe images.anchor).
+    -- Fängt nur den Rest ab: einen ganzzahligen, systematischen Versatz über
+    -- terminal_padding kompensieren, nicht über eine größere Marge. 0
+    -- zeichnet bündig.
     draw_inset = 1,
     -- Fester Zeilen-/Spaltenversatz beim Zeichnen, in ganzen Terminalzellen.
     -- Ausgleich für Terminals, deren OSC-1337-Platzierung ihr eigenes

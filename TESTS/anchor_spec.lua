@@ -248,10 +248,10 @@ return function(H)
 
     require("images.config").setup({ display = { draw_inset = 1 } })
     anchor.draw(win, "full", img)
-    H.eq(captured.cols, 19, "draw_inset = 1: Box eine Zelle schmaler (Reserve rechts)")
-    H.eq(captured.rows, 9, "draw_inset = 1: Box eine Zelle niedriger (Reserve unten)")
-    H.eq(captured.row, 11, "draw_inset = 1: Startzeile bleibt am Fensterursprung")
-    H.eq(captured.col, 11, "draw_inset = 1: Startspalte bleibt am Fensterursprung")
+    H.eq(captured.cols, 18, "draw_inset = 1: Box je eine Zelle schmaler pro Seite")
+    H.eq(captured.rows, 8, "draw_inset = 1: Box je eine Zelle niedriger pro Seite")
+    H.eq(captured.row, 12, "draw_inset = 1: Box bleibt mittig, Startzeile rückt ein")
+    H.eq(captured.col, 12, "draw_inset = 1: Box bleibt mittig, Startspalte rückt ein")
 
     -- Der Aufrufer gewinnt gegen die Konfiguration — images.redact zeichnet
     -- deshalb weiter bündig, egal was global eingestellt ist.

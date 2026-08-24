@@ -124,8 +124,7 @@ local function terminal_padding()
   return row, col
 end
 
---- Sicherheitsreserve in Zellen, die am **unteren und rechten** Rand des
---- Fensters frei bleibt.
+--- Marge in Zellen, die rundum im Fenster frei bleibt.
 ---
 --- **Warum überhaupt.** Ein Bild exakt in den Rahmen zu legen sieht nur dann
 --- gut aus, wenn die Platzierung zellgenau stimmt. Das lässt sich nicht
@@ -136,15 +135,14 @@ end
 --- CSI-Antworten durch). Bündig gezeichnet wird aus so einem Versatz ein
 --- sichtbarer Überstand über den Rahmen.
 ---
---- **Warum nur unten und rechts, nicht rundum.** Der Versatz hat immer
---- dasselbe Vorzeichen: Fenster-Padding schiebt Inhalt vom Ursprung *weg*,
---- also nach unten und rechts, nie dorthin zurück. Eine Reserve oben/links
---- schützt damit vor einem Fall, der nicht eintritt, und kostet trotzdem die
---- volle Zellhöhe — bei einer Zelle von rund 22 px ist das der sichtbar
---- breite Streifen über dem Bild, den eine rundum verteilte Marge erzeugt.
---- Einseitig ist die Reserve halb so teuer und schützt genau so gut: oben
---- bleibt nur der tatsächliche Versatz als schmaler Spalt, unten liegt der
---- ungenutzte Rest unsichtbar im Rahmen.
+--- **Warum rundum und nicht nur dort, wo der Versatz hinläuft.** Einseitig
+--- wäre die halbe Fläche — und sieht trotzdem schlechter aus. Am Testfall
+--- gemessen: mit Reserve nur unten/rechts klebt das Bild links am Rahmen und
+--- lässt rechts eine Lücke, und genau diese Asymmetrie liest der Betrachter
+--- als Fehler, unabhängig davon, ob sie einen verhindert. Rundum verteilt
+--- ergibt dieselbe Toleranz als gleichmäßiger Innenrand, der wie Absicht
+--- aussieht. Ein *systematischer* Versatz gehört ohnehin nicht hierher,
+--- sondern in `display.terminal_padding` — die Marge fängt nur den Rest ab.
 ---
 --- Wer sein Setup vermessen hat (`display.cell_aspect`,
 --- `display.terminal_padding`), setzt `display.draw_inset = 0` und zeichnet
@@ -180,14 +178,19 @@ local function draw_now(winid, position, file, scale, inset)
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
 
-  -- Reserve am unteren/rechten Rand: die Box schrumpft, ihr Ursprung bleibt.
-  -- Pro Achse gedeckelt, damit selbst in einem sehr kleinen Fenster
-  -- mindestens eine Zelle Bild übrig bleibt — eine Reserve, die das Bild ganz
-  -- auffrisst, wäre schlechter als gar keine.
+  -- Marge rundum, die Box bleibt mittig. Pro Achse gedeckelt, damit selbst in
+  -- einem sehr kleinen Fenster mindestens eine Zelle Bild übrig bleibt — eine
+  -- Marge, die das Bild ganz auffrisst, wäre schlechter als gar keine.
   local margin = draw_inset(inset)
   if margin > 0 then
-    cols = math.max(1, cols - margin)
-    rows = math.max(1, rows - margin)
+    local mc = math.min(margin, math.floor((cols - 1) / 2))
+    local mr = math.min(margin, math.floor((rows - 1) / 2))
+    if mc > 0 then
+      cols, col_off = cols - 2 * mc, col_off + mc
+    end
+    if mr > 0 then
+      rows, row_off = rows - 2 * mr, row_off + mr
+    end
   end
 
   require("images.terminal").clear()

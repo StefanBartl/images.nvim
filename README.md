@@ -141,15 +141,18 @@ OSC, DCS and APC responses, and the cell-size reply is a plain CSI response;
 `nvim_list_uis()` reports cells, not pixels). This is measured and written up in
 [docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
 
-Because of that, images keep **one cell of slack at their bottom and right edge**
-by default (`display.draw_inset = 1`). Such an offset always has the same sign —
-window padding pushes content *away* from the origin — so the reserve is only
-needed on those two sides; keeping it all around would cost a full cell of height
-above the image to guard against something that never happens. If an image still
-spills past its frame, raise it to `2`. If you know your setup, set
-`display.cell_aspect` and `display.terminal_padding`, then `display.draw_inset =
-0` for a flush image. `:Image redact` always draws flush regardless, because its
-cell-to-pixel mapping depends on it.
+Because of that, images are drawn with **one cell of margin inside their frame**
+by default (`display.draw_inset = 1`), centred rather than flush. A sub-cell
+offset then stays inside the frame instead of visibly spilling over it — robust
+everywhere, without configuration or detection.
+
+The margin only absorbs the sub-cell remainder. A *systematic* offset of whole
+cells belongs in `display.terminal_padding = { row = …, col = … }` (negative
+values move the image up/left); raising the margin to paper over one just wastes
+space and still looks off. If you know your setup, set `display.cell_aspect` and
+`display.terminal_padding`, then `display.draw_inset = 0` for a flush image.
+`:Image redact` always draws flush regardless, because its cell-to-pixel mapping
+depends on it.
 
 Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
 and by hovering a markdown link that points at one, but **off by default**:
