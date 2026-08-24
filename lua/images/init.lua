@@ -1,32 +1,32 @@
 ---@module 'images'
----@brief Einstiegspunkt für images.nvim — `:Image` und die öffentliche Lua-API.
+---@brief Entry point for images.nvim — `:Image` and the public Lua API.
 ---@description
---- Bilder im Terminal anzeigen, ohne dass Neovim das Terminal verlässt.
+--- Show images in the terminal without Neovim leaving the terminal.
 ---
---- Der Unterschied zu snacks.image und image.nvim: beide sprechen ausschließlich
---- das Kitty-Graphics-Protokoll. Auf nativem Windows-Neovim in WezTerm wird das
---- aus Neovim heraus nie gezeichnet — dieses Plugin nutzt stattdessen das
---- iTerm2-Protokoll (OSC 1337), das dort zuverlässig funktioniert.
+--- The difference to snacks.image and image.nvim: both speak the Kitty graphics
+--- protocol exclusively. On native Windows Neovim in WezTerm that is never
+--- drawn when it comes from Neovim — this plugin uses the iTerm2 protocol (OSC
+--- 1337) instead, which works reliably there.
 ---
---- Alle Anzeigefunktionen geben `boolean` zurück und melden Fehler über
---- `lib.nvim.notify`. Die Low-Level-Module (`terminal`, `gallery`, `info`)
---- benachrichtigen nie selbst, sondern liefern `ok, err` — die Entscheidung,
---- ob ein Fehler den User erreicht, fällt hier.
----@see images.terminal für die Protokoll-Details und die Fallstricke
----@see images.gallery für die Rasteraufteilung mehrerer Bilder
----@see images.paste für den Zwischenablage-Workflow
+--- Every display function returns a `boolean` and reports errors through
+--- `lib.nvim.notify`. The low-level modules (`terminal`, `gallery`, `info`)
+--- never notify themselves but return `ok, err` — the decision whether an error
+--- reaches the user is made here.
+---@see images.terminal for the protocol details and the pitfalls
+---@see images.gallery for laying several images out on a grid
+---@see images.paste for the clipboard workflow
 
 local M = {}
 
---- Zuletzt angezeigtes Ziel, für `:Image next`/`prev`.
+--- The most recently displayed target, for `:Image next`/`prev`.
 ---@type { buf: integer, index: integer }|nil
 local cursor_state = nil
 
---- Ob das aktuelle Bild angeheftet ist (kein automatisches Aufräumen).
+--- Whether the current image is pinned (no automatic clearing).
 ---@type boolean
 local pinned = false
 
----@return table notify-Handle aus lib.nvim
+---@return Lib.Notify.Notifier
 local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
@@ -36,20 +36,19 @@ local function cfg()
   return require("images.config").get()
 end
 
---- Optionales UI-Kit aus lib.nvim. Fehlt es, fallen die Aufrufer auf die
---- Neovim-Bordmittel zurück — das Kit ist Komfort, keine Voraussetzung.
+--- lib.nvim's optional UI kit. Without it callers fall back to Neovim's own
+--- primitives — the kit is a convenience, not a prerequisite.
 ---@return table|nil
 local function kit()
   local ok, k = pcall(require, "lib.nvim.ui.kit")
   return ok and k or nil
 end
 
---- Autocmds registrieren, die ein angezeigtes Bild wieder entfernen.
---- Bei angehefteten Bildern (`M.pin`) passiert nichts. Schließt ein
---- offenes Hover-Float (`display.hover_mode = "float"`), sonst den
---- Standard-Overlay — `M.pin`s Un-Pin-Pfad kennt nur diesen einen
---- Augroup-Namen und muss deshalb nicht wissen, welcher Modus gerade aktiv
---- ist.
+--- Register the autocmds that remove a displayed image again. Nothing happens
+--- for pinned images (`M.pin`). Closes an open hover float
+--- (`display.hover_mode = "float"`), otherwise the standard overlay — `M.pin`'s
+--- un-pin path knows only this one augroup name and therefore need not know
+--- which mode is currently active.
 ---@return nil
 local function arm_clear()
   if pinned then return end
@@ -69,16 +68,16 @@ local function arm_clear()
   })
 end
 
---- Guard vor dem ersten Zeichnen: kann dieses Terminal überhaupt Bilder?
---- Gemeinsam mit `images.browse`/`images.zen`, die denselben Zeichenpfad vor
---- sich haben — siehe `images.guard` für die Begründung.
+--- Guard before the first draw: can this terminal show images at all? Shared
+--- with `images.browse`/`images.zen`, which face the same draw path — see
+--- `images.guard` for the reasoning.
 ---@return nil
 local function guard_capability()
   require("images.guard").check()
 end
 
---- Startzeile so wählen, dass ein Block der Höhe `rows` noch auf den Schirm
---- passt. Ohne die Deckelung rutscht ein hohes Bild unter den unteren Rand.
+--- Pick a start row such that a block of height `rows` still fits on screen.
+--- Without the cap a tall image slides below the bottom edge.
 ---@param rows integer
 ---@return integer
 local function row_below_cursor(rows)
@@ -86,15 +85,15 @@ local function row_below_cursor(rows)
   return math.max(1, math.min(screen_row + 1, vim.o.lines - rows - 1))
 end
 
--- ── Anzeige ──────────────────────────────────────────────────────────────────
+-- ── Display ──────────────────────────────────────────────────────────────────
 
---- Eine Bilddatei anzeigen.
+--- Display an image file.
 ---
---- Für eine http(s)-URL ist das asynchron: der Download läuft im Hintergrund
---- (er blockierte vorher bis zum konfigurierten Timeout, Default 10s) und die
---- Anzeige passiert in dessen Callback. `true` heißt dann "Laden gestartet",
---- Fehler kommen über notify — dieselbe Aufteilung, die `M.export` schon hat.
----@param path string Absoluter/relativer Pfad, oder eine http(s)-URL
+--- For an http(s) URL this is asynchronous: the download runs in the background
+--- (it used to block until the configured timeout, default 10s) and the display
+--- happens in its callback. `true` then means "download started", errors arrive
+--- via notify — the same split `M.export` already has.
+---@param path string absolute or relative path, or an http(s) URL
 ---@return boolean ok
 function M.show(path)
   ---@param file string
@@ -103,16 +102,16 @@ function M.show(path)
     local display = cfg().display
     local cap = require("images.terminal").capability(display.assume_supported)
 
-    -- Terminal kann vermutlich kein OSC 1337: statt der Warnung + einem
-    -- wirkungslosen Zeichenversuch die Blockgrafik-Alternative, wenn
-    -- ImageMagick verfügbar und der Fallback nicht abgeschaltet ist.
+    -- The terminal probably cannot do OSC 1337: rather than the warning plus an
+    -- ineffective draw attempt, use the block-graphics alternative when
+    -- ImageMagick is available and the fallback is not switched off.
     if not cap.ok then
       local ascii_cfg = display.ascii_fallback or {}
       local ascii = require("images.ascii")
       if ascii_cfg.enabled ~= false and ascii.available() then
         local ok, err = ascii.open(file, display)
         if not ok then
-          notify().error(err or "ASCII-Fallback fehlgeschlagen")
+          notify().error(err or "the ASCII fallback failed")
           return false
         end
         arm_clear()
@@ -128,7 +127,7 @@ function M.show(path)
       local ok, err =
         require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
       if not ok then
-        notify().error(err or "Anzeige fehlgeschlagen")
+        notify().error(err or "could not display the image")
         return false
       end
     end
@@ -140,7 +139,7 @@ function M.show(path)
   if require("images.remote").is_remote(path) then
     require("images.remote").fetch(path, function(fetched, remote_err)
       if not fetched then
-        notify().error(remote_err or "Remote-Bild konnte nicht geladen werden")
+        notify().error(remote_err or "could not download the remote image")
         return
       end
       display_file(fetched)
@@ -150,27 +149,27 @@ function M.show(path)
 
   local file = require("images.resolve").to_path(path)
   if not file then
-    notify().error("Bild nicht gefunden: " .. tostring(path))
+    notify().error("image not found: " .. tostring(path))
     return false
   end
 
   return display_file(file)
 end
 
---- Bild unter dem Cursor anzeigen (Markdown-Link oder Dateiname).
+--- Display the image under the cursor (a markdown link or a file name).
 ---@return boolean ok
 function M.hover()
   local target, err = require("images.resolve").under_cursor()
   if not target then
-    notify().warn(err or "Kein Bild unter dem Cursor")
+    notify().warn(err or "no image under the cursor")
     return false
   end
   return M.show(target.path)
 end
 
---- Mehrere Bilder nebeneinander anzeigen.
----@param paths string[]|nil Absolute Pfade; nil = alle Bilder des Buffers
----@param columns integer|nil Spaltenzahl; nil = automatisch
+--- Display several images side by side.
+---@param paths string[]|nil absolute paths; nil = every image in the buffer
+---@param columns integer|nil column count; nil = automatic
 ---@return boolean ok
 function M.gallery(paths, columns)
   if not paths then
@@ -182,15 +181,15 @@ function M.gallery(paths, columns)
   end
 
   if #paths == 0 then
-    notify().info("Keine Bilder zum Anzeigen")
+    notify().info("no images to display")
     return false
   end
 
   guard_capability()
 
   local display = cfg().display
-  -- Die Galerie darf mehr Fläche belegen als eine Einzelanzeige: sie ist der
-  -- explizite Übersichtsmodus, nicht der beiläufige Blick.
+  -- The gallery may take up more area than a single display: it is the explicit
+  -- overview mode, not the passing glance.
   local height = math.max(6, math.floor(vim.o.lines * 0.7))
   local placements, skipped = require("images.gallery").layout(paths, {
     columns = columns,
@@ -202,28 +201,28 @@ function M.gallery(paths, columns)
   })
 
   if #placements == 0 then
-    notify().warn("Zu wenig Platz für eine Galerie — Fenster vergrößern oder weniger Bilder")
+    notify().warn("not enough room for a gallery — enlarge the window or use fewer images")
     return false
   end
 
   local drawn, errors = require("images.terminal").draw_many(placements)
   if drawn == 0 then
-    notify().error(errors[1] or "Galerie konnte nicht gezeichnet werden")
+    notify().error(errors[1] or "could not draw the gallery")
     return false
   end
 
-  if skipped > 0 or #errors > 0 then notify().warn(("%d von %d Bildern nicht gezeigt"):format(skipped + #errors, #paths)) end
+  if skipped > 0 or #errors > 0 then notify().warn(("%d of %d images not shown"):format(skipped + #errors, #paths)) end
 
   arm_clear()
   return true
 end
 
---- Bilder eines Zeilenbereichs nebeneinander anzeigen. Dünner Wrapper um
---- `M.gallery`, der den Range in Ziele auflöst — für `:'<,'>Image gallery`
---- und den Range-Fall der bare `:Image` (siehe `bindings/usrcmds.lua`).
----@param first integer 1-basierte Startzeile
----@param last integer 1-basierte Endzeile
----@param columns integer|nil Spaltenzahl; nil = automatisch
+--- Display the images of a line range side by side. A thin wrapper around
+--- `M.gallery` that resolves the range into targets — for `:'<,'>Image gallery`
+--- and the ranged case of bare `:Image` (see `bindings/usrcmds.lua`).
+---@param first integer 1-based first line
+---@param last integer 1-based last line
+---@param columns integer|nil column count; nil = automatic
 ---@return boolean ok
 function M.gallery_range(first, last, columns)
   local found = require("images.scan").buffer(0, first, last)
@@ -232,23 +231,23 @@ function M.gallery_range(first, last, columns)
     paths[#paths + 1] = t.path
   end
   if #paths == 0 then
-    notify().info("Keine Bilder in diesem Bereich")
+    notify().info("no images in this range")
     return false
   end
   return M.gallery(paths, columns)
 end
 
---- Bilder des Buffers auflisten und eines zur Anzeige auswählen.
---- Nutzt das UI-Kit aus lib.nvim, falls vorhanden, sonst `vim.ui.select`.
----@param first integer|nil 1-basierte Startzeile (für `:'<,'>Image list`)
----@param last integer|nil 1-basierte Endzeile
+--- List the buffer's images and pick one to display. Uses lib.nvim's UI kit
+--- when present, otherwise `vim.ui.select`.
+---@param first integer|nil 1-based first line (for `:'<,'>Image list`)
+---@param last integer|nil 1-based last line
 ---@return nil
 function M.list(first, last)
   local found, missing = require("images.scan").buffer(0, first, last)
 
-  if #missing > 0 then notify().warn(("%d Bildlink(s) nicht auflösbar, z.B. %s"):format(#missing, missing[1])) end
+  if #missing > 0 then notify().warn(("%d image link(s) unresolvable, e.g. %s"):format(#missing, missing[1])) end
   if #found == 0 then
-    notify().info("Keine Bilder in diesem Buffer")
+    notify().info("no images in this buffer")
     return
   end
   if #found == 1 then
@@ -265,7 +264,7 @@ function M.list(first, last)
   if k and k.select then
     k.select({
       items = found,
-      title = "Bilder in diesem Buffer",
+      title = "Images in this buffer",
       format_item = format_item,
       on_select = function(choice)
         if choice then M.show(choice.path) end
@@ -274,19 +273,19 @@ function M.list(first, last)
     return
   end
 
-  vim.ui.select(found, { prompt = "Bild anzeigen", format_item = format_item }, function(choice)
+  vim.ui.select(found, { prompt = "Show image", format_item = format_item }, function(choice)
     if choice then M.show(choice.path) end
   end)
 end
 
---- Zum nächsten/vorherigen Bild des Buffers springen und es anzeigen.
----@param delta integer 1 = weiter, -1 = zurück
+--- Jump to the buffer's next/previous image and display it.
+---@param delta integer 1 = forwards, -1 = backwards
 ---@return boolean ok
 function M.step(delta)
   local buf = vim.api.nvim_get_current_buf()
   local found = require("images.scan").buffer(buf)
   if #found == 0 then
-    notify().info("Keine Bilder in diesem Buffer")
+    notify().info("no images in this buffer")
     return false
   end
 
@@ -294,9 +293,9 @@ function M.step(delta)
   if cursor_state and cursor_state.buf == buf then
     index = cursor_state.index + delta
   else
-    -- Erster Aufruf im Buffer: beim Bild starten, das dem Cursor am nächsten
-    -- liegt, statt stumpf bei 1 — sonst springt man aus der Mitte eines langen
-    -- Dokuments unerwartet an den Anfang.
+    -- First call in this buffer: start at the image nearest the cursor rather
+    -- than bluntly at 1 — otherwise you jump unexpectedly to the beginning from
+    -- the middle of a long document.
     local lnum = vim.api.nvim_win_get_cursor(0)[1]
     index = 1
     for i, t in ipairs(found) do
@@ -305,22 +304,22 @@ function M.step(delta)
     if delta > 0 and found[index] and found[index].lnum <= lnum then index = index + delta end
   end
 
-  -- Umlaufen statt an den Enden anzustoßen.
+  -- Wrap around rather than bumping into the ends.
   index = ((index - 1) % #found) + 1
   cursor_state = { buf = buf, index = index }
 
   local target = found[index]
-  -- Der Scan lief über den Buffer-Inhalt; die Zeile kann durch eine
-  -- zwischenzeitliche Änderung außerhalb des gültigen Bereichs liegen.
+  -- The scan ran over the buffer contents; an edit in the meantime may have put
+  -- the line outside the valid range.
   local line_count = vim.api.nvim_buf_line_count(buf)
   pcall(vim.api.nvim_win_set_cursor, 0, { math.min(target.lnum, line_count), 0 })
   return M.show(target.path)
 end
 
--- ── Metadaten, Zwischenablage, Aufräumen ─────────────────────────────────────
+-- ── Metadata, clipboard, clearing ────────────────────────────────────────────
 
---- Metadaten eines Bildes anzeigen.
----@param path string|nil nil = Bild unter dem Cursor
+--- Display an image's metadata.
+---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.info(path)
   local file
@@ -331,95 +330,98 @@ function M.info(path)
     file = target and target.path
   end
   if not file then
-    notify().warn("Kein Bild gefunden")
+    notify().warn("no image found")
     return false
   end
 
   local data, err = require("images.info").collect(file)
   if not data then
-    notify().error(err or "Metadaten nicht lesbar")
+    notify().error(err or "metadata not readable")
     return false
   end
 
   local lines = require("images.info").lines(data)
   local k = kit()
   if k and k.viewer then
-    k.viewer({ title = "Bildinfo", message = lines })
+    k.viewer({ title = "Image info", message = lines })
   else
     notify().info(table.concat(lines, "\n"))
   end
   return true
 end
 
---- Bild aus der Zwischenablage speichern und verlinken.
----@param name string|nil bereits vorgegebener Dateiname — überspringt jede Namensabfrage
+--- Save the clipboard image and link it.
+---@param name string|nil a file name already given — skips any name prompt
 ---@return nil
-function M.paste(name)
-  require("images.paste").run(name)
+---@param name string|nil
+---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+function M.paste(name, force_ask)
+  require("images.paste").run(name, force_ask)
 end
 
---- Bildschirmausschnitt interaktiv aufnehmen, speichern und verlinken —
---- derselbe Weg wie `M.paste`, nur dass die Bilddatei aus einer
---- Bildschirmauswahl statt der Zwischenablage entsteht. Kehrt sofort
---- zurück; das Ergebnis kommt asynchron, siehe `images.screenshot`.
+--- Capture a screen selection interactively, save it and link it — the same
+--- route as `M.paste`, only that the image file comes from a screen selection
+--- rather than the clipboard. Returns immediately; the result arrives
+--- asynchronously, see `images.screenshot`.
 ---@return nil
-function M.screenshot()
-  require("images.paste").screenshot()
+---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+function M.screenshot(force_ask)
+  require("images.paste").screenshot(force_ask)
 end
 
---- Bestehendes Bild durch den Zwischenablage-Inhalt ersetzen, ohne den Link
---- zu ändern.
----@param path string|nil nil = Bild unter dem Cursor
+--- Replace an existing image with the clipboard contents, without touching the
+--- link.
+---@param path string|nil nil = the image under the cursor
 ---@return nil
 function M.replace(path)
   require("images.paste").replace(path)
 end
 
---- Bild als PDF exportieren, neben der Quelldatei — die Gegenrichtung von
---- pdfports "PDF-Seite als Bild" (dort noch offen, siehe pdfport.nvims
---- eigene docs/ROADMAP.md). Läuft über pdfport.nvim (verlustfrei via
---- img2pdf), wenn installiert und verfügbar; sonst über `magick` — beide
---- Pfade asynchron, siehe `images.convert.to_pdf`.
----@param path string|nil nil = Bild unter dem Cursor
----@return boolean ok  true = Export wurde gestartet (Ergebnis kommt in beiden
----Pfaden asynchron über notify); false = gar nicht erst gestartet (kein Bild
----gefunden)
+--- Export an image as a PDF next to the source file — the opposite direction of
+--- pdfport's "PDF page as an image" (still open there, see pdfport.nvim's own
+--- docs/ROADMAP.md). Runs through pdfport.nvim (losslessly via img2pdf) when
+--- installed and available; otherwise through `magick` — both paths
+--- asynchronous, see `images.convert.to_pdf`.
+---@param path string|nil nil = the image under the cursor
+---@return boolean ok  true = the export was started (the result arrives
+---asynchronously via notify on both paths); false = never started at all (no
+---image found)
 function M.export(path)
   local file = require("images.resolve").path_or_cursor(path)
   if not file then
-    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
+    notify().warn("no image under the cursor or at the given path")
     return false
   end
 
   require("images.convert").to_pdf(file, function(ok, out_path_or_err)
     if ok then
-      notify().info("Exportiert: " .. vim.fn.fnamemodify(out_path_or_err, ":~"))
+      notify().info("exported: " .. vim.fn.fnamemodify(out_path_or_err, ":~"))
     else
-      notify().error(out_path_or_err or "Export fehlgeschlagen")
+      notify().error(out_path_or_err or "export failed")
     end
   end)
 
   return true
 end
 
---- Bild — oder das unter dem Cursor — in einem Zensur-Modus öffnen: Boxen
---- markieren (Visual-Mode + `<CR>`), mit `w` schwärzen und als neue Datei
---- speichern, Original bleibt unverändert. Siehe docs/ROADMAP/REDACT.md.
----@param path string|nil nil = Bild unter dem Cursor
+--- Open an image — or the one under the cursor — in redaction mode: mark boxes
+--- (visual mode + `<CR>`), black them out with `w` and save as a new file; the
+--- original stays unchanged. See docs/ROADMAP/REDACT.md.
+---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.redact(path)
   return require("images.redact").open(path)
 end
 
---- Bilddateien im Zielverzeichnis finden, auf die kein Link mehr zeigt, und
---- eine zum Löschen anbieten. Löscht ausschließlich nach expliziter
---- Bestätigung — verwaiste Bilder zu *finden* soll risikofrei sein, auch
---- wenn `:Image orphans` versehentlich zweimal ausgeführt wird.
+--- Find image files in the target directory that no link points to any more,
+--- and offer to delete one. Deletes only after explicit confirmation —
+--- *finding* orphaned images should be risk-free, even if `:Image orphans` is
+--- run twice by accident.
 ---@return nil
 function M.orphans()
   local orphans = require("images.orphans").find()
   if #orphans == 0 then
-    notify().info("Keine verwaisten Bilder gefunden")
+    notify().info("no orphaned images found")
     return
   end
 
@@ -437,31 +439,31 @@ function M.orphans()
       if not confirmed then return end
       local ok = pcall(vim.uv.fs_unlink, choice.path)
       if ok then
-        notify().info("Gelöscht: " .. choice.rel)
+        notify().info("deleted: " .. choice.rel)
       else
-        notify().error("Löschen fehlgeschlagen: " .. choice.rel)
+        notify().error("could not delete: " .. choice.rel)
       end
     end
 
     local k = kit()
     if k and k.confirm then
-      -- Explizite `choices`: ohne sie liefert `on_answer` ein boolean statt
-      -- des Labels (siehe kit.confirm's M.confirm — `custom` schaltet
-      -- zwischen beidem um), und die Buttons zeigen sonst engl. "Yes"/"No".
+      -- Explicit `choices`: without them `on_answer` yields a boolean rather
+      -- than the label (see kit.confirm's M.confirm — `custom` switches between
+      -- the two), and being explicit keeps both paths' wording identical.
       k.confirm({
-        question = ("'%s' löschen?"):format(choice.rel),
-        choices = { "Ja", "Nein" },
+        question = ("Delete '%s'?"):format(choice.rel),
+        choices = { "Yes", "No" },
         on_answer = function(answer)
-          delete_if_confirmed(answer == "Ja")
+          delete_if_confirmed(answer == "Yes")
         end,
       })
     else
-      delete_if_confirmed(vim.fn.confirm(("'%s' löschen?"):format(choice.rel), "&Ja\n&Nein", 2) == 1)
+      delete_if_confirmed(vim.fn.confirm(("Delete '%s'?"):format(choice.rel), "&Yes\n&No", 2) == 1)
     end
   end
 
   local k = kit()
-  local title = ("%d verwaiste Bild(er)"):format(#orphans)
+  local title = ("%d orphaned image(s)"):format(#orphans)
   if k and k.select then
     k.select({ items = orphans, title = title, format_item = format_item, on_select = on_pick })
   else
@@ -469,46 +471,45 @@ function M.orphans()
   end
 end
 
---- Bilder unterhalb eines Scopes durchsuchen und mit Live-Vorschau (falls
---- snacks.picker installiert ist) auswählen.
+--- Browse images below a scope and pick one, with a live preview when
+--- snacks.picker is installed.
 ---@param scope string|nil "cfile"|"cwd"|"path"; nil = "cwd"
----@param arg string|nil bei scope="path": das Zielverzeichnis
+---@param arg string|nil for scope="path": the target directory
 ---@return nil
 function M.browse(scope, arg)
   require("images.browse").open(scope, arg)
 end
 
---- Bild unter dem Cursor (oder an `path`) in einem großen, editierbaren
---- Fenster anzeigen — bleibt bestehen, auch wenn parallel ein Hover-Popup
---- (z.B. von snacks) aufgeht, siehe `images.zen`.
----@param path string|nil nil = Bild unter dem Cursor
+--- Show the image under the cursor (or at `path`) in a large, editable window —
+--- it survives a hover popup (from snacks, say) opening alongside it, see
+--- `images.zen`.
+---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.zen(path)
   return require("images.zen").open(path)
 end
 
---- Ein Bild — oder das unter dem Cursor — zuverlässig in einem Fenster (oder
---- dem Fenster, das einen Buffer zeigt) an einer benannten Position zeichnen.
---- Anders als `M.show` (immer das aktuelle Fenster, unterhalb des Cursors)
---- oder `M.zen`/`M.hover_float` (feste Fenster mit eigener Lebensdauer) legt
---- diese Funktion die Position selbst fest — für Aufrufer, die genau wissen
---- wollen, wo das Bild landet, z.B. andere Plugins, die ein Fenster ohnehin
---- schon offen haben.
+--- Reliably draw an image — or the one under the cursor — in a window (or the
+--- window showing a buffer) at a named position. Unlike `M.show` (always the
+--- current window, below the cursor) or `M.zen`/`M.hover_float` (fixed windows
+--- with a lifecycle of their own), this function fixes the position itself —
+--- for callers that want to know exactly where the image lands, e.g. other
+--- plugins that already have a window open.
 ---
---- Keine Remote-Bilder (dieselbe Grenze wie bei `M.zen`/`M.export`/
---- `M.redact` — nur `M.show`/Hover laden URLs, siehe `display.remote`s Doku
---- in `images.config.DEFAULTS`).
----@param target integer|nil Fenster- oder Buffer-Handle; nil/0 = aktuelles Fenster
----@param position string siehe `images.scale.POSITIONS` ("full", "center", "top-left", …)
----@param path string|nil nil = Bild unter dem Cursor
+--- No remote images (the same boundary as `M.zen`/`M.export`/`M.redact` — only
+--- `M.show`/hover download URLs, see `display.remote`'s docs in
+--- `images.config.DEFAULTS`).
+---@param target integer|nil window or buffer handle; nil/0 = current window
+---@param position string see `images.scale.POSITIONS` ("full", "center", "top-left", …)
+---@param path string|nil nil = the image under the cursor
 ---@param opts Images.Anchor.Opts|nil
----@return boolean ok bei `opts.defer = true`: ob der Aufruf angenommen wurde, nicht ob bereits gezeichnet ist
+---@return boolean ok for `opts.defer = true`: whether the call was accepted, not whether anything was drawn yet
 ---@return string|nil err
 function M.draw(target, position, path, opts)
   local file = require("images.resolve").path_or_cursor(path)
   if not file then
-    notify().warn("Kein Bild unter dem Cursor oder am angegebenen Pfad")
-    return false, "Kein Bild gefunden"
+    notify().warn("no image under the cursor or at the given path")
+    return false, "no image found"
   end
 
   guard_capability()
@@ -516,12 +517,12 @@ function M.draw(target, position, path, opts)
   opts = opts or {}
   local user_on_done = opts.on_done
   local merged_opts = vim.tbl_extend("force", opts, {
-    -- `images.anchor.draw` ruft dies immer genau einmal — synchron, wenn
-    -- `target` sich nicht auflösen lässt oder `defer` nicht gesetzt ist,
-    -- sonst sobald der aufgeschobene Versuch feststeht. Ein Fehlschlag
-    -- erreicht so den User in jedem Fall, nicht nur im Sofort-Pfad.
+    -- `images.anchor.draw` calls this exactly once in every case — synchronously
+    -- when `target` cannot be resolved or `defer` is unset, otherwise as soon as
+    -- the deferred attempt has settled. A failure therefore reaches the user
+    -- either way, not only on the immediate path.
     on_done = function(ok, err)
-      if not ok then notify().error(err or "Anzeige fehlgeschlagen") end
+      if not ok then notify().error(err or "could not display the image") end
       if user_on_done then user_on_done(ok, err) end
     end,
   })
@@ -529,16 +530,16 @@ function M.draw(target, position, path, opts)
   return require("images.anchor").draw(target, position, file, merged_opts)
 end
 
---- Zwei Bilder unterhalb eines Scopes auswählen und nebeneinander vergleichen.
+--- Pick two images below a scope and compare them side by side.
 ---@param scope string|nil "cfile"|"cwd"|"path"; nil = "cwd"
----@param arg string|nil bei scope="path": das Zielverzeichnis
+---@param arg string|nil for scope="path": the target directory
 ---@return nil
 function M.compare(scope, arg)
   require("images.compare").open(scope, arg)
 end
 
---- Kurzindikator für die Statusline: leer, wenn kein Bild angezeigt wird.
---- Beispiel für lualine: `{ require("images").statusline }`.
+--- A short status line indicator: empty when no image is displayed. For
+--- lualine: `{ require("images").statusline }`.
 ---@param opts { icon?: string, pinned_suffix?: string }|nil
 ---@return string
 function M.statusline(opts)
@@ -549,9 +550,9 @@ function M.statusline(opts)
   return icon
 end
 
---- Automatisches Aufräumen für das aktuelle Bild an- oder abschalten.
----@param on boolean|nil nil = umschalten
----@return boolean pinned neuer Zustand
+--- Turn automatic clearing for the current image on or off.
+---@param on boolean|nil nil = toggle
+---@return boolean pinned the new state
 function M.pin(on)
   if on == nil then
     pinned = not pinned
@@ -560,19 +561,18 @@ function M.pin(on)
   end
 
   if pinned then
-    -- Bereits scharf gestellte Aufräum-Autocmds zurücknehmen, sonst räumt der
-    -- nächste Cursorsprung das gerade angeheftete Bild trotzdem weg.
+    -- Withdraw any clearing autocmds already armed, or the next cursor movement
+    -- would clear the image that was just pinned.
     pcall(vim.api.nvim_del_augroup_by_name, "images.clear")
-    notify().info("Bild angeheftet — `:Image clear` entfernt es")
+    notify().info("image pinned — `:Image clear` removes it")
   else
-    notify().info("Bild wird bei der nächsten Cursorbewegung entfernt")
+    notify().info("the image will be removed on the next cursor movement")
     arm_clear()
   end
   return pinned
 end
 
---- Angezeigte Bilder entfernen, inklusive eines offenen Zen-Fensters oder
---- Hover-Floats.
+--- Remove the displayed images, including an open zen window or hover float.
 ---@return nil
 function M.clear()
   pinned = false
@@ -583,23 +583,23 @@ function M.clear()
   require("images.terminal").clear()
 end
 
---- Fähigkeitsprüfung erneut durchführen. Nötig, wenn `assume_supported`
---- nachträglich gesetzt wurde — sonst gilt das gemerkte Ergebnis weiter.
+--- Run the capability check again. Needed when `assume_supported` was set after
+--- the fact — otherwise the memoized result stands.
 ---@return Images.Capability
 function M.recheck()
   require("images.guard").reset()
   require("images.terminal").reset_capability()
   local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
   if cap.ok then
-    notify().info("Bildausgabe verfügbar" .. (cap.terminal and (" (" .. cap.terminal .. ")") or ""))
+    notify().info("image output available" .. (cap.terminal and (" (" .. cap.terminal .. ")") or ""))
   else
     notify().warn(table.concat({ cap.reason or "", cap.hint or "" }, "\n"))
   end
   return cap
 end
 
---- Plugin einrichten.
----@param opts table|nil siehe `images.config.DEFAULTS`
+--- Set the plugin up.
+---@param opts table|nil see `images.config.DEFAULTS`
 ---@return nil
 function M.setup(opts)
   local conf = require("images.config").setup(opts)
@@ -607,19 +607,17 @@ function M.setup(opts)
   require("images.bindings.keymaps").register(conf)
   require("images.bindings.autocmds").register(conf)
 
-  -- `display.cell_aspect` übernehmen, damit die Zeichenbox eng um das Bild
-  -- sitzt statt um die 0.5-Annahme. Nicht gemessen, sondern konfiguriert —
-  -- warum eine Messung aus Neovim heraus nicht möglich ist, steht in
-  -- images.cell.
+  -- Adopt `display.cell_aspect`, so the draw box sits tightly around the image
+  -- rather than around the 0.5 assumption. Configured, not measured — why
+  -- measuring is impossible from inside Neovim is explained in images.cell.
   require("images.cell").apply()
 
-  -- Einmaliges (über Neustarts persistiertes) Popup beim ersten `setup()`
-  -- nach der Installation: welche CLI-Tools schalten was frei, und warum
-  -- (docs/install.json). `:Lib deps show images.nvim` danach jederzeit
-  -- wiederholbar. `conf.deps_popup = false` (direkt in der setup()-Spec,
-  -- config/DEFAULTS.lua) schaltet es für dieses Plugin ab. pcall'd: ein
-  -- älteres lib.nvim ohne lib.nvim.deps darf setup() nicht wegen eines
-  -- reinen Info-Popups brechen.
+  -- A one-off popup (persisted across restarts) on the first `setup()` after
+  -- installation: which CLI tools unlock what, and why (docs/install.json).
+  -- `:Lib deps show images.nvim` repeats it at any time afterwards.
+  -- `conf.deps_popup = false` (right in the setup() spec, config/DEFAULTS.lua)
+  -- disables it for this plugin. pcall'd: an older lib.nvim without
+  -- lib.nvim.deps must not break setup() over a purely informational popup.
   if conf.deps_popup ~= false then
     local ok_deps, deps = pcall(require, "lib.nvim.deps")
     if ok_deps then deps.show_once("images.nvim") end

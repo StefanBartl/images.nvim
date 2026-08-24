@@ -327,7 +327,10 @@ end
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@param direct_name string|nil a name already given as a command argument
 ---@return nil
-local function capture_with_optional_name(capture, direct_name)
+---@param capture function
+---@param direct_name string|nil
+---@param force_ask boolean|nil  # prompt even when `paste.ask_filename` is off
+local function capture_with_optional_name(capture, direct_name, force_ask)
   local buf = vim.api.nvim_get_current_buf()
 
   if direct_name then
@@ -340,7 +343,11 @@ local function capture_with_optional_name(capture, direct_name)
     return
   end
 
-  if not cfg().paste.ask_filename then
+  -- `force_ask` is how a keymap asks for a name. With `ask_filename` on, the
+  -- prompt already happens and this changes nothing; with it off, a bare
+  -- keypress previously had no way to name the file at all -- only
+  -- `:Image paste {name}` did.
+  if not (cfg().paste.ask_filename or force_ask) then
     paste_with_name(buf, nil, capture)
     return
   end
@@ -374,8 +381,10 @@ end
 --- Save the clipboard image and insert the link at the cursor.
 ---@param name string|nil a file name already given (`:Image paste {name}`) — skips any name prompt
 ---@return nil
-function M.run(name)
-  capture_with_optional_name(clipboard_to_file, name)
+---@param name string|nil
+---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+function M.run(name, force_ask)
+  capture_with_optional_name(clipboard_to_file, name, force_ask)
 end
 
 -- Exposed for tests: both take `capture` as a parameter, so a fake suffices --
@@ -387,13 +396,14 @@ M.capture_with_optional_name = capture_with_optional_name
 --- like `M.run` — the everyday case in one step instead of three (launch a
 --- screenshot tool by hand, clipboard, `:Image paste`).
 ---@return nil
-function M.screenshot()
+---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+function M.screenshot(force_ask)
   local screenshot = require("images.screenshot")
   if not screenshot.available() then
     notify().error(screenshot.unavailable_reason())
     return
   end
-  capture_with_optional_name(screenshot.capture)
+  capture_with_optional_name(screenshot.capture, nil, force_ask)
 end
 
 --- Replace an existing image with the clipboard contents, without touching the

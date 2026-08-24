@@ -30,29 +30,35 @@ local ACTIONS = {
   {
     option = "next",
     desc = "images: next image",
+    -- `step` already wraps modulo the image count, so multiplying the delta
+    -- is all a count needs: `3<leader>in` lands three images on, wrapping
+    -- exactly as one step would.
     run = function()
-      require("images").step(1)
+      require("images").step(vim.v.count1)
     end,
   },
   {
     option = "prev",
     desc = "images: previous image",
     run = function()
-      require("images").step(-1)
+      require("images").step(-vim.v.count1)
     end,
   },
   {
     option = "paste",
     desc = "images: paste an image from the clipboard",
+    -- A count asks for the name: `M.paste(name)` has always accepted one, but
+    -- a bare lhs carries no text, so `:Image paste {name}` was the only way
+    -- in. `1<leader>ip` prompts; without a count nothing changes.
     run = function()
-      require("images").paste()
+      require("images").paste(nil, vim.v.count ~= 0)
     end,
   },
   {
     option = "screenshot",
     desc = "images: take a screenshot and insert it",
     run = function()
-      require("images").screenshot()
+      require("images").screenshot(vim.v.count ~= 0)
     end,
   },
 }

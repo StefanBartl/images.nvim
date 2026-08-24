@@ -96,14 +96,21 @@ local function redraw_boxes()
 end
 
 ---@return nil
+---A count removes that many boxes: `3u` after marking a run of them in the
+---wrong place beats pressing `u` three times and watching three notifications.
+---Clamped to what is actually there rather than warning per missing box.
 local function undo_box()
   if #boxes == 0 then
     notify().warn("no box to remove")
     return
   end
-  table.remove(boxes)
+
+  local want = math.min(vim.v.count1, #boxes)
+  for _ = 1, want do
+    table.remove(boxes)
+  end
   redraw_boxes()
-  notify().info(("box removed (%d remaining)"):format(#boxes))
+  notify().info(("%d box(es) removed (%d remaining)"):format(want, #boxes))
 end
 
 --- Take the current visual selection as a redaction box. Runs as a visual mode

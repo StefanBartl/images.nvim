@@ -49,11 +49,28 @@ to disable that single mapping.
 | --- | --- | --- | --- |
 | `<leader>im` | n | Show the image under the cursor | `keymaps.show` |
 | `<leader>ig` | n | Show all images of the buffer side by side | `keymaps.gallery` |
-| `<leader>in` | n | Next image | `keymaps.next` |
-| `<leader>ip` | n | Previous image | `keymaps.prev` |
-| `<leader>iv` | n | Paste the clipboard image and insert the link | `keymaps.paste` |
-| `<leader>is` | n | Take a screenshot and insert the link | `keymaps.screenshot` |
+| `<leader>in` | n | Next image; `3<leader>in` jumps three | `keymaps.next` |
+| `<leader>ip` | n | Previous image; a count jumps that many | `keymaps.prev` |
+| `<leader>iv` | n | Paste the clipboard image and insert the link; **any count** prompts for a filename | `keymaps.paste` |
+| `<leader>is` | n | Take a screenshot and insert the link; **any count** prompts for a filename | `keymaps.screenshot` |
 | `<2-LeftMouse>` | n | Double-click a markdown link to show the image | `keymaps.double_click` |
+
+### Counts (2026-08-24)
+
+`next`/`prev` multiply the step: `step()` already wraps modulo the image
+count, so `3<leader>in` lands three images on and wraps exactly as one step
+would.
+
+On `paste`/`screenshot` a count is not a repeat — it asks for a **name**.
+`:Image paste {name}` could always supply one, but a bare lhs carries no
+text, and with `paste.ask_filename = false` a keymap had no way to name the
+file at all. Any count now forces the prompt; with `ask_filename` already on
+this changes nothing. The count's *value* is deliberately ignored — there is
+no sensible "do this 3 times" for pasting one image, so it reads purely as a
+flag.
+
+In the redact window, `u` removes the last box and `3u` removes three,
+clamped to what is actually there rather than warning once per missing box.
 
 A double-click that does not land on an image link falls through to the normal
 word selection, so the mapping never swallows a plain double-click.
