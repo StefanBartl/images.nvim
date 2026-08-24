@@ -1,10 +1,10 @@
--- TESTS/gallery_spec.lua — Rasteraufteilung mehrerer Bilder.
+-- TESTS/gallery_spec.lua — laying several images out on a grid.
 --
--- `images.gallery` rechnet nur und zeichnet nicht; deshalb ist es headless
--- vollständig prüfbar. Genau dafür ist die Trennung von `images.terminal` da,
--- die `scripts/gen_map.lua` als Layer-Regel absichert.
+-- `images.gallery` only computes and never draws; that is what makes it fully
+-- testable headless. It is exactly what the separation from `images.terminal`
+-- is for, which `scripts/gen_map.lua` enforces as a layer rule.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local gallery = require("images.gallery")
 
@@ -18,60 +18,60 @@ return function(H)
     }, over or {})
   end
 
-  -- ── Leere Eingabe ──────────────────────────────────────────────────────────
+  -- ── Empty input ──────────────────────────────────────────────────────────
   local placements, skipped = gallery.layout({}, opts())
-  H.eq(#placements, 0, "keine Bilder → keine Platzierungen")
-  H.eq(skipped, 0, "keine Bilder → nichts übersprungen")
+  H.eq(#placements, 0, "no images -> no placements")
+  H.eq(skipped, 0, "no images -> nothing skipped")
 
-  -- ── Ein Bild belegt die volle Fläche ───────────────────────────────────────
+  -- ── One image takes up the whole area ────────────────────────────────────
   placements = gallery.layout({ "a.png" }, opts())
-  H.eq(#placements, 1, "ein Bild → eine Platzierung")
-  H.eq(placements[1].row, 1, "startet in der vorgegebenen Zeile")
-  H.eq(placements[1].col, 1, "startet in der vorgegebenen Spalte")
-  H.eq(placements[1].cols, 100, "ein Bild nutzt die volle Breite")
-  H.eq(placements[1].rows, 40, "ein Bild nutzt die volle Höhe")
+  H.eq(#placements, 1, "one image -> one placement")
+  H.eq(placements[1].row, 1, "starts on the given row")
+  H.eq(placements[1].col, 1, "starts in the given column")
+  H.eq(placements[1].cols, 100, "one image uses the full width")
+  H.eq(placements[1].rows, 40, "one image uses the full height")
 
-  -- ── Zwei Bilder nebeneinander, Lücke abgezogen ─────────────────────────────
+  -- ── Two images side by side, the gap subtracted ──────────────────────────
   placements = gallery.layout({ "a.png", "b.png" }, opts())
-  H.eq(#placements, 2, "zwei Bilder → zwei Platzierungen")
-  H.eq(placements[1].row, placements[2].row, "zwei Bilder stehen in einer Zeile")
-  H.eq(placements[1].cols, 49, "Breite = (100 - 1 Lücke) / 2")
-  H.eq(placements[2].col, 1 + 49 + 1, "zweite Kachel hinter Kachel plus Lücke")
+  H.eq(#placements, 2, "two images -> two placements")
+  H.eq(placements[1].row, placements[2].row, "two images sit on one row")
+  H.eq(placements[1].cols, 49, "width = (100 - 1 gap) / 2")
+  H.eq(placements[2].col, 1 + 49 + 1, "the second tile sits after tile plus gap")
 
-  -- ── Vier Bilder ergeben zwei Reihen ────────────────────────────────────────
+  -- ── Four images make two rows ────────────────────────────────────────────
   placements = gallery.layout({ "a.png", "b.png", "c.png", "d.png" }, opts())
-  H.eq(#placements, 4, "vier Bilder → vier Platzierungen")
-  H.eq(placements[1].row, placements[2].row, "erste Reihe teilt sich die Zeile")
-  H.ok(placements[3].row > placements[1].row, "dritte Kachel beginnt eine neue Reihe")
-  H.eq(placements[1].col, placements[3].col, "Spalten fluchten über die Reihen")
+  H.eq(#placements, 4, "four images -> four placements")
+  H.eq(placements[1].row, placements[2].row, "the first row shares one line")
+  H.ok(placements[3].row > placements[1].row, "the third tile starts a new row")
+  H.eq(placements[1].col, placements[3].col, "columns line up across the rows")
 
-  -- ── Spaltenzahl ist deckelbar ──────────────────────────────────────────────
+  -- ── The column count can be capped ───────────────────────────────────────
   placements = gallery.layout({ "a.png", "b.png", "c.png" }, opts({ columns = 1 }))
-  H.eq(#placements, 3, "columns=1 zeigt trotzdem alle drei")
-  H.eq(placements[1].col, placements[2].col, "columns=1 → alle in einer Spalte")
-  H.ok(placements[2].row > placements[1].row, "columns=1 → jede Kachel eine Reihe tiefer")
+  H.eq(#placements, 3, "columns=1 still shows all three")
+  H.eq(placements[1].col, placements[2].col, "columns=1 -> all in one column")
+  H.ok(placements[2].row > placements[1].row, "columns=1 -> each tile one row lower")
 
-  -- Mehr Spalten als Bilder wären eine leere Spalte; das wird gekappt.
+  -- More columns than images would mean an empty column; that is capped.
   placements = gallery.layout({ "a.png" }, opts({ columns = 5 }))
-  H.eq(#placements, 1, "columns > Anzahl → auf die Anzahl gekappt")
-  H.eq(placements[1].cols, 100, "und damit wieder volle Breite")
+  H.eq(#placements, 1, "columns > count -> capped to the count")
+  H.eq(placements[1].cols, 100, "and therefore back to the full width")
 
-  -- ── Zu wenig Platz liefert nichts statt unlesbarer Kacheln ─────────────────
+  -- ── Too little room yields nothing rather than illegible tiles ───────────
   local files = {}
   for i = 1, 16 do
     files[i] = ("f%d.png"):format(i)
   end
   placements, skipped = gallery.layout(files, opts({ width = 20, height = 8 }))
-  H.eq(#placements, 0, "zu wenig Platz → keine Platzierung")
-  H.eq(skipped, 16, "…und alle als übersprungen gemeldet")
+  H.eq(#placements, 0, "too little room -> no placement")
+  H.eq(skipped, 16, "…and all of them reported as skipped")
 
-  -- ── Startpunkt wird respektiert ────────────────────────────────────────────
+  -- ── The starting point is honoured ───────────────────────────────────────
   placements = gallery.layout({ "a.png" }, opts({ top = 5, left = 10 }))
-  H.eq(placements[1].row, 5, "top wird übernommen")
-  H.eq(placements[1].col, 10, "left wird übernommen")
+  H.eq(placements[1].row, 5, "top is honoured")
+  H.eq(placements[1].col, 10, "left is honoured")
 
-  -- ── Keine Lücke ────────────────────────────────────────────────────────────
+  -- ── No gap ───────────────────────────────────────────────────────────────
   placements = gallery.layout({ "a.png", "b.png" }, opts({ gap = 0 }))
-  H.eq(placements[1].cols, 50, "gap=0 → volle Hälfte je Kachel")
-  H.eq(placements[2].col, 51, "gap=0 → Kacheln stoßen aneinander")
+  H.eq(placements[1].cols, 50, "gap=0 -> a full half per tile")
+  H.eq(placements[2].col, 51, "gap=0 -> the tiles meet")
 end
