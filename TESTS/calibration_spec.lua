@@ -1,17 +1,17 @@
--- TESTS/calibration_spec.lua — gespeicherte Kalibrierwerte und ihre Rangfolge.
+-- TESTS/calibration_spec.lua — stored calibration values and their precedence.
 --
--- Der interaktive Teil (`images.calibrate`) ist ein Dialog und bleibt hier
--- ungeprüft. Prüfbar — und wichtiger — ist, was danach passiert: dass ein
--- gemessener Wert Neustarts übersteht, dass eine explizite setup()-Option ihn
--- weiterhin überstimmt, und dass eine kaputte Zustandsdatei setup() nicht
--- mitreißt.
+-- The interactive part (`images.calibrate`) is a dialog and stays untested
+-- here. What is testable — and more important — is what happens afterwards:
+-- that a measured value survives a restart, that an explicit setup() option
+-- still outranks it, and that a corrupt state file does not take setup() down
+-- with it.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local calibration = require("images.calibration")
   local config = require("images.config")
 
-  -- Die echte Zustandsdatei des Users darf ein Testlauf nicht anfassen.
+  -- A test run must not touch the user's real state file.
   local real_path = calibration.path
   local sandbox = vim.fn.tempname() .. "-calibration.json"
   calibration.path = function()
@@ -25,61 +25,61 @@ return function(H)
 
   reset()
 
-  -- ── Ohne Datei: leer, und alles verhält sich wie ohne das Modul ──────────
-  H.eq(vim.tbl_count(calibration.load(true)), 0, "ohne Datei sind keine Werte gespeichert")
-  H.eq(vim.tbl_count(calibration.as_config()), 0, "…und as_config liefert nichts zum Überlagern")
+  -- ── No file: empty, and everything behaves as without this module ────────
+  H.eq(vim.tbl_count(calibration.load(true)), 0, "no file means no stored values")
+  H.eq(vim.tbl_count(calibration.as_config()), 0, "…and as_config contributes nothing to merge")
 
-  -- ── Speichern und wieder lesen ────────────────────────────────────────────
+  -- ── Save and read back ────────────────────────────────────────────────────
   local ok, err = calibration.save({ terminal_padding = { row = -2, col = 1 } })
-  H.ok(ok, "save meldet Erfolg" .. (err and (" (" .. tostring(err) .. ")") or ""))
+  H.ok(ok, "save reports success" .. (err and (" (" .. tostring(err) .. ")") or ""))
 
   local loaded = calibration.load(true)
-  H.eq(loaded.terminal_padding and loaded.terminal_padding.row, -2, "row überlebt den Roundtrip")
-  H.eq(loaded.terminal_padding and loaded.terminal_padding.col, 1, "col überlebt den Roundtrip")
+  H.eq(loaded.terminal_padding and loaded.terminal_padding.row, -2, "row survives the round trip")
+  H.eq(loaded.terminal_padding and loaded.terminal_padding.col, 1, "col survives the round trip")
 
   local as_cfg = calibration.as_config()
-  H.eq(as_cfg.display and as_cfg.display.terminal_padding.row, -2, "as_config verpackt unter `display`")
+  H.eq(as_cfg.display and as_cfg.display.terminal_padding.row, -2, "as_config nests the values under `display`")
 
-  -- ── Speichern ergänzt, statt Vorhandenes zu verwerfen ────────────────────
-  -- Eine Teilkalibrierung (nur cell_aspect) darf eine frühere vollständige
-  -- nicht auslöschen.
-  H.ok(calibration.save({ cell_aspect = 0.46 }), "zweiter save meldet Erfolg")
+  -- ── Saving merges rather than discarding ─────────────────────────────────
+  -- A partial calibration (cell_aspect only) must not wipe an earlier
+  -- complete one.
+  H.ok(calibration.save({ cell_aspect = 0.46 }), "second save reports success")
   loaded = calibration.load(true)
-  H.eq(loaded.cell_aspect, 0.46, "der neue Wert ist da")
-  H.eq(loaded.terminal_padding and loaded.terminal_padding.row, -2, "…und der alte steht noch")
+  H.eq(loaded.cell_aspect, 0.46, "the new value is there")
+  H.eq(loaded.terminal_padding and loaded.terminal_padding.row, -2, "…and the old one still stands")
 
-  -- ── Rangfolge: Defaults < Kalibrierung < explizite Optionen ──────────────
+  -- ── Precedence: defaults < calibration < explicit options ────────────────
   local conf = config.setup({})
-  H.eq(conf.display.terminal_padding.row, -2, "ohne eigene Option gilt der gemessene Wert")
-  H.eq(conf.display.cell_aspect, 0.46, "…für jeden gespeicherten Schlüssel")
+  H.eq(conf.display.terminal_padding.row, -2, "without an option of your own, the measured value applies")
+  H.eq(conf.display.cell_aspect, 0.46, "…for every stored key")
 
   conf = config.setup({ display = { terminal_padding = { row = 5 } } })
-  H.eq(conf.display.terminal_padding.row, 5, "eine explizite setup()-Option überstimmt die Messung")
-  H.eq(conf.display.terminal_padding.col, 1, "…ohne die nicht gesetzten Schlüssel mitzureißen")
+  H.eq(conf.display.terminal_padding.row, 5, "an explicit setup() option outranks the measurement")
+  H.eq(conf.display.terminal_padding.col, 1, "…without dragging the unset keys along")
 
-  -- Defaults bleiben für alles erhalten, was weder gemessen noch gesetzt ist.
-  H.eq(conf.display.max_cols, require("images.config.DEFAULTS").display.max_cols, "unberührte Defaults überleben")
+  -- Defaults survive for anything neither measured nor set.
+  H.eq(conf.display.max_cols, require("images.config.DEFAULTS").display.max_cols, "untouched defaults survive")
 
-  -- ── Eine kaputte Datei darf setup() nicht mitreißen ──────────────────────
+  -- ── A corrupt file must not take setup() down ────────────────────────────
   local f = io.open(sandbox, "w")
-  f:write("{ das ist kein json")
+  f:write("{ this is not json")
   f:close()
   calibration.load(true)
 
   local ok_setup, conf2 = pcall(config.setup, {})
-  H.ok(ok_setup, "setup() überlebt eine unlesbare Zustandsdatei")
+  H.ok(ok_setup, "setup() survives an unreadable state file")
   H.eq(
     ok_setup and conf2.display.max_cols,
     require("images.config.DEFAULTS").display.max_cols,
-    "…und liefert weiterhin die Defaults"
+    "…and still returns the defaults"
   )
 
   -- ── clear ─────────────────────────────────────────────────────────────────
   calibration.save({ terminal_padding = { row = -3 } })
   calibration.clear()
-  H.eq(vim.tbl_count(calibration.load(true)), 0, "clear entfernt die gespeicherten Werte")
+  H.eq(vim.tbl_count(calibration.load(true)), 0, "clear removes the stored values")
 
-  -- Aufräumen: Sandbox weg, echte Pfadfunktion zurück, Konfiguration neutral.
+  -- Clean up: sandbox gone, real path function back, configuration neutral.
   pcall(os.remove, sandbox)
   calibration.path = real_path
   calibration.load(true)

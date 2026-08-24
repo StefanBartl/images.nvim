@@ -1,49 +1,49 @@
--- TESTS/testcard_spec.lua — der eigene PNG-Schreiber.
+-- TESTS/testcard_spec.lua — the hand-rolled PNG writer.
 --
--- Ohne externe Werkzeuge ein gültiges PNG zu bauen ist genau die Sorte Code,
--- die still falsch sein kann: ein Header, den jeder Parser akzeptiert, mit
--- einer Prüfsumme, an der jeder Decoder aussteigt. Genau daran ist die erste
--- Fassung gescheitert (LuaJIT rechnet Bit-Operationen vorzeichenbehaftet, die
--- Division-als-Schieben-Variante lieferte falsche CRCs). Deshalb wird hier
--- die Struktur nachgerechnet, nicht nur "sieht aus wie ein PNG" geprüft.
+-- Building a valid PNG without external tools is exactly the kind of code that
+-- can be quietly wrong: a header every parser accepts, carrying a checksum
+-- every decoder chokes on. That is precisely how the first version failed
+-- (LuaJIT evaluates bit operations as signed, so the division-as-shift variant
+-- produced wrong CRCs). Hence the structure is recomputed here rather than
+-- merely checked for "looks like a PNG".
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local testcard = require("images.testcard")
 
   ---@param s string
-  ---@param off integer 1-basiert
+  ---@param off integer 1-based
   ---@return integer
   local function be32_at(s, off)
     return s:byte(off) * 0x1000000 + s:byte(off + 1) * 0x10000 + s:byte(off + 2) * 0x100 + s:byte(off + 3)
   end
 
-  -- ── size_for: die Karte übernimmt das Seitenverhältnis der Zellbox ────────
-  -- Der ganze Zweck des Moduls. Stimmt das nicht, letterboxt das Terminal und
-  -- die Kalibrierung misst den Letterbox-Rand statt der Platzierung.
+  -- ── size_for: the card adopts the cell box's aspect ratio ────────────────
+  -- The module's entire purpose. Get this wrong and the terminal letterboxes,
+  -- so calibration measures the letterbox border instead of the placement.
   local size = testcard.size_for(60, 20, 0.46)
   local want = (60 * 0.46) / 20
   local got = size.width / size.height
-  H.ok(math.abs(got - want) < 0.01, ("size_for trifft das Box-Seitenverhältnis (%.4f ≈ %.4f)"):format(got, want))
-  H.ok(math.max(size.width, size.height) <= testcard.LONG_EDGE, "…und bleibt innerhalb LONG_EDGE")
+  H.ok(math.abs(got - want) < 0.01, ("size_for matches the box aspect ratio (%.4f ~ %.4f)"):format(got, want))
+  H.ok(math.max(size.width, size.height) <= testcard.LONG_EDGE, "…and stays within LONG_EDGE")
 
-  -- Eine sehr hohe Box: die lange Kante ist dann die Höhe, nicht die Breite.
+  -- A very tall box: the long edge is then the height, not the width.
   local tall = testcard.size_for(10, 40, 0.5)
-  H.ok(tall.height >= tall.width, "hohe Box ergibt eine hohe Karte")
-  H.ok(math.max(tall.width, tall.height) <= testcard.LONG_EDGE, "…ebenfalls innerhalb LONG_EDGE")
+  H.ok(tall.height >= tall.width, "a tall box yields a tall card")
+  H.ok(math.max(tall.width, tall.height) <= testcard.LONG_EDGE, "…also within LONG_EDGE")
 
-  -- Entartete Eingaben dürfen keine 0-Pixel-Kante erzeugen: OSC 1337 würde
-  -- eine leere Datei senden und das Terminal nichts zeichnen.
+  -- Degenerate input must not produce a zero-pixel edge: OSC 1337 would send
+  -- an empty file and the terminal would draw nothing.
   local tiny = testcard.size_for(1, 1, 0.5)
-  H.ok(tiny.width >= 8 and tiny.height >= 8, "winzige Box ergibt trotzdem eine zeichenbare Karte")
+  H.ok(tiny.width >= 8 and tiny.height >= 8, "a tiny box still yields a drawable card")
 
-  -- ── build: PNG-Struktur ───────────────────────────────────────────────────
+  -- ── build: PNG structure ──────────────────────────────────────────────────
   local png = testcard.build(64, 32)
-  H.eq(png:sub(1, 8), "\137PNG\r\n\26\n", "PNG-Signatur stimmt")
+  H.eq(png:sub(1, 8), "\137PNG\r\n\26\n", "PNG signature is correct")
 
-  -- Chunk-Kette ablaufen und dabei prüfen, dass die Längenfelder konsistent
-  -- sind — ein zu kurzes/langes Feld läuft hier in einen Fehlschlag statt
-  -- erst im Decoder des Terminals.
+  -- Walk the chunk chain, checking that the length fields are consistent — a
+  -- field that is too short or too long fails here rather than later in the
+  -- terminal's decoder.
   local seen, off = {}, 9
   while off < #png do
     local len = be32_at(png, off)
@@ -51,23 +51,22 @@ return function(H)
     seen[#seen + 1] = kind
     off = off + 12 + len
   end
-  H.eq(off, #png + 1, "die Chunk-Längen summieren sich exakt auf die Dateigröße")
-  H.eq(seen[1], "IHDR", "erster Chunk ist IHDR")
-  H.eq(seen[#seen], "IEND", "letzter Chunk ist IEND")
-  H.ok(vim.tbl_contains(seen, "IDAT"), "es gibt einen IDAT-Chunk")
+  H.eq(off, #png + 1, "chunk lengths add up to exactly the file size")
+  H.eq(seen[1], "IHDR", "first chunk is IHDR")
+  H.eq(seen[#seen], "IEND", "last chunk is IEND")
+  H.ok(vim.tbl_contains(seen, "IDAT"), "there is an IDAT chunk")
 
-  -- IHDR-Inhalt: Maße und Farbtyp, so wie der Aufrufer sie bestellt hat.
-  H.eq(be32_at(png, 17), 64, "IHDR meldet die bestellte Breite")
-  H.eq(be32_at(png, 21), 32, "IHDR meldet die bestellte Höhe")
-  H.eq(png:byte(25), 8, "Bittiefe 8")
-  H.eq(png:byte(26), 2, "Farbtyp 2 (RGB ohne Alpha)")
+  -- IHDR contents: dimensions and colour type exactly as the caller ordered.
+  H.eq(be32_at(png, 17), 64, "IHDR reports the requested width")
+  H.eq(be32_at(png, 21), 32, "IHDR reports the requested height")
+  H.eq(png:byte(25), 8, "bit depth 8")
+  H.eq(png:byte(26), 2, "colour type 2 (RGB without alpha)")
 
-  -- ── CRC: der Fehler, an dem die erste Fassung scheiterte ──────────────────
-  -- Gegen `vim.zlib`/`vim.uv` gibt es keine CRC-32-Funktion in Neovim, also
-  -- wird hier eine unabhängige Referenzimplementierung gerechnet — bewusst
-  -- anders geschrieben als die im Modul (Tabelle pro Aufruf, keine
-  -- Zwischenspeicherung), damit ein gemeinsamer Denkfehler nicht beide
-  -- gleichzeitig falsch macht.
+  -- ── CRC: the bug the first version died on ───────────────────────────────
+  -- Neovim exposes no CRC-32 function, so an independent reference
+  -- implementation is computed here — deliberately written differently from
+  -- the one in the module (table per call, no memoization), so that a shared
+  -- thinking error cannot make both wrong at once.
   ---@param s string
   ---@return integer
   local function reference_crc32(s)
@@ -89,17 +88,17 @@ return function(H)
   local checked, pos = 0, 9
   while pos < #png do
     local len = be32_at(png, pos)
-    local body = png:sub(pos + 4, pos + 7 + len) -- Typ + Nutzdaten
+    local body = png:sub(pos + 4, pos + 7 + len) -- type + payload
     local stored = be32_at(png, pos + 8 + len)
-    H.eq(stored, reference_crc32(body), ("CRC von %s stimmt"):format(png:sub(pos + 4, pos + 7)))
+    H.eq(stored, reference_crc32(body), ("CRC of %s is correct"):format(png:sub(pos + 4, pos + 7)))
     checked = checked + 1
     pos = pos + 12 + len
   end
-  H.ok(checked >= 3, "alle Chunks wurden geprüft (IHDR/IDAT/IEND)")
+  H.ok(checked >= 3, "all chunks were checked (IHDR/IDAT/IEND)")
 
-  -- ── IDAT: zlib-Rahmen und Rohdatenlänge ──────────────────────────────────
-  -- Der Strom besteht aus *stored*-Blöcken; die entpackte Größe muss exakt
-  -- `höhe * (1 + breite * 3)` sein (je Zeile ein Filterbyte plus RGB).
+  -- ── IDAT: zlib framing and raw data length ───────────────────────────────
+  -- The stream consists of *stored* blocks; the decompressed size must be
+  -- exactly `height * (1 + width * 3)` (one filter byte per row plus RGB).
   local idat_pos, idat_len = nil, nil
   pos = 9
   while pos < #png do
@@ -110,25 +109,25 @@ return function(H)
     end
     pos = pos + 12 + len
   end
-  H.ok(idat_pos ~= nil, "IDAT gefunden")
+  H.ok(idat_pos ~= nil, "IDAT found")
 
   local idat = png:sub(idat_pos, idat_pos + idat_len - 1)
-  H.eq(idat:byte(1), 0x78, "zlib-Header CMF = 0x78")
+  H.eq(idat:byte(1), 0x78, "zlib header CMF = 0x78")
 
-  -- Stored-Blöcke ablaufen: Kopf (1 Byte), LEN, NLEN, Daten. LEN und NLEN
-  -- müssen einander zu 0xFFFF ergänzen, sonst weist jeder Decoder den Strom
-  -- zurück. Start bei 3: davor liegen die zwei zlib-Kopfbytes (CMF/FLG).
+  -- Walk the stored blocks: header (1 byte), LEN, NLEN, data. LEN and NLEN
+  -- must complement each other to 0xFFFF, or every decoder rejects the stream.
+  -- Start at 3: the two zlib header bytes (CMF/FLG) come before that.
   local p, payload, final = 3, 0, 0
   while p < idat_len do
     final = idat:byte(p)
     local blen = idat:byte(p + 1) + idat:byte(p + 2) * 256
     local nlen = idat:byte(p + 3) + idat:byte(p + 4) * 256
-    H.eq(blen + nlen, 0xFFFF, "LEN und NLEN ergänzen sich zu 0xFFFF")
+    H.eq(blen + nlen, 0xFFFF, "LEN and NLEN complement to 0xFFFF")
     payload = payload + blen
     p = p + 5 + blen
     if final == 1 then break end
   end
-  H.eq(final, 1, "der letzte Block ist als final markiert")
-  H.eq(payload, 32 * (1 + 64 * 3), "entpackte Größe = höhe * (1 + breite * 3)")
-  H.eq(p + 4, idat_len + 1, "nach dem letzten Block folgen genau 4 Byte Adler-32")
+  H.eq(final, 1, "the last block is marked final")
+  H.eq(payload, 32 * (1 + 64 * 3), "decompressed size = height * (1 + width * 3)")
+  H.eq(p + 4, idat_len + 1, "exactly 4 bytes of Adler-32 follow the last block")
 end

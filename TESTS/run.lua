@@ -87,6 +87,24 @@ local specs = {
   "calibration_spec.lua",
 }
 
+-- No spec may read (or write) the developer's real calibration state.
+-- `images.config.setup` merges whatever `:Image calibrate` stored under
+-- stdpath("data"), so without this a machine that has been calibrated fails
+-- specs that a fresh checkout passes -- which is exactly what happened to
+-- anchor_spec once calibration landed. Point the state file at a sandbox for
+-- the whole run instead; calibration_spec still overrides it with its own.
+do
+  local ok, calibration = pcall(require, "images.calibration")
+  if ok then
+    local sandbox = vim.fn.tempname() .. "-images-calibration.json"
+    calibration.path = function()
+      return sandbox
+    end
+    calibration.load(true)
+    require("images.config").setup({})
+  end
+end
+
 local failed = 0
 for _, name in ipairs(specs) do
   local run = dofile(dir .. name)

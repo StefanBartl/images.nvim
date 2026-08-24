@@ -6,6 +6,9 @@ local M = {}
 ---@type ImagesNvim.Config|nil
 local current = nil
 
+---@type table|nil
+local user_opts = nil
+
 --- User-Optionen über die Defaults legen.
 ---
 --- Dazwischen liegt die gespeicherte Kalibrierung (`:Image calibrate`, siehe
@@ -25,8 +28,22 @@ function M.setup(opts)
   end)
   if ok and type(values) == "table" then calibrated = values end
 
+  user_opts = vim.deepcopy(opts or {})
   current = vim.tbl_deep_extend("force", vim.deepcopy(defaults), calibrated, opts or {})
   return current
+end
+
+--- The options this plugin was last set up with, unmerged.
+---
+--- Only interesting to answer one question: did the user set this themselves?
+--- The merged configuration cannot say — a value there may come from the
+--- defaults, from a stored calibration, or from the spec, and they are
+--- indistinguishable once merged. `:Image calibrate` needs the difference, so
+--- it can warn when a hand-written option silently shadows what was just
+--- measured; being quietly overridden would be the worst of the three.
+---@return table
+function M.user_opts()
+  return user_opts or {}
 end
 
 --- Aktive Konfiguration. Fällt auf die Defaults zurück, falls `setup()` nie

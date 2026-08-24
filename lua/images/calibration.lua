@@ -1,26 +1,23 @@
 ---@module 'images.calibration'
----@brief Eingemessene Werte über Neustarts hinweg festhalten.
+---@brief Persist measured placement values across restarts.
 ---@description
---- `:Image calibrate` ermittelt Werte, die für *diese* Terminal-Installation
---- gelten — nicht für das Plugin und nicht für ein Projekt. Sie gehören
---- deshalb weder in die Repo-Konfiguration noch in eine
---- `setup()`-Spec, die der User womöglich zwischen Rechnern synchronisiert:
---- dasselbe `terminal_padding` wäre auf dem anderen Rechner mit anderer
---- Schriftgröße schlicht falsch.
+--- `:Image calibrate` produces values that hold for *this* terminal
+--- installation — not for the plugin, and not for a project. They therefore
+--- belong neither in the repository's configuration nor in a `setup()` spec
+--- the user may well sync between machines: the same `terminal_padding` would
+--- simply be wrong on another machine with a different font size.
 ---
---- Also `stdpath("data")`, wo maschinenlokaler Zustand hingehört, und
---- bewusst **nicht** die User-Spec editieren. Ein Plugin, das ungefragt in
---- fremde Konfigurationsdateien schreibt, ist ein Plugin, dem man beim
---- nächsten Update misstraut — und ein Merge-Konflikt in einer
---- versionierten Dotfile-Sammlung wäre ein schlechter Dank für eine
---- Kalibrierung.
+--- So `stdpath("data")`, where machine-local state belongs, and deliberately
+--- **not** an edit to the user's spec. A plugin that writes into someone
+--- else's configuration files unasked is a plugin they stop trusting at the
+--- next update — and a merge conflict in a versioned dotfile collection would
+--- be poor thanks for a calibration.
 ---
---- **Rangfolge.** Defaults < gespeicherte Kalibrierung < explizite
---- `setup()`-Optionen. Wer einen Wert selbst in die Spec schreibt, hat immer
---- recht: er hat sich entschieden, die Kalibrierung ist nur eine Messung.
---- `:Image calibrate` weist darauf hin, wenn eine solche Option den
---- gemessenen Wert überstimmt — still übergangen zu werden wäre die
---- schlechteste Variante.
+--- **Precedence.** Defaults < stored calibration < explicit `setup()` options.
+--- Whoever writes a value into their own spec is always right: they decided,
+--- the calibration merely measured. `:Image calibrate` points it out when such
+--- an option shadows the measured value — being silently overridden would be
+--- the worst of the three outcomes.
 
 local M = {}
 
@@ -30,7 +27,7 @@ local function dir()
   return vim.fs.joinpath(vim.fn.stdpath("data"), "images.nvim")
 end
 
---- Pfad der Kalibrierdatei.
+--- Path of the calibration file.
 ---@return string
 function M.path()
   return vim.fs.joinpath(dir(), "calibration.json")
@@ -41,10 +38,10 @@ local cached = nil
 ---@type boolean
 local loaded = false
 
---- Gespeicherte Werte lesen. Fehlt die Datei oder ist sie unlesbar, ist das
---- kein Fehlerfall, sondern der Normalzustand vor der ersten Kalibrierung.
----@param force boolean|nil gemerktes Ergebnis verwerfen
----@return table values leer, wenn nichts gespeichert ist
+--- Read the stored values. A missing or unreadable file is not an error case
+--- but the normal state before the first calibration.
+---@param force boolean|nil discard the memoized result
+---@return table values empty when nothing is stored
 function M.load(force)
   if loaded and not force then return cached or {} end
   loaded = true
@@ -61,21 +58,21 @@ function M.load(force)
   return cached
 end
 
---- Werte speichern. Bestehende Einträge bleiben erhalten, damit eine
---- Teilkalibrierung nicht eine frühere vollständige überschreibt.
+--- Store values. Existing entries are kept, so a partial calibration does not
+--- wipe an earlier complete one.
 ---@param values table
 ---@return boolean ok
 ---@return string|nil err
 function M.save(values)
-  if type(values) ~= "table" then return false, "keine Werte übergeben" end
+  if type(values) ~= "table" then return false, "no values given" end
 
   local merged = vim.tbl_deep_extend("force", M.load(true), values)
 
-  local ok_mk = vim.fn.mkdir(dir(), "p")
-  if ok_mk == 0 and vim.fn.isdirectory(dir()) == 0 then return false, "Verzeichnis nicht anlegbar: " .. dir() end
+  local made = vim.fn.mkdir(dir(), "p")
+  if made == 0 and vim.fn.isdirectory(dir()) == 0 then return false, "cannot create directory: " .. dir() end
 
   local ok_enc, encoded = pcall(vim.json.encode, merged)
-  if not ok_enc then return false, "nicht serialisierbar: " .. tostring(encoded) end
+  if not ok_enc then return false, "not serializable: " .. tostring(encoded) end
 
   local f, ferr = io.open(M.path(), "w")
   if not f then return false, tostring(ferr) end
@@ -86,7 +83,7 @@ function M.save(values)
   return true
 end
 
---- Gespeicherte Werte verwerfen.
+--- Discard the stored values.
 ---@return boolean ok
 function M.clear()
   cached, loaded = {}, true
@@ -94,9 +91,9 @@ function M.clear()
   return ok ~= nil or vim.fn.filereadable(M.path()) == 0
 end
 
---- Die Kalibrierung als `display`-Teiltabelle, wie `config.setup` sie
---- erwartet. Leer, wenn nichts gespeichert ist — dann verhält sich alles wie
---- ohne dieses Modul.
+--- The calibration as a `display` sub-table, shaped the way `config.setup`
+--- expects it. Empty when nothing is stored — everything then behaves as if
+--- this module did not exist.
 ---@return table
 function M.as_config()
   local values = M.load()

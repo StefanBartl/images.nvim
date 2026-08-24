@@ -1,41 +1,38 @@
 ---@module 'images.testcard'
----@brief Eine Testkarte als PNG erzeugen, ohne externe Werkzeuge.
+---@brief Build a test card as a PNG, without external tools.
 ---@description
---- `images.calibrate` braucht ein Bild, dessen Ränder mit der Zeichenbox
---- zusammenfallen — nur dann heißt "das Bild steht oben über" auch wirklich
---- "die Platzierung sitzt zu tief" und nicht "das Seitenverhältnis passt
---- nicht". Ein mitgeliefertes PNG kann das nicht leisten: die Box hängt von
---- `display.cell_aspect` und der Fenstergröße ab, ist also erst zur Laufzeit
---- bekannt. Deshalb wird die Karte hier gebaut, mit genau dem
---- Pixel-Seitenverhältnis, das die aktuelle Box in Pixeln hat — das Terminal
---- hat dann bei `preserveAspectRatio=1` nichts mehr zu letterboxen.
+--- `images.calibrate` needs an image whose edges coincide with the draw box —
+--- only then does "the card sticks out at the top" actually mean "placement
+--- sits too low" rather than "the aspect ratio is off". A shipped PNG cannot
+--- do that: the box depends on `display.cell_aspect` and the window size, so
+--- it is only known at runtime. Hence the card is built here, with exactly the
+--- pixel aspect ratio the current box has in pixels — leaving the terminal
+--- nothing to letterbox under `preserveAspectRatio=1`.
 ---
---- **Warum ein eigener PNG-Schreiber statt ImageMagick.** Kalibrierung muss
---- gerade dort funktionieren, wo noch nichts eingerichtet ist; eine
---- Abhängigkeit, die man erst installieren muss, wäre an dieser Stelle die
---- falsche Hürde (siehe die "ImageMagick verbessert, ermöglicht aber nicht"-
---- Leitplanke in docs/ROADMAP/README.md). PNG lässt sich ohne Kompression
---- schreiben: der zlib-Strom darf aus *stored*-Blöcken bestehen, damit
---- braucht es nur CRC-32 und Adler-32, beide wenige Zeilen. Die Datei wird
---- dadurch groß, aber sie lebt nur für die Dauer einer Kalibrierung.
+--- **Why a hand-rolled PNG writer instead of ImageMagick.** Calibration has to
+--- work precisely where nothing is set up yet; a dependency you must install
+--- first would be the wrong hurdle at this point (see the "ImageMagick
+--- improves, but never enables" guardrail in docs/ROADMAP/README.md). PNG can
+--- be written without compression: the zlib stream may consist of *stored*
+--- blocks, which needs only CRC-32 and Adler-32, both a few lines. That makes
+--- the file large, but it lives only for the duration of one calibration.
 
 local M = {}
 
---- Kantenlänge der erzeugten Karte in Pixeln (die längere Achse). Klein
---- genug, dass der unkomprimierte Strom handlich bleibt, groß genug für
---- scharfe Kanten nach der Skalierung durchs Terminal.
+--- Edge length of the generated card in pixels (the longer axis). Small
+--- enough to keep the uncompressed stream manageable, large enough for crisp
+--- edges once the terminal has scaled it.
 M.LONG_EDGE = 480
 
 ---@type integer[]|nil
 local crc_table = nil
 
 ---@internal
---- Durchgängig `bit.*` statt Division: LuaJIT rechnet Bit-Operationen auf
---- *vorzeichenbehafteten* 32-Bit-Werten, alles ab 0x80000000 kommt also
---- negativ zurück. Ein `math.floor(c / 2)` auf so einem Wert schiebt dann in
---- die falsche Richtung und die Prüfsumme ist still falsch — ein PNG, das
---- jeder Header-Parser akzeptiert und kein Decoder liest. `bit.rshift`
---- schiebt logisch und hat das Problem nicht.
+--- `bit.*` throughout rather than division: LuaJIT evaluates bit operations
+--- on *signed* 32-bit values, so anything from 0x80000000 up comes back
+--- negative. A `math.floor(c / 2)` on such a value then shifts the wrong way
+--- and the checksum is quietly wrong — a PNG every header parser accepts and
+--- no decoder reads. `bit.rshift` shifts logically and avoids that.
 ---@return integer[]
 local function crc32_table()
   if crc_table then return crc_table end
@@ -83,11 +80,11 @@ local function chunk(kind, payload)
 end
 
 ---@internal
---- Ein zlib-Strom ohne Kompression: Header, *stored*-Blöcke, Adler-32.
+--- A zlib stream without compression: header, *stored* blocks, Adler-32.
 ---@param raw string
 ---@return string
 local function zlib_stored(raw)
-  local parts = { "\120\001" } -- CMF/FLG für "deflate, kein Preset"
+  local parts = { "\120\001" } -- CMF/FLG for "deflate, no preset"
 
   local pos, n = 1, #raw
   repeat
@@ -112,15 +109,15 @@ local function zlib_stored(raw)
 end
 
 ---@class Images.Testcard.Size
----@field width integer Pixel
----@field height integer Pixel
+---@field width integer pixels
+---@field height integer pixels
 
---- Pixelmaße für eine Zellbox bestimmen, so dass das Bild sie exakt ausfüllt.
---- Genau hier steckt der Zweck des Moduls: die Karte übernimmt das
---- Seitenverhältnis der Box, statt dass die Box sich nach der Karte richtet.
----@param cols integer Breite der Zeichenbox in Zellen
----@param rows integer Höhe der Zeichenbox in Zellen
----@param cell_aspect number Breite/Höhe einer Zelle
+--- Pixel dimensions for a cell box, such that the image fills it exactly.
+--- This is the whole point of the module: the card adopts the box's aspect
+--- ratio, rather than the box having to accommodate the card.
+---@param cols integer draw box width in cells
+---@param rows integer draw box height in cells
+---@param cell_aspect number width/height of one cell
 ---@return Images.Testcard.Size
 function M.size_for(cols, rows, cell_aspect)
   local w = cols * cell_aspect
@@ -132,34 +129,33 @@ function M.size_for(cols, rows, cell_aspect)
   }
 end
 
---- Eine Testkarte als PNG-Bytes bauen.
+--- Build a test card as PNG bytes.
 ---
---- Das Muster ist auf genau eine Frage hin entworfen: "berührt der Rand des
---- Bildes den Rand des Fensters?". Deshalb ein kräftiger, geschlossener
---- Rahmen direkt an der Kante und je ein Eckblock in einer anderen Farbe —
---- fehlt an einer Seite ein Stück Rahmen, ist es dort abgeschnitten; ist
---- zwischen Rahmen und Fensterrand eine Lücke, sitzt das Bild zu weit innen.
---- Die Mittelkreuze geben zusätzlich einen Anhaltspunkt für "wie viel", weil
---- sie die Fläche in sichtbare Viertel teilen.
----@param width integer Pixel
----@param height integer Pixel
----@return string png Rohe Dateibytes
+--- The pattern is designed around exactly one question: "does the image's edge
+--- touch the window's edge?". Hence a solid, closed frame right at the border
+--- plus a corner block in a second colour — if a stretch of frame is missing
+--- on one side, the image is cut off there; if there is a gap between frame
+--- and window border, the image sits too far in. The centre cross adds a sense
+--- of "by how much" by splitting the area into visible quarters.
+---@param width integer pixels
+---@param height integer pixels
+---@return string png raw file bytes
 function M.build(width, height)
   width, height = math.max(8, width), math.max(8, height)
 
-  -- Rahmenstärke: sichtbar, aber nie mehr als ein Achtel der kurzen Kante,
-  -- damit das Muster auch bei einer sehr schmalen Box lesbar bleibt.
+  -- Frame thickness: visible, but never more than an eighth of the short
+  -- edge, so the pattern stays readable even in a very narrow box.
   local border = math.max(2, math.floor(math.min(width, height) / 24))
   local corner = math.max(border * 3, math.floor(math.min(width, height) / 6))
 
   local BG = { 0x12, 0x14, 0x1A }
-  local FRAME = { 0xE6, 0xB4, 0x50 } -- warm, hebt sich von jedem Theme ab
+  local FRAME = { 0xE6, 0xB4, 0x50 } -- warm, stands out against any theme
   local CORNER = { 0x4F, 0xC3, 0xF7 }
   local CROSS = { 0x55, 0x5A, 0x66 }
 
   local rows_out = {}
   for y = 0, height - 1 do
-    local line = { "\0" } -- Filter "None"
+    local line = { "\0" } -- filter "None"
     for x = 0, width - 1 do
       local c = BG
 
@@ -167,8 +163,8 @@ function M.build(width, height)
       local near_h = y < border or y >= height - border
       if near_v or near_h then
         c = FRAME
-        -- Ecken abweichend einfärben: sie verraten, WELCHE Kante fehlt, wenn
-        -- nur ein Teil des Bildes abgeschnitten ist.
+        -- Corners in a different colour: they reveal WHICH edge is missing
+        -- when only part of the image is cut off.
         local in_corner = (x < corner or x >= width - corner) and (y < corner or y >= height - corner)
         if in_corner then c = CORNER end
       elseif x == math.floor(width / 2) or y == math.floor(height / 2) then
@@ -184,7 +180,7 @@ function M.build(width, height)
   return "\137PNG\r\n\26\n" .. chunk("IHDR", ihdr) .. chunk("IDAT", zlib_stored(table.concat(rows_out))) .. chunk("IEND", "")
 end
 
---- Eine Testkarte für `cols`x`rows` in eine temporäre Datei schreiben.
+--- Write a test card for `cols`x`rows` to a temporary file.
 ---@param cols integer
 ---@param rows integer
 ---@param cell_aspect number
@@ -193,11 +189,11 @@ end
 function M.write(cols, rows, cell_aspect)
   local size = M.size_for(cols, rows, cell_aspect)
   local ok, png = pcall(M.build, size.width, size.height)
-  if not ok then return nil, "Testkarte konnte nicht erzeugt werden: " .. tostring(png) end
+  if not ok then return nil, "could not build the test card: " .. tostring(png) end
 
   local path = vim.fn.tempname() .. "-images-testcard.png"
   local f, ferr = io.open(path, "wb")
-  if not f then return nil, "Testkarte nicht schreibbar: " .. tostring(ferr) end
+  if not f then return nil, "test card not writable: " .. tostring(ferr) end
   f:write(png)
   f:close()
   return path
