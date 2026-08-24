@@ -54,6 +54,48 @@ function M.resolve_window(target)
   return nil, ("Ungültiges Fenster- oder Buffer-Handle: %s"):format(tostring(target))
 end
 
+--- Wie viele Zeilen/Spalten der Rahmen eines Fensters dessen Inhalt nach
+--- innen schiebt.
+---
+--- `nvim_win_get_position` bleibt vom Rahmen unberührt: es liefert für ein
+--- gerahmtes wie für ein rahmenloses Fenster mit identischer `row`/`col`-
+--- Konfiguration denselben Wert — nämlich die Position der Rahmen-
+--- AUSSENKANTE, nicht die des Inhalts. Ein Fenster mit oberem und linkem
+--- Rahmensegment rückt seinen tatsächlichen Inhalt deshalb um je eine Zelle
+--- nach unten/rechts ein, ohne dass sich das in `pos` niederschlägt (per
+--- `screenpos()` gegengeprüft: ohne Rahmen deckungsgleich mit `pos + 1`, mit
+--- `rounded`/`single` genau eine Zelle mehr in Zeile und Spalte). Wer diesen
+--- Versatz ignoriert, zeichnet eine Zelle zu früh — sichtbar als Bild, das
+--- den Rahmen überlappt statt in ihm zu sitzen. `images.scale.anchor_box`
+--- ist davon nicht betroffen: `nvim_win_get_width`/`_height` geben bereits
+--- nur den Inhaltsbereich zurück, mit oder ohne Rahmen identisch.
+---@param winid integer bereits als gültig geprüft
+---@return integer row_inset 0 oder 1
+---@return integer col_inset 0 oder 1
+local function border_inset(winid)
+  local ok, config = pcall(vim.api.nvim_win_get_config, winid)
+  if not ok then return 0, 0 end
+
+  local border = config.border
+  if type(border) ~= "table" then return 0, 0 end -- "none" oder kein Rahmen gesetzt
+
+  -- Reihenfolge laut `:h nvim_open_win()`: {top-left, top, top-right, right,
+  -- bottom-right, bottom, bottom-left, left}. Jedes Segment ist entweder ein
+  -- Zeichen oder ein {Zeichen, Highlight}-Paar. Oben/links schieben den
+  -- Inhalt ein, sobald eines ihrer drei beteiligten Segmente belegt ist —
+  -- ein reiner Top-Rahmen ohne linkes Segment verschiebt z.B. nur die Zeile.
+  local function present(...)
+    for _, i in ipairs({ ... }) do
+      local seg = border[i]
+      if type(seg) == "table" then seg = seg[1] end
+      if type(seg) == "string" and seg ~= "" then return true end
+    end
+    return false
+  end
+
+  return (present(1, 2, 3) and 1 or 0), (present(1, 7, 8) and 1 or 0)
+end
+
 ---@param winid integer bereits als gültig geprüft
 ---@param position string siehe `images.scale.POSITIONS`
 ---@param file string
@@ -66,12 +108,13 @@ local function draw_now(winid, position, file, scale)
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
+  local row_inset, col_inset = border_inset(winid)
 
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
 
   require("images.terminal").clear()
-  return require("images.terminal").draw(file, pos[1] + 1 + row_off, pos[2] + 1 + col_off, cols, rows)
+  return require("images.terminal").draw(file, pos[1] + 1 + row_inset + row_off, pos[2] + 1 + col_inset + col_off, cols, rows)
 end
 
 ---@class Images.Anchor.Opts

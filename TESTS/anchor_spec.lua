@@ -101,4 +101,61 @@ return function(H)
     vim.api.nvim_ui_send = real_send
     require("images.terminal").clear()
   end)
+
+  -- ── draw(): Rahmen schiebt die Zeichenposition ein, nicht die Größe ──────
+  -- Regressionstest für den Versatz, den ein gerahmtes Hover-Float zeigte:
+  -- `nvim_win_get_position` bleibt bei einem Rahmen unverändert (weiterhin
+  -- die Rahmen-AUSSENKANTE), also muss `draw_now` selbst um ein Rahmensegment
+  -- einrücken. Geprüft über die tatsächlich an `images.terminal.draw`
+  -- übergebenen Koordinaten, nicht über die gesendeten Bytes — die Werte
+  -- sind hier das Interessante, nicht das Protokoll selbst.
+  H.tmpdir(function(dir)
+    local img = dir .. "/probe.png"
+    H.write(img, "\137PNG\r\n\26\n-- nicht dekodierbar, aber nicht leer")
+
+    local scratch = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { "", "", "", "", "" })
+
+    ---@param border string|table
+    ---@return { row: integer, col: integer }
+    local function draw_into(border)
+      local win = vim.api.nvim_open_win(scratch, false, {
+        relative = "editor",
+        row = 10,
+        col = 10,
+        width = 10,
+        height = 5,
+        style = "minimal",
+        border = border,
+        focusable = false,
+        noautocmd = true,
+      })
+
+      local captured
+      local real_draw = require("images.terminal").draw
+      require("images.terminal").draw = function(_file, row, col, cols, rows)
+        captured = { row = row, col = col, cols = cols, rows = rows }
+        return true
+      end
+
+      anchor.draw(win, "full", img)
+      require("images.terminal").draw = real_draw
+      vim.api.nvim_win_close(win, true)
+      return captured
+    end
+
+    local none = draw_into("none")
+    H.eq(none.row, 11, "ohne Rahmen: row = pos+1, kein Versatz")
+    H.eq(none.col, 11, "ohne Rahmen: col = pos+1, kein Versatz")
+
+    local rounded = draw_into("rounded")
+    H.eq(rounded.row, 12, "rounded: row zusätzlich um das obere Rahmensegment eingerückt")
+    H.eq(rounded.col, 12, "rounded: col zusätzlich um das linke Rahmensegment eingerückt")
+
+    local top_only = draw_into({ "", "-", "", "", "", "", "", "" })
+    H.eq(top_only.row, 12, "nur oberer Rahmen: row rückt ein")
+    H.eq(top_only.col, 11, "nur oberer Rahmen: col bleibt unverändert (kein linkes Segment)")
+
+    vim.api.nvim_buf_delete(scratch, { force = true })
+  end)
 end
