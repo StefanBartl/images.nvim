@@ -1,44 +1,40 @@
 ---@module 'images.screenshot'
----@brief Interaktive Bildschirmauswahl direkt in eine Datei aufnehmen.
+---@brief Capture an interactive screen selection straight into a file.
 ---@description
---- Ersetzt für den Alltagsfall drei Schritte (Screenshot-Tool von Hand
---- starten → Zwischenablage → `:Image paste`) durch einen: `:Image
---- screenshot` startet die Auswahl und läuft danach wie `:Image paste`
---- weiter (siehe `images.paste`s `capture_with_optional_name`).
+--- Replaces three everyday steps (launch a screenshot tool by hand ->
+--- clipboard -> `:Image paste`) with one: `:Image screenshot` starts the
+--- selection and then continues exactly like `:Image paste` (see
+--- `images.paste`'s `capture_with_optional_name`).
 ---
---- Durchgehend asynchron (`vim.system` ohne `:wait()`, jede Fortsetzung in
---- `vim.schedule`), nie ein blockierendes `sleep`: Der User braucht für eine
---- Auswahl Sekunden bis zu einer Minute, und `:wait()` blockiert Neovims
---- gesamte Event-Loop für die Dauer des Subprozesses — ein eingefrorenes
---- Neovim, während man eigentlich nur einen Bereich zieht. Derselbe Aufbau
---- wie `lib.nvim.system.job`, das aus genau diesem Grund nie `:wait()`
---- verwendet.
+--- Asynchronous throughout (`vim.system` without `:wait()`, every
+--- continuation inside `vim.schedule`), never a blocking `sleep`: a selection
+--- takes the user anywhere from seconds to a minute, and `:wait()` blocks
+--- Neovim's entire event loop for the subprocess's lifetime — a frozen editor
+--- while all you are doing is dragging a rectangle. The same construction as
+--- `lib.nvim.system.job`, which avoids `:wait()` for precisely this reason.
 ---
---- Plattformen, unterschiedlich zuverlässig:
+--- Platforms, in decreasing order of reliability:
 ---
---- * macOS — `screencapture -i`: interaktive Auswahl per Ziehen oder Klick
----   auf ein Fenster, schreibt direkt in die Zieldatei. Bricht der User mit
----   <Esc> ab, liefert `screencapture` trotzdem Exit-Code 0 — daran ist ein
----   Abbruch nicht zu erkennen, nur an der fehlenden/leeren Datei.
+--- * macOS — `screencapture -i`: interactive selection by dragging or clicking
+---   a window, writing straight to the target file. If the user cancels with
+---   <Esc>, `screencapture` still exits 0 — a cancellation is not visible in
+---   the exit code, only in the missing/empty file.
 ---
---- * Linux — `grim -g "$(slurp)"` (Wayland, beide Werkzeuge nötig) oder
----   `maim -s` (X11, ein Werkzeug reicht). `slurp` liefert die vom User
----   gezogene Region auf stdout; bricht der User ab, liefert es nichts, und
----   `grim` wird gar nicht erst aufgerufen.
+--- * Linux — `grim -g "$(slurp)"` (Wayland, both tools needed) or `maim -s`
+---   (X11, one tool suffices). `slurp` writes the region the user dragged to
+---   stdout; if they cancel it writes nothing and `grim` is never invoked.
 ---
---- * Windows — der unsicherste der drei Wege. Es gibt keinen dokumentierten
----   CLI-Aufruf, der das moderne Snipping-Tool direkt in eine Datei
----   schreiben lässt. `explorer.exe ms-screenclip:` startet die
----   Auswahl-Oberfläche (dasselbe wie Win+Shift+S), kehrt aber sofort zurück
----   und kopiert das Ergebnis nach Abschluss in die Zwischenablage — ohne
----   Signal, wann das passiert. Dieses Modul pollt die Zwischenablage
----   danach per Timer (nicht blockierend) auf ein *neues* Bild, mit
----   Timeout. Die Polling-/Vergleichslogik selbst wurde manuell gegen eine
----   künstlich zeitversetzt veränderte Zwischenablage verifiziert; ob
----   `ms-screenclip:` in jeder Windows-Version wie dokumentiert startet, war
----   in dieser Umgebung nicht simulierbar — `:Image paste` bleibt der
----   unveränderte, bewährte Zwei-Schritt-Weg, falls diese Automatisierung
----   einmal nicht greift.
+--- * Windows — the least certain of the three. There is no documented CLI
+---   invocation that makes the modern Snipping Tool write directly to a file.
+---   `explorer.exe ms-screenclip:` launches the selection UI (the same as
+---   Win+Shift+S) but returns immediately and copies the result to the
+---   clipboard when finished — with no signal for when that happens. This
+---   module then polls the clipboard on a timer (non-blocking) for a *new*
+---   image, with a timeout. The polling/comparison logic itself was verified
+---   manually against a clipboard changed on an artificial delay; whether
+---   `ms-screenclip:` launches as documented on every Windows version could
+---   not be simulated in this environment — `:Image paste` remains the
+---   unchanged, proven two-step route should this automation ever fail.
 
 local M = {}
 
@@ -47,9 +43,9 @@ local function cfg()
   return require("images.config").get()
 end
 
---- Datei nach einer Aufnahme prüfen: existiert sie und ist sie nicht leer?
---- Gemeinsamer Abschluss für macOS/Linux, wo ein Abbruch (<Esc>) nicht am
---- Exit-Code erkennbar ist, nur an der fehlenden/leeren Datei.
+--- Check the file after a capture: does it exist, and is it non-empty? The
+--- shared ending for macOS/Linux, where a cancellation (<Esc>) is not visible
+--- in the exit code, only in the missing/empty file.
 ---@param out string
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
@@ -57,7 +53,7 @@ local function finish_from_file(out, callback)
   local stat = vim.uv.fs_stat(out)
   if not stat or stat.size == 0 then
     pcall(vim.uv.fs_unlink, out)
-    callback(false, "Abgebrochen")
+    callback(false, "cancelled")
     return
   end
   callback(true)
@@ -87,13 +83,13 @@ local function capture_linux(out, callback)
     vim.system({ "slurp" }, { text = true }, function(sel)
       vim.schedule(function()
         if sel.code ~= 0 or vim.trim(sel.stdout or "") == "" then
-          callback(false, "Abgebrochen")
+          callback(false, "cancelled")
           return
         end
         vim.system({ "grim", "-g", vim.trim(sel.stdout), out }, { text = true }, function(gr)
           vim.schedule(function()
             if gr.code ~= 0 then
-              callback(false, "grim fehlgeschlagen: " .. vim.trim(gr.stderr or ""))
+              callback(false, "grim failed: " .. vim.trim(gr.stderr or ""))
               return
             end
             finish_from_file(out, callback)
@@ -102,26 +98,26 @@ local function capture_linux(out, callback)
       end)
     end)
   elseif executable.exists("maim") then
-    -- -s: interaktive Auswahl per Ziehen. Abbruch (<Esc>) liefert exit != 0.
+    -- -s: interactive drag selection. Cancelling (<Esc>) exits non-zero.
     vim.system({ "maim", "-s", out }, { text = true }, function(result)
       vim.schedule(function()
         if result.code ~= 0 then
-          callback(false, "Abgebrochen")
+          callback(false, "cancelled")
           return
         end
         finish_from_file(out, callback)
       end)
     end)
   else
-    callback(false, "Weder `grim`+`slurp` (Wayland) noch `maim` (X11) gefunden")
+    callback(false, "neither `grim`+`slurp` (Wayland) nor `maim` (X11) found")
   end
 end
 
 -- ── Windows ──────────────────────────────────────────────────────────────────
 
---- PowerShell-Fragment: aktuelles Zwischenablage-Bild als Base64 ausgeben,
---- oder nichts, wenn keins da ist. Wiederverwendet für Vorher-Snapshot und
---- jeden Poll-Tick.
+--- PowerShell fragment: print the current clipboard image as base64, or
+--- nothing when there is none. Reused for the baseline snapshot and for every
+--- poll tick.
 local PS_READ_CLIPBOARD_B64 = table.concat({
   "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
   "$img = [System.Windows.Forms.Clipboard]::GetImage();",
@@ -131,7 +127,7 @@ local PS_READ_CLIPBOARD_B64 = table.concat({
   "[Convert]::ToBase64String($ms.ToArray());",
 }, " ")
 
---- Aktuellen Zwischenablage-Bildinhalt lesen, asynchron.
+--- Read the current clipboard image content, asynchronously.
 ---@param callback fun(data: string|nil)
 ---@return nil
 local function read_clipboard_image_async(callback)
@@ -152,8 +148,8 @@ local function read_clipboard_image_async(callback)
   )
 end
 
---- Snip-Oberfläche starten, per Timer (nicht blockierend) auf ein *neues*
---- Zwischenablage-Bild warten, dann nach `out` schreiben.
+--- Launch the snip UI, wait on a timer (non-blocking) for a *new* clipboard
+--- image, then write it to `out`.
 ---@param out string
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
@@ -162,7 +158,7 @@ local function capture_windows(out, callback)
     vim.system({ "explorer.exe", "ms-screenclip:" }, { text = true }, function(launch)
       vim.schedule(function()
         if launch.code ~= 0 then
-          callback(false, "Snipping Tool konnte nicht gestartet werden")
+          callback(false, "could not launch the Snipping Tool")
           return
         end
 
@@ -189,7 +185,7 @@ local function capture_windows(out, callback)
                 stop()
                 local fd = io.open(out, "wb")
                 if not fd then
-                  callback(false, "Zieldatei nicht schreibbar: " .. out)
+                  callback(false, "target file not writable: " .. out)
                   return
                 end
                 fd:write(current)
@@ -197,7 +193,7 @@ local function capture_windows(out, callback)
                 callback(true)
               elseif elapsed >= timeout_ms then
                 stop()
-                callback(false, "Zeitüberschreitung — keine neue Aufnahme in der Zwischenablage erkannt")
+                callback(false, "timed out — no new capture detected in the clipboard")
               end
             end)
           end)
@@ -207,34 +203,32 @@ local function capture_windows(out, callback)
   end)
 end
 
--- ── Öffentliche API ──────────────────────────────────────────────────────────
+-- ── Public API ───────────────────────────────────────────────────────────────
 
---- Ob auf dieser Plattform überhaupt ein Aufnahmeweg zur Verfügung steht.
+--- Whether this platform offers any capture route at all.
 ---@return boolean
 function M.available()
   local executable = require("lib.nvim.cross.executable")
   if require("lib.nvim.cross.platform.is_macos")() then
     return executable.exists("screencapture")
   elseif require("lib.nvim.cross.platform.is_windows")() then
-    return true -- ms-screenclip: gehört zu Windows, kein separates Tool nötig
+    return true -- ms-screenclip: ships with Windows, no separate tool needed
   else
     return (executable.exists("grim") and executable.exists("slurp")) or executable.exists("maim")
   end
 end
 
---- Begründung, wenn `available()` false ist — für die Fehlermeldung.
+--- The reason `available()` is false — for the error message.
 ---@return string
 function M.unavailable_reason()
-  if require("lib.nvim.cross.platform.is_macos")() then
-    return "`screencapture` nicht gefunden (gehört normalerweise zu macOS)"
-  end
-  return "Weder `grim`+`slurp` (Wayland) noch `maim` (X11) gefunden"
+  if require("lib.nvim.cross.platform.is_macos")() then return "`screencapture` not found (normally ships with macOS)" end
+  return "neither `grim`+`slurp` (Wayland) nor `maim` (X11) found"
 end
 
---- Interaktive Bildschirmauswahl starten und nach `out` schreiben. Kehrt
---- sofort zurück; `callback(ok, err)` läuft, sobald der User fertig ist,
---- abgebrochen hat, oder (nur Windows) das Timeout erreicht wurde.
----@param out string Zielpfad (PNG)
+--- Start an interactive screen selection and write it to `out`. Returns
+--- immediately; `callback(ok, err)` runs once the user is done, has cancelled,
+--- or (Windows only) the timeout was reached.
+---@param out string target path (PNG)
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 function M.capture(out, callback)
