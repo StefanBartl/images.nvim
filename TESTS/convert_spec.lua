@@ -33,9 +33,7 @@ return function(H)
   vim.fn.mkdir(root, "p")
   local svg_path = root .. "/test.svg"
   local fd = assert(io.open(svg_path, "w"))
-  fd:write(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' .. '<rect width="10" height="10" fill="red"/></svg>'
-  )
+  fd:write('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">' .. '<rect width="10" height="10" fill="red"/></svg>')
   fd:close()
 
   png, err = convert.to_png(svg_path)

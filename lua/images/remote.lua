@@ -1,25 +1,24 @@
 ---@module 'images.remote'
----@brief Bild von einer http(s)-URL laden und cachen.
+---@brief Download and cache an image from an http(s) URL.
 ---@description
---- Standardmäßig AUS: Ein Markdown-Dokument mit einem Remote-Bild-Link würde
---- sonst schon beim bloßen Hover eine ausgehende Netzwerkanfrage auslösen —
---- genau das Verhalten, das E-Mail-Clients seit Jahren aus
---- Datenschutzgründen standardmäßig blockieren ("externe Bilder laden").
---- `display.remote.enabled = true` schaltet es bewusst ein.
+--- Off by default: otherwise a markdown document containing a remote image
+--- link would fire an outbound network request on a mere hover — exactly the
+--- behaviour mail clients have blocked by default for years on privacy grounds
+--- ("load external images"). `display.remote.enabled = true` turns it on
+--- deliberately.
 ---
---- Greift nur beim expliziten Anzeigen eines einzelnen Bildes (`:Image show`,
---- Hover), nicht beim Scannen (`:Image list`/`gallery`/`next`/`prev`/
---- `orphans`, `images.resolve.to_path`) — sonst würde ein bloßes Auflisten
---- der Bilder eines Buffers N Netzwerkanfragen auslösen, nur um eine Liste
---- zu zeigen. `:Image gallery`/`compare`/`browse`/`zen` unterstützen
---- Remote-Bilder aus demselben Grund (noch) nicht — offene Arbeit, siehe
---- docs/ROADMAP/FEATURES.md.
+--- Applies only when explicitly displaying a single image (`:Image show`,
+--- hover), not while scanning (`:Image list`/`gallery`/`next`/`prev`/
+--- `orphans`, `images.resolve.to_path`) — otherwise merely listing a buffer's
+--- images would fire N network requests just to show a list. `:Image
+--- gallery`/`compare`/`browse`/`zen` do not support remote images (yet) for
+--- the same reason — open work, see docs/ROADMAP/FEATURES.md.
 
 local M = {}
 
---- Ob `target` wie eine ladbare Remote-URL aussieht. Bewusst nur http(s) —
---- andere Schemata (`ftp://`, `file://`, …) bräuchten andere Werkzeuge und
---- sind für Markdown-Bildlinks nicht der praktische Fall.
+--- Whether `target` looks like a downloadable remote URL. Deliberately http(s)
+--- only — other schemes (`ftp://`, `file://`, …) would need different tools and
+--- are not the practical case for markdown image links.
 ---@param target string
 ---@return boolean
 function M.is_remote(target)
@@ -33,11 +32,11 @@ local function cache_dir()
   return dir
 end
 
---- Cache-Pfad für eine URL: Hash der URL, mit der Endung aus dem Pfadanteil
---- (ohne Query/Fragment), falls erkennbar. WezTerm erkennt das Bildformat
---- ohnehin an den Bytes; die Endung wird nur gebraucht, damit eine
---- `.svg`-URL nach dem Download weiter als SVG erkannt und konvertiert wird
---- (siehe `images.convert`, `images.terminal`'s Zeichenpfad).
+--- Cache path for a URL: a hash of the URL, with the extension taken from the
+--- path component (without query/fragment) where recognisable. WezTerm detects
+--- the image format from the bytes anyway; the extension is needed only so
+--- that a `.svg` URL is still recognised as SVG after download and converted
+--- (see `images.convert` and `images.terminal`'s draw path).
 ---@param url string
 ---@return string
 local function cache_path(url)
@@ -52,22 +51,20 @@ local function cfg()
   return require("images.config").get()
 end
 
---- Bild von `url` laden, gecacht — ein zweiter Aufruf mit derselben URL
---- lädt nicht erneut, sondern trifft den Cache.
+--- Download the image at `url`, cached — a second call with the same URL does
+--- not download again but hits the cache.
 ---
---- Asynchron: das Ergebnis kommt ausschließlich über `on_done`. Der Download
---- lief bis eben über `vim.system(...):wait()` und hielt den UI-Thread für
---- die gesamte Übertragung an — bei einer langsamen Leitung bis zum
---- konfigurierten Timeout (Default 10s). Ein Cache-Treffer ruft `on_done`
---- noch im selben Tick auf, ohne Prozess.
+--- Asynchronous: the result arrives exclusively via `on_done`. The download
+--- used to run through `vim.system(...):wait()` and held the UI thread for the
+--- entire transfer — on a slow line, up to the configured timeout (default
+--- 10s). A cache hit calls `on_done` within the same tick, with no process at
+--- all.
 ---@param url string
 ---@param on_done fun(local_path: string|nil, err: string|nil)
 ---@return nil
 function M.fetch(url, on_done)
   local c = cfg().display.remote
-  if not c.enabled then
-    return on_done(nil, "Remote-Bilder sind deaktiviert (`display.remote.enabled = true` zum Einschalten)")
-  end
+  if not c.enabled then return on_done(nil, "remote images are disabled (`display.remote.enabled = true` to turn them on)") end
 
   local out = cache_path(url)
   if vim.uv.fs_stat(out) then return on_done(out, nil) end
@@ -90,29 +87,26 @@ function M.fetch(url, on_done)
       url,
     }
   elseif executable.exists("wget") then
-    -- -Q<bytes>: Quota, das nächstbeste Aequivalent zu curls --max-filesize.
+    -- -Q<bytes>: a quota, the closest equivalent to curl's --max-filesize.
     cmd = { "wget", "-q", "--timeout=" .. tostring(timeout_s), "-Q" .. tostring(max_bytes), "-O", out, url }
   else
-    return on_done(nil, "Weder `curl` noch `wget` gefunden")
+    return on_done(nil, "neither `curl` nor `wget` found")
   end
 
   vim.system(cmd, { text = true }, function(result)
-    -- vim.system-Callbacks laufen außerhalb der Main-Loop; der Aufrufer
-    -- zeichnet danach ins Terminal und notifiziert.
+    -- vim.system callbacks run outside the main loop; the caller draws to the
+    -- terminal and notifies afterwards.
     vim.schedule(function()
       if result.code ~= 0 then
         pcall(vim.uv.fs_unlink, out)
-        on_done(
-          nil,
-          ("Download fehlgeschlagen (exit %d): %s"):format(result.code, vim.trim(result.stderr or ""))
-        )
+        on_done(nil, ("download failed (exit %d): %s"):format(result.code, vim.trim(result.stderr or "")))
         return
       end
 
       local stat = vim.uv.fs_stat(out)
       if not stat or stat.size == 0 then
         pcall(vim.uv.fs_unlink, out)
-        on_done(nil, "Download lieferte keine Datei")
+        on_done(nil, "download produced no file")
         return
       end
 
