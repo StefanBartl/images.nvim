@@ -1,14 +1,14 @@
 ---@module 'images.scan'
----@brief Alle Bildlinks eines Buffers einsammeln.
+---@brief Collect every image link in a buffer.
 
 local M = {}
 
---- Bildziele eines Buffers, optional auf einen Zeilenbereich beschränkt.
----@param buf integer|nil default: aktueller Buffer
----@param first integer|nil 1-basierte Startzeile
----@param last integer|nil 1-basierte Endzeile
----@return ImagesNvim.Target[] gefundene Ziele
----@return string[] unauflösbare Ziele (für eine Warnung an den User)
+--- A buffer's image targets, optionally restricted to a line range.
+---@param buf integer|nil default: current buffer
+---@param first integer|nil 1-based first line
+---@param last integer|nil 1-based last line
+---@return ImagesNvim.Target[] targets found
+---@return string[] unresolvable targets (to warn the user about)
 function M.buffer(buf, first, last)
   buf = buf or vim.api.nvim_get_current_buf()
   if not vim.api.nvim_buf_is_valid(buf) then return {}, {} end

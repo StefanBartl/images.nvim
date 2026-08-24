@@ -1,36 +1,37 @@
 ---@module 'images.convert'
----@brief Formatkonvertierung über ImageMagick: SVG→PNG, Bild→PDF, Bild→geschwärzte Kopie.
+---@brief Format conversion via ImageMagick: SVG->PNG, image->PDF,
+--- image->redacted copy.
 ---@description
---- Drei unabhängige Konvertierungen, ein Modul, weil alle drei dieselbe
---- `magick`-Abhängigkeit und dieselbe Fehlerbehandlung teilen:
+--- Three independent conversions in one module, because all three share the
+--- same `magick` dependency and the same error handling:
 ---
---- `M.to_png` — WezTerm dekodiert PNG/JPEG/GIF/WebP selbst, aber kein SVG.
---- Hier ist eine Konvertierung wirklich nötig, nicht nur eine Verbesserung —
---- bewusst der einzige *Anzeige*-Fall, in dem `magick` Voraussetzung statt
---- Zugabe ist (siehe die Leitplanke in docs/ROADMAP/README.md). Ergebnisse
---- landen gecacht in `stdpath("cache")/images.nvim/svg`, benannt nach
---- Quellpfad + Änderungszeit — ein geändertes SVG bekommt automatisch eine
---- neue PNG-Datei statt eine veraltete zu zeigen.
+--- `M.to_png` — WezTerm decodes PNG/JPEG/GIF/WebP itself, but not SVG. Here a
+--- conversion is genuinely required rather than merely an improvement —
+--- deliberately the only *display* case where `magick` is a prerequisite
+--- instead of a bonus (see the guardrail in docs/ROADMAP/README.md). Results
+--- are cached in `stdpath("cache")/images.nvim/svg`, named after source path
+--- plus modification time — a changed SVG automatically gets a new PNG rather
+--- than showing a stale one.
 ---
---- `M.to_pdf` — die Gegenrichtung von `pdfport.nvim`s "PDF-Seite als Bild"
---- (siehe docs/ROADMAP/CROSS-PLUGIN.md): ein vorhandenes Bild als PDF neben
---- der Quelldatei ablegen, z.B. um einen Screenshot an ein Ticket
---- anzuhängen, das eine PDF erwartet. Kein Cache — anders als SVG-Anzeige
---- ist das ein einmaliger, expliziter Export, kein wiederholter Zeichenpfad.
+--- `M.to_pdf` — the opposite direction of `pdfport.nvim`'s "PDF page as an
+--- image" (see docs/ROADMAP/CROSS-PLUGIN.md): write an existing image out as a
+--- PDF next to its source, e.g. to attach a screenshot to a ticket that
+--- expects a PDF. No cache — unlike SVG display this is a one-off, explicit
+--- export, not a repeated draw path.
 ---
---- Ist `pdfport.nvim` installiert und meldet `can_create("image")` einen
---- verfügbaren Producer, läuft der Export darüber (asynchron, verlustfrei
---- über `img2pdf`, sonst `magick` — welcher Producer greift, entscheidet
---- pdfports eigene `create_chain`, nicht dieses Plugin). Ohne pdfport bleibt
---- der bisherige synchrone `magick`-Pfad unverändert die einzige Option.
---- Soft-Dependency über `pcall`, wie überall in diesem Repo (siehe
+--- If `pdfport.nvim` is installed and `can_create("image")` reports an
+--- available producer, the export runs through it (asynchronously, losslessly
+--- via `img2pdf`, otherwise `magick` — which producer applies is pdfport's
+--- own `create_chain` to decide, not this plugin's). Without pdfport the
+--- existing synchronous `magick` path remains the only option, unchanged. A
+--- soft dependency via `pcall`, as everywhere in this repo (see
 --- CROSS-PLUGIN.md).
 ---
---- `M.redact` — Rechtecke (Pixelkoordinaten, siehe `images.scale`) schwarz
---- übermalen und als neue Datei ablegen, siehe docs/ROADMAP/REDACT.md für
---- das volle Konzept (Motivation: casedesk-Anhänge mit Kundendaten, die vor
---- einer künftigen KI-Übergabe unkenntlich gemacht werden müssen). Kein
---- Cache, wie `M.to_pdf` — ein einmaliger Export, kein Zeichenpfad.
+--- `M.redact` — paint rectangles (pixel coordinates, see `images.scale`) black
+--- and write the result as a new file; see docs/ROADMAP/REDACT.md for the full
+--- concept (motivation: casedesk attachments containing customer data that has
+--- to be made unrecognisable before any future handover to an AI). No cache,
+--- like `M.to_pdf` — a one-off export, not a draw path.
 
 local M = {}
 
@@ -47,51 +48,50 @@ local function cache_dir()
   return dir
 end
 
---- SVG nach PNG konvertieren, mit Cache über Quellpfad + Änderungszeit.
----@param path string absoluter Pfad zu einer .svg-Datei
+--- Convert SVG to PNG, cached by source path plus modification time.
+---@param path string absolute path to a .svg file
 ---@return string|nil png_path
 ---@return string|nil err
 function M.to_png(path)
   if not require("lib.nvim.cross.executable").exists("magick") then
-    return nil, "SVG braucht ImageMagick (`magick` nicht gefunden)"
+    return nil, "SVG requires ImageMagick (`magick` not found)"
   end
 
   local stat = vim.uv.fs_stat(path)
-  if not stat then return nil, "Datei nicht gefunden: " .. path end
+  if not stat then return nil, "file not found: " .. path end
 
-  -- sha256 aus Pfad+mtime als Dateiname: kollisionsfrei genug für einen
-  -- Cache, und ein geändertes SVG bekommt automatisch einen neuen Schlüssel.
+  -- sha256 of path+mtime as the file name: collision-free enough for a cache,
+  -- and a changed SVG automatically gets a new key.
   local key = vim.fn.sha256(path .. ":" .. tostring(stat.mtime and stat.mtime.sec or 0))
   local out = cache_dir() .. "/" .. key .. ".png"
 
   if vim.uv.fs_stat(out) then return out end
 
-  -- -background none: transparenter Hintergrund statt eines erratenen
-  -- Weiß/Schwarz, das auf einem farbigen Terminalhintergrund falsch aussähe.
+  -- -background none: a transparent background rather than a guessed
+  -- white/black that would look wrong on a coloured terminal background.
   local result = vim.system({ "magick", path, "-background", "none", out }, { text = true }):wait()
   if result.code ~= 0 then
     pcall(vim.uv.fs_unlink, out)
-    return nil, "Konvertierung fehlgeschlagen: " .. vim.trim(result.stderr or "")
+    return nil, "conversion failed: " .. vim.trim(result.stderr or "")
   end
-  if not vim.uv.fs_stat(out) then return nil, "Konvertierung lieferte keine Datei" end
+  if not vim.uv.fs_stat(out) then return nil, "conversion produced no file" end
   return out
 end
 
---- Bild als PDF exportieren, neben der Quelldatei mit derselben Basis
---- ("bild.png" → "bild.pdf"). Existiert die Zieldatei bereits, wird sie
---- überschrieben — dieselbe Haltung wie `:Image paste`/`replace`, die
---- Zieldateien ebenfalls ohne Rückfrage schreiben; images.nvim fragt bei
---- Dateioperationen grundsätzlich nicht nach, sondern meldet das Ergebnis.
+--- Export an image as a PDF next to the source file, on the same stem
+--- ("image.png" -> "image.pdf"). An existing target file is overwritten — the
+--- same stance as `:Image paste`/`replace`, which also write target files
+--- without asking; images.nvim does not prompt on file operations as a rule,
+--- it reports the outcome.
 ---
---- `on_done` ist der einzige Weg, das Ergebnis zu erfahren: beide Pfade —
---- pdfport wie magick — rufen es asynchron auf, sobald die Konvertierung
---- fertig ist. Die Rückgabewerte sind entsprechend immer nil und nur noch
---- für die Fälle gesetzt, die schon vor dem Start scheitern (kein magick,
---- Datei nicht gefunden).
----@param path string absoluter Pfad zu einer Bilddatei
+--- `on_done` is the only way to learn the result: both paths — pdfport and
+--- magick alike — call it asynchronously once the conversion finishes. The
+--- return values are therefore always nil, and set only for the cases that
+--- fail before starting at all (no magick, file not found).
+---@param path string absolute path to an image file
 ---@param on_done fun(ok: boolean, out_path_or_err: string)|nil
----@return string|nil pdf_path  nur im synchronen (magick) Erfolgsfall gesetzt
----@return string|nil err       nur im synchronen (magick) Fehlerfall gesetzt
+---@return string|nil pdf_path  set only on the synchronous (magick) success path
+---@return string|nil err       set only on the synchronous (magick) failure path
 function M.to_pdf(path, on_done)
   local ok_pp, pdfport = pcall(require, "pdfport")
   if ok_pp and type(pdfport.can_create) == "function" and pdfport.can_create("image") then
@@ -103,7 +103,7 @@ function M.to_pdf(path, on_done)
         if result.status == "ok" then
           on_done(true, result.path)
         else
-          on_done(false, result.error or "Export fehlgeschlagen (pdfport)")
+          on_done(false, result.error or "export failed (pdfport)")
         end
       end,
     })
@@ -111,36 +111,36 @@ function M.to_pdf(path, on_done)
   end
 
   if not require("lib.nvim.cross.executable").exists("magick") then
-    local err = "PDF-Export braucht ImageMagick (`magick` nicht gefunden)"
+    local err = "PDF export requires ImageMagick (`magick` not found)"
     if on_done then on_done(false, err) end
     return nil, err
   end
 
   local stat = vim.uv.fs_stat(path)
   if not stat then
-    local err = "Datei nicht gefunden: " .. path
+    local err = "file not found: " .. path
     if on_done then on_done(false, err) end
     return nil, err
   end
 
   local out = vim.fn.fnamemodify(path, ":r") .. ".pdf"
 
-  -- `magick` lief hier bis eben über `vim.system(...):wait()` und blockierte
-  -- damit den UI-Thread für die gesamte Konvertierung — bei einem großen Bild
-  -- sind das Sekunden. Jetzt asynchron, genau wie der pdfport-Zweig darüber:
-  -- damit ist `on_done` in *beiden* Pfaden der Weg zum Ergebnis, so wie die
-  -- Doku dieser Funktion es ohnehin schon beschreibt.
+  -- `magick` used to run here through `vim.system(...):wait()`, blocking the
+  -- UI thread for the whole conversion -- seconds, for a large image. Now
+  -- asynchronous, exactly like the pdfport branch above: `on_done` is the route
+  -- to the result in *both* paths, which is what this function's docs already
+  -- describe anyway.
   vim.system({ "magick", path, out }, { text = true }, function(result)
-    -- vim.system-Callbacks laufen außerhalb der Main-Loop; `on_done` landet
-    -- bei jedem Aufrufer in notify und vim.fn.
+    -- vim.system callbacks run outside the main loop; every caller's `on_done`
+    -- ends up in notify and vim.fn.
     vim.schedule(function()
       if not on_done then return end
       if result.code ~= 0 then
-        on_done(false, "Export fehlgeschlagen: " .. vim.trim(result.stderr or ""))
+        on_done(false, "export failed: " .. vim.trim(result.stderr or ""))
         return
       end
       if not vim.uv.fs_stat(out) then
-        on_done(false, "Export lieferte keine Datei")
+        on_done(false, "export produced no file")
         return
       end
       on_done(true, out)
@@ -150,18 +150,17 @@ function M.to_pdf(path, on_done)
   return nil, nil
 end
 
---- Rechtecke schwarz übermalen und als neue Datei neben der Quelldatei
---- ablegen ("bild.png" → "bild.redacted.png"), das Original bleibt
---- unverändert. Existiert die Zieldatei bereits, wird sie überschrieben —
---- dieselbe Haltung wie `M.to_pdf`.
+--- Paint rectangles black and write the result as a new file next to the
+--- source ("image.png" -> "image.redacted.png"); the original stays untouched.
+--- An existing target file is overwritten — the same stance as `M.to_pdf`.
 ---
---- `on_done` ist der Weg zum Ergebnis: `magick` lief hier bis eben über
---- `vim.system(...):wait()` und blockierte den UI-Thread für die gesamte
---- Konvertierung. Bei mehreren Boxen auf einem großen Screenshot sind das
---- Sekunden — und der Zensur-Modus ist genau die Situation, in der man
---- danach direkt weiterarbeiten will.
----@param path string absoluter Pfad zu einer Bilddatei
----@param boxes { x1: integer, y1: integer, x2: integer, y2: integer }[] Pixelrechtecke, siehe `images.scale.cell_box_to_pixels`
+--- `on_done` is the route to the result: `magick` used to run here through
+--- `vim.system(...):wait()`, blocking the UI thread for the whole conversion.
+--- With several boxes on a large screenshot that is seconds — and redaction
+--- mode is exactly the situation where you want to carry straight on
+--- afterwards.
+---@param path string absolute path to an image file
+---@param boxes { x1: integer, y1: integer, x2: integer, y2: integer }[] pixel rectangles, see `images.scale.cell_box_to_pixels`
 ---@param on_done fun(out_path: string|nil, err: string|nil)|nil
 ---@return nil
 function M.redact(path, boxes, on_done)
@@ -170,12 +169,12 @@ function M.redact(path, boxes, on_done)
   end
 
   if not require("lib.nvim.cross.executable").exists("magick") then
-    return done(nil, "Schwärzen braucht ImageMagick (`magick` nicht gefunden)")
+    return done(nil, "redaction requires ImageMagick (`magick` not found)")
   end
-  if not boxes or #boxes == 0 then return done(nil, "Keine Box zum Schwärzen angegeben") end
+  if not boxes or #boxes == 0 then return done(nil, "no box given to redact") end
 
   local stat = vim.uv.fs_stat(path)
-  if not stat then return done(nil, "Datei nicht gefunden: " .. path) end
+  if not stat then return done(nil, "file not found: " .. path) end
 
   local ext = vim.fn.fnamemodify(path, ":e")
   local out = vim.fn.fnamemodify(path, ":r") .. ".redacted." .. (ext ~= "" and ext or "png")
@@ -188,15 +187,15 @@ function M.redact(path, boxes, on_done)
   table.insert(args, out)
 
   vim.system(args, { text = true }, function(result)
-    -- vim.system-Callbacks laufen außerhalb der Main-Loop; der Aufrufer
-    -- notifiziert und schließt ein Fenster.
+    -- vim.system callbacks run outside the main loop; the caller notifies and
+    -- closes a window.
     vim.schedule(function()
       if result.code ~= 0 then
-        done(nil, "Schwärzen fehlgeschlagen: " .. vim.trim(result.stderr or ""))
+        done(nil, "redaction failed: " .. vim.trim(result.stderr or ""))
         return
       end
       if not vim.uv.fs_stat(out) then
-        done(nil, "Schwärzen lieferte keine Datei")
+        done(nil, "redaction produced no file")
         return
       end
       done(out, nil)
