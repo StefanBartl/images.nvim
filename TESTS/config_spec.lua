@@ -1,40 +1,40 @@
--- TESTS/config_spec.lua — Defaults, Zusammenführung, Nutzbarkeit ohne setup().
+-- TESTS/config_spec.lua — defaults, merging, usability without setup().
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local config = require("images.config")
 
   -- ── Defaults ───────────────────────────────────────────────────────────────
   local cfg = config.setup(nil)
-  H.eq(cfg.command, "Image", "Default-Command")
-  H.eq(cfg.display.max_cols, 60, "Default-Breite in Zellen")
-  H.eq(cfg.display.redact.padding_cells, 1, "Default-Sicherheitsmarge für :Image redact")
-  H.eq(cfg.paste.dir, "assets", "Default-Zielverzeichnis")
-  H.eq(#cfg.paste.existing_dir_names, 2, "Default: zwei erkannte Ressourcen-Ordnernamen")
-  H.eq(cfg.paste.existing_dir_names[1], "Resources", "…zuerst der englische Name")
-  H.ok(#cfg.extensions > 0, "es gibt Default-Endungen")
+  H.eq(cfg.command, "Image", "default command")
+  H.eq(cfg.display.max_cols, 60, "default width in cells")
+  H.eq(cfg.display.redact.padding_cells, 1, "default safety margin for :Image redact")
+  H.eq(cfg.paste.dir, "assets", "default target directory")
+  H.eq(#cfg.paste.existing_dir_names, 2, "default: two recognised resource folder names")
+  H.eq(cfg.paste.existing_dir_names[1], "Resources", "…the English name first")
+  H.ok(#cfg.extensions > 0, "there are default extensions")
 
-  -- ── Teilweise Überschreibung lässt den Rest stehen ─────────────────────────
+  -- ── A partial override leaves the rest standing ──────────────────────────
   cfg = config.setup({ display = { max_cols = 30 } })
-  H.eq(cfg.display.max_cols, 30, "gesetzter Wert gewinnt")
-  H.eq(cfg.display.max_rows, 25, "nicht gesetzter Nachbar bleibt Default")
-  H.eq(cfg.command, "Image", "andere Abschnitte bleiben unberührt")
+  H.eq(cfg.display.max_cols, 30, "the value that was set wins")
+  H.eq(cfg.display.max_rows, 25, "an unset neighbour keeps its default")
+  H.eq(cfg.command, "Image", "other sections stay untouched")
 
-  -- ── Keymaps lassen sich einzeln abschalten ─────────────────────────────────
+  -- ── Keymaps can be disabled individually ─────────────────────────────────
   cfg = config.setup({ keymaps = { show = false } })
-  H.eq(cfg.keymaps.show, false, "false schaltet eine einzelne Bindung ab")
-  H.eq(cfg.keymaps.gallery, "<leader>ig", "die anderen bleiben bestehen")
+  H.eq(cfg.keymaps.show, false, "false disables a single binding")
+  H.eq(cfg.keymaps.gallery, "<leader>ig", "the others stay in place")
 
-  -- ── Defaults werden nicht mutiert ──────────────────────────────────────────
-  -- `setup` arbeitet auf einer Kopie; sonst würde ein zweites `setup` auf den
-  -- Resten des ersten aufsetzen statt auf den Defaults.
+  -- ── The defaults are never mutated ───────────────────────────────────────
+  -- `setup` works on a copy; otherwise a second `setup` would build on the
+  -- leftovers of the first rather than on the defaults.
   config.setup({ display = { max_cols = 1 } })
   cfg = config.setup(nil)
-  H.eq(cfg.display.max_cols, 60, "ein zweites setup startet wieder bei den Defaults")
+  H.eq(cfg.display.max_cols, 60, "a second setup starts from the defaults again")
 
-  -- ── get() funktioniert ohne vorheriges setup() ─────────────────────────────
-  -- Die Lua-API soll auch dann benutzbar sein, wenn der User nur `opts = {}`
-  -- über lazy setzt und `setup` nie selbst aufruft.
-  H.ok(config.get() ~= nil, "get() liefert immer eine Konfiguration")
-  H.eq(config.get().command, "Image", "…und zwar eine vollständige")
+  -- ── get() works without a prior setup() ──────────────────────────────────
+  -- The Lua API should stay usable when the user only sets `opts = {}` through
+  -- lazy and never calls `setup` themselves.
+  H.ok(config.get() ~= nil, "get() always returns a configuration")
+  H.eq(config.get().command, "Image", "…and a complete one at that")
 end

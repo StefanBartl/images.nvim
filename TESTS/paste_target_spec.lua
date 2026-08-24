@@ -1,23 +1,23 @@
--- TESTS/paste_target_spec.lua — Zielverzeichnis-Logik von `:Image paste`.
+-- TESTS/paste_target_spec.lua — `:Image paste`'s target directory logic.
 --
--- Deckt drei echte Fixes ab, alle ohne echte Zwischenablage: `paste_with_name`
--- und `capture_with_optional_name` nehmen `capture` als Parameter entgegen,
--- ein Fake genügt also (derselbe Trick wie orphans_spec.lua für Dateisystem-
--- Tests ohne Terminal).
+-- Covers three real fixes, all without a real clipboard: `paste_with_name` and
+-- `capture_with_optional_name` take `capture` as a parameter, so a fake
+-- suffices (the same trick orphans_spec.lua uses for filesystem tests without a
+-- terminal).
 --
---   1. Schlägt `capture` fehl (kein Bild in der Zwischenablage), wird KEIN
---      Zielverzeichnis angelegt — vorher legte `target_paths` das Verzeichnis
---      an, bevor überhaupt feststand, ob es etwas hineinzuschreiben gibt.
---   2. Existiert im Dokumentverzeichnis bereits "Resources" oder "Ressourcen",
---      wird dieses statt `paste.dir` ("assets") verwendet, kein zweites
---      Verzeichnis entsteht.
---   3. `:Image paste {name}` (direct_name) überspringt jede Namensabfrage und
---      verwendet den angegebenen Namen direkt.
+--   1. When `capture` fails (no image in the clipboard), NO target directory is
+--      created — `target_paths` used to create it before it was even settled
+--      whether there was anything to write into it.
+--   2. When the document's directory already holds "Resources" or "Ressourcen",
+--      that one is used instead of `paste.dir` ("assets"), and no second
+--      directory appears.
+--   3. `:Image paste {name}` (direct_name) skips every name prompt and uses the
+--      given name directly.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local paste = require("images.paste")
-  require("images.config").setup(nil) -- Default paste.dir = "assets"
+  require("images.config").setup(nil) -- default paste.dir = "assets"
 
   ---@param root string
   ---@return integer buf
@@ -38,12 +38,12 @@ return function(H)
         fd:close()
         cb(true)
       else
-        cb(false, "Kein Bild in der Zwischenablage")
+        cb(false, "no image in the clipboard")
       end
     end
   end
 
-  -- ── 1. Fehlgeschlagene Aufnahme legt kein Zielverzeichnis an ──────────────
+  -- ── 1. A failed capture creates no target directory ──────────────────────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
@@ -51,11 +51,11 @@ return function(H)
 
     paste.paste_with_name(buf, nil, fake_capture(false))
 
-    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "kein Bild in der Zwischenablage -> kein assets-Ordner")
+    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "no image in the clipboard -> no assets folder")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
-  -- ── 1b. Erfolgreiche Aufnahme legt das Verzeichnis an und schreibt hinein ──
+  -- ── 1b. A successful capture creates the directory and writes into it ────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
@@ -63,14 +63,14 @@ return function(H)
 
     paste.paste_with_name(buf, "shot.png", fake_capture(true))
 
-    H.eq(vim.fn.isdirectory(root .. "/assets"), 1, "erfolgreiche Aufnahme legt assets an")
-    H.eq(vim.fn.filereadable(root .. "/assets/shot.png"), 1, "…und die Datei landet darin")
+    H.eq(vim.fn.isdirectory(root .. "/assets"), 1, "a successful capture creates assets")
+    H.eq(vim.fn.filereadable(root .. "/assets/shot.png"), 1, "…and the file lands inside it")
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    H.ok(lines[1]:find("assets/shot.png", 1, true) ~= nil, "Link wird eingefügt: " .. lines[1])
+    H.ok(lines[1]:find("assets/shot.png", 1, true) ~= nil, "the link is inserted: " .. lines[1])
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
-  -- ── 2. Ein vorhandener "Resources"-Ordner wird verwendet statt "assets" ────
+  -- ── 2. An existing "Resources" folder is used instead of "assets" ────────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
@@ -79,43 +79,43 @@ return function(H)
 
     paste.paste_with_name(buf, "shot.png", fake_capture(true))
 
-    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "kein zusätzlicher assets-Ordner")
-    H.eq(vim.fn.filereadable(root .. "/Resources/shot.png"), 1, "Datei landet im vorhandenen Resources-Ordner")
+    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "no additional assets folder")
+    H.eq(vim.fn.filereadable(root .. "/Resources/shot.png"), 1, "the file lands in the existing Resources folder")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
-  -- ── 2b. "Ressourcen" (deutsch) wird ebenso erkannt, case-insensitiv ────────
+  -- ── 2b. "Ressourcen" (German) is recognised too, case-insensitively ──────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
-    vim.fn.mkdir(root .. "/ressourcen", "p") -- Kleinschreibung
+    vim.fn.mkdir(root .. "/ressourcen", "p") -- lower case
     local buf = make_buf(root)
 
     paste.paste_with_name(buf, "shot.png", fake_capture(true))
 
-    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "kein zusätzlicher assets-Ordner")
+    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "no additional assets folder")
     H.eq(
       vim.fn.filereadable(root .. "/ressourcen/shot.png"),
       1,
-      "Datei landet im vorhandenen ressourcen-Ordner (case-insensitiv erkannt)"
+      "the file lands in the existing ressourcen folder (matched case-insensitively)"
     )
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
-  -- ── 3. direct_name überspringt jede Abfrage und wird direkt verwendet ──────
+  -- ── 3. direct_name skips every prompt and is used directly ───────────────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
     local buf = make_buf(root)
     vim.api.nvim_set_current_buf(buf)
 
-    paste.capture_with_optional_name(fake_capture(true), "mein Bild")
+    paste.capture_with_optional_name(fake_capture(true), "my image")
 
-    H.eq(vim.fn.filereadable(root .. "/assets/mein Bild.png"), 1, "direct_name wird sanitisiert direkt verwendet, ohne Abfrage")
+    H.eq(vim.fn.filereadable(root .. "/assets/my image.png"), 1, "direct_name is sanitised and used directly, with no prompt")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
-  -- ── 3b. Ein direct_name, der nach dem Sanitizing leer ist, bricht ab ───────
+  -- ── 3b. A direct_name left empty by sanitising aborts ────────────────────
   do
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
@@ -123,8 +123,8 @@ return function(H)
     vim.api.nvim_set_current_buf(buf)
 
     local ok = pcall(paste.capture_with_optional_name, fake_capture(true), "..")
-    H.ok(ok, "ungültiger direct_name wirft nicht, sondern meldet nur einen Fehler")
-    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "…und legt kein Verzeichnis an")
+    H.ok(ok, "an invalid direct_name does not throw, it only reports an error")
+    H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "…and creates no directory")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 end
