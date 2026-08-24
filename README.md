@@ -45,6 +45,7 @@ dependency.
 :Image next / prev         walk through the images of the buffer
 :'<,'>Image list           pick from the images in the selection
 :Image orphans             images in paste.dir that nothing links to anymore
+:Image calibrate           measure this terminal's image placement, once, interactively
 :Image pickers cwd         browse every image under cwd, live preview with snacks.picker
 :Image zen                 the image under the cursor, full-screen, in a real window
 :Image compare cwd         pick two images, view side by side at their true relative size
@@ -149,8 +150,22 @@ everywhere, without configuration or detection.
 The margin only absorbs the sub-cell remainder. A *systematic* offset of whole
 cells belongs in `display.terminal_padding = { row = …, col = … }` (negative
 values move the image up/left); raising the margin to paper over one just wastes
-space and still looks off. If you know your setup, set `display.cell_aspect` and
-`display.terminal_padding`, then `display.draw_inset = 0` for a flush image.
+space and still looks off.
+
+You do not have to work that value out by hand — **`:Image calibrate`** measures
+it with you. It draws a generated test card that exactly fills a framed window,
+then asks what you see at each edge ("flush", "gap", "cut off") and how far off
+it is, in whole text lines and columns — the unit the protocol positions in, and
+the only one anybody can judge by eye. Each answer redraws immediately, so it
+converges instead of guessing once. The result is offered for saving and then
+applies automatically on every start; it is stored per machine under
+`stdpath("data")`, not written into your config, because the right value depends
+on the terminal and font size of the machine you are sitting at. An explicit
+`setup()` option always outranks a stored measurement. If the remaining offset is
+smaller than one cell, calibration says so plainly rather than pretending to fix
+it — that part is the protocol limit, and `display.draw_inset` is what covers it.
+
+With a calibrated setup, `display.draw_inset = 0` gives you a flush image.
 `:Image redact` always draws flush regardless, because its cell-to-pixel mapping
 depends on it.
 
@@ -201,6 +216,7 @@ dependencies are in place.
 | `:Image export [path]` | Export an image as PDF, next to the source file — via `pdfport.nvim` if installed, else requires ImageMagick |
 | `:Image redact [path]` | Open a censor mode: mark boxes (Visual mode + `<CR>`), `w` blacks them out into a new file — requires ImageMagick |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
+| `:Image calibrate` | Measure this terminal's image placement interactively (test card + questions), save the result -- see [Placement accuracy](#placement-accuracy) |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
 | `:Image draw <position> [path]` | Draw an image at a named position ("full", "center", "top-left", …) in the current window — the reliable, positioned single-shot primitive behind zen/hover/redact, also available as `images.draw()` for other plugins |

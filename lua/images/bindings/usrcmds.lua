@@ -200,6 +200,14 @@ function M.register(cfg)
       },
 
       {
+        path = { "calibrate" },
+        desc = "Bildplatzierung dieses Terminals einmessen (Testkarte + Rückfragen), Ergebnis wird gespeichert",
+        run = function()
+          require("images.calibrate").run()
+        end,
+      },
+
+      {
         path = { "compare" },
         args = {
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },

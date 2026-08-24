@@ -132,6 +132,17 @@ unabhängig davon, ob sie einen verhindert. Ein *systematischer* Versatz
 gehört ohnehin nicht in die Marge, sondern in `display.terminal_padding`;
 die Marge fängt nur den Rest ab.
 
+**Warum daraus ein Werkzeug wurde und keine Doku-Zeile.** Der nötige
+Korrekturwert ist nicht konstant: dieselbe Datei brauchte an einer
+Cursorposition `-2`, an einer anderen `-3`, und an einer dritten war `-2`
+bereits überkorrigiert. Ein in die Doku geschriebener Wert wäre also schon für
+*ein* Setup falsch, von fremden Installationen ganz zu schweigen. Deshalb
+`:Image calibrate` (siehe `images.calibrate`): eine erzeugte Testkarte, die
+die Zeichenbox exakt ausfüllt, und Rückfragen in Zeilen und Spalten — der
+Einheit, in der das Protokoll rechnet und die ein Mensch am Bildschirm
+abschätzen kann. Das Ergebnis landet maschinenlokal unter `stdpath("data")`
+(`images.calibration`), nicht in der User-Spec.
+
 **Für ein vermessenes Setup, in dieser Reihenfolge.**
 
 1. `window_padding` auf **0** setzen. Einzige restlos saubere Variante.

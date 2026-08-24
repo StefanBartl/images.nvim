@@ -83,6 +83,8 @@ local specs = {
   "redact_spec.lua",
   "terminal_draw_spec.lua",
   "anchor_spec.lua",
+  "testcard_spec.lua",
+  "calibration_spec.lua",
 }
 
 local failed = 0
