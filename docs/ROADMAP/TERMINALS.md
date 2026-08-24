@@ -98,12 +98,18 @@ Padding kennt.
 
 **Was das Plugin daraus macht.** Weil ein Plugin diesen Versatz weder messen
 noch erfragen kann, ist der Default **nicht** bündiges Zeichnen, sondern eine
-Sicherheitsmarge von einer Zelle rundum (`display.draw_inset = 1`). Ein
-Sub-Zellen-Versatz bleibt damit *innerhalb* des Rahmens statt sichtbar
-darüber hinauszuragen — auf jedem Terminal, ohne Konfiguration und ohne
-Erkennung. Das ist bewusst Robustheit vor Präzision: ein Bild, das mit etwas
-Luft im Rahmen sitzt, liest sich als Absicht; eines, das asymmetrisch
-übersteht, liest sich als Fehler.
+Sicherheitsreserve von einer Zelle am **unteren und rechten** Rand
+(`display.draw_inset = 1`). Ein Sub-Zellen-Versatz bleibt damit *innerhalb*
+des Rahmens statt sichtbar darüber hinauszuragen — auf jedem Terminal, ohne
+Konfiguration und ohne Erkennung.
+
+Einseitig, nicht rundum: der Versatz hat immer dasselbe Vorzeichen, weil
+Fenster-Padding Inhalt vom Ursprung *weg* schiebt. Eine Reserve oben/links
+schützt vor einem Fall, der nicht eintritt, kostet aber die volle Zellhöhe —
+nachgemessen an einem 1702×892-Bild in einem 80×19-Float: rundum verteilt
+bleiben 22 px Leerraum über dem Bild stehen und die Zeichenbox schrumpft auf
+78×17; einseitig ist der Streifen oben weg und die Box wächst auf 79×18, bei
+identischer Unterkante. Halb so teuer, gleich robust.
 
 **Für ein vermessenes Setup, in dieser Reihenfolge.**
 

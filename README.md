@@ -141,10 +141,12 @@ OSC, DCS and APC responses, and the cell-size reply is a plain CSI response;
 `nvim_list_uis()` reports cells, not pixels). This is measured and written up in
 [docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
 
-Because of that, images are drawn with **one cell of margin inside their frame**
-by default (`display.draw_inset = 1`). A sub-cell offset then stays inside the
-frame instead of visibly spilling over it — robust everywhere, at the cost of
-the image not being perfectly flush. If you know your setup, set
+Because of that, images keep **one cell of slack at their bottom and right edge**
+by default (`display.draw_inset = 1`). Such an offset always has the same sign —
+window padding pushes content *away* from the origin — so the reserve is only
+needed on those two sides; keeping it all around would cost a full cell of height
+above the image to guard against something that never happens. If an image still
+spills past its frame, raise it to `2`. If you know your setup, set
 `display.cell_aspect` and `display.terminal_padding`, then `display.draw_inset =
 0` for a flush image. `:Image redact` always draws flush regardless, because its
 cell-to-pixel mapping depends on it.
