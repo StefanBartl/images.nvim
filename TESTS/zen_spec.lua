@@ -1,41 +1,40 @@
--- TESTS/zen_spec.lua — Fenstergrößen-Berechnung für `:Image zen`.
+-- TESTS/zen_spec.lua — window size arithmetic for `:Image zen`.
 --
--- `M.dimensions` ist reine Mathematik über `vim.o.columns`/`vim.o.lines`,
--- ohne ein Fenster zu öffnen — testbar wie `images.gallery`'s Rasteraufteilung.
--- Das Zeichnen selbst (`images.terminal.draw`) bleibt ungeprüft, wie überall
--- in dieser Suite.
+-- `M.dimensions` is pure arithmetic over `vim.o.columns`/`vim.o.lines` without
+-- opening a window — testable like `images.gallery`'s grid layout. The drawing
+-- itself (`images.terminal.draw`) stays unchecked, as everywhere in this suite.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local zen = require("images.zen")
 
-  -- ── Default-Anteile ─────────────────────────────────────────────────────────
+  -- ── Default fractions ────────────────────────────────────────────────────
   local w, h = zen.dimensions(nil)
-  H.eq(w, math.floor(vim.o.columns * 0.9), "Default-Breite: 90% der Editorbreite")
-  H.eq(h, math.floor(vim.o.lines * 0.85), "Default-Höhe: 85% der Editorhöhe")
+  H.eq(w, math.floor(vim.o.columns * 0.9), "default width: 90% of the editor width")
+  H.eq(h, math.floor(vim.o.lines * 0.85), "default height: 85% of the editor height")
 
-  -- ── Konfigurierte Anteile ───────────────────────────────────────────────────
+  -- ── Configured fractions ─────────────────────────────────────────────────
   w, h = zen.dimensions({ width = 0.5, height = 0.5 })
-  H.eq(w, math.floor(vim.o.columns * 0.5), "konfigurierte Breite wird übernommen")
-  H.eq(h, math.floor(vim.o.lines * 0.5), "konfigurierte Höhe wird übernommen")
+  H.eq(w, math.floor(vim.o.columns * 0.5), "a configured width is honoured")
+  H.eq(h, math.floor(vim.o.lines * 0.5), "a configured height is honoured")
 
-  -- ── Nie kleiner als 1 Zelle, auch bei einem Anteil von 0 ───────────────────
+  -- ── Never smaller than 1 cell, even at a fraction of 0 ───────────────────
   w, h = zen.dimensions({ width = 0, height = 0 })
-  H.eq(w, 1, "Breite ist nach unten auf 1 gedeckelt")
-  H.eq(h, 1, "Höhe ist nach unten auf 1 gedeckelt")
+  H.eq(w, 1, "the width has a lower bound of 1")
+  H.eq(h, 1, "the height has a lower bound of 1")
 
-  -- ── Kein offenes Fenster: is_open/close sind sichere No-ops ────────────────
-  H.falsy(zen.is_open(), "kein Zen-Fenster offen")
-  zen.close() -- darf nicht fehlschlagen
-  H.falsy(zen.is_open(), "close() bleibt ein No-op ohne offenes Fenster")
+  -- ── No window open: is_open/close are safe no-ops ────────────────────────
+  H.falsy(zen.is_open(), "no zen window is open")
+  zen.close() -- must not fail
+  H.falsy(zen.is_open(), "close() stays a no-op without an open window")
 
-  -- ── `dimensions_for` schrumpft auf das Bild-Seitenverhältnis ───────────────
-  -- Kein echter Dateizugriff nötig: `images.info.collect` liefert ohne
-  -- ImageMagick (oder für einen nicht existierenden Pfad) einfach kein
-  -- `width`/`height`, und `dimensions_for` fällt dann auf die Maximalbox
-  -- zurück — exakt der Pfad, der hier ohne Terminal/ImageMagick geprüft wird.
+  -- ── `dimensions_for` shrinks to the image's aspect ratio ─────────────────
+  -- No real file access needed: without ImageMagick (or for a non-existent
+  -- path) `images.info.collect` simply returns no `width`/`height`, and
+  -- `dimensions_for` then falls back to the maximum box — exactly the path
+  -- checked here without a terminal or ImageMagick.
   local max_w, max_h = zen.dimensions(nil)
-  local fw, fh = zen.dimensions_for("/pfad/der/nicht/existiert.png", nil)
-  H.eq(fw, max_w, "ohne ermittelbare Pixelmaße: Breite bleibt die Maximalbox")
-  H.eq(fh, max_h, "ohne ermittelbare Pixelmaße: Höhe bleibt die Maximalbox")
+  local fw, fh = zen.dimensions_for("/path/that/does/not/exist.png", nil)
+  H.eq(fw, max_w, "without discoverable pixel dimensions: the width stays the maximum box")
+  H.eq(fh, max_h, "without discoverable pixel dimensions: the height stays the maximum box")
 end
