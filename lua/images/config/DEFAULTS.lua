@@ -17,13 +17,20 @@ return {
     -- gebraucht — der Punkt, an dem snacks.image auf Windows scheitert.
     max_cols = 60,
     max_rows = 25,
-    -- Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe). 0 heißt:
-    -- einmal pro Sitzung beim Terminal erfragen (siehe images.cell) und, wenn
-    -- keine Antwort kommt, bei der Annahme 0.5 aus images.scale bleiben. Ein
-    -- Wert > 0 übergeht die Abfrage. Wirkt sich darauf aus, wie eng die
-    -- Zeichenbox um ein Bild sitzt — ein zu grober Wert lässt einen leeren
-    -- Streifen unter dem Bild stehen.
+    -- Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe). 0 = die
+    -- Annahme 0.5 aus images.scale verwenden. Wirkt sich darauf aus, wie eng
+    -- die Zeichenbox um ein Bild sitzt: ein zu grober Wert lässt einen leeren
+    -- Streifen unter dem Bild stehen. Selbst messen (Terminalbreite in Pixeln
+    -- / Spalten, geteilt durch Zeilenhöhe) — automatisch geht es nicht, siehe
+    -- images.cell und docs/ROADMAP/TERMINALS.md.
     cell_aspect = 0,
+    -- Fester Zeilen-/Spaltenversatz beim Zeichnen, in ganzen Terminalzellen.
+    -- Ausgleich für Terminals, deren OSC-1337-Platzierung ihr eigenes
+    -- window_padding nicht mitrechnet (siehe images.anchor). Nur relevant,
+    -- wenn das Padding auf ein Zell-Vielfaches gelegt wurde — sonst bleibt
+    -- ein Rest, den kein Zeilen-/Spaltenversatz auflösen kann. Default
+    -- {0,0}: reines No-op für jedes Setup ohne diesen Sonderfall.
+    terminal_padding = { row = 0, col = 0 },
     gallery_gap = 1,
     -- "overlay" (default) zeichnet über den Text, verschwindet bei
     -- Cursorbewegung per Repaint — das bewährte Verhalten seit Version 1.

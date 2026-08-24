@@ -96,6 +96,34 @@ local function border_inset(winid)
   return (present(1, 2, 3) and 1 or 0), (present(1, 7, 8) and 1 or 0)
 end
 
+--- Zusätzlicher, fest konfigurierter Zeilen-/Spalten-Versatz aus
+--- `display.terminal_padding` — Default `{ row = 0, col = 0 }`, für alle
+--- ohne diese Einstellung ein reines No-op.
+---
+--- Grund: manche Terminals (WezTerm nachweislich, siehe docs/ROADMAP/
+--- TERMINALS.md) berücksichtigen ihr eigenes `window_padding` beim Malen von
+--- Text/Rahmen korrekt, aber nicht beim Platzieren eines OSC-1337-Bildes —
+--- das Bild landet dann so viele Pixel zu tief/weit rechts, wie das Fenster
+--- Padding hat. `CSI row;col H` positioniert nur in ganzen Zellen; ein
+--- Padding, das kein glattes Vielfaches der Zellgröße ist, lässt sich damit
+--- grundsätzlich nicht ausgleichen (dafür bräuchte es einen Pixel-Offset,
+--- den OSC 1337 nicht kennt). Wer sein Padding auf ein Zell-Vielfaches legt,
+--- kann den Rest — jetzt ein ganzzahliger Zeilen-/Spaltenversatz — hierüber
+--- kompensieren. Messprotokoll: `docs/ROADMAP/TERMINALS.md`.
+---@return integer row
+---@return integer col
+local function terminal_padding()
+  local ok, config = pcall(require, "images.config")
+  if not ok then return 0, 0 end
+
+  local padding = (config.get().display or {}).terminal_padding
+  if type(padding) ~= "table" then return 0, 0 end
+
+  local row = type(padding.row) == "number" and math.floor(padding.row) or 0
+  local col = type(padding.col) == "number" and math.floor(padding.col) or 0
+  return row, col
+end
+
 ---@param winid integer bereits als gültig geprüft
 ---@param position string siehe `images.scale.POSITIONS`
 ---@param file string
@@ -109,12 +137,19 @@ local function draw_now(winid, position, file, scale)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
   local row_inset, col_inset = border_inset(winid)
+  local pad_row, pad_col = terminal_padding()
 
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
 
   require("images.terminal").clear()
-  return require("images.terminal").draw(file, pos[1] + 1 + row_inset + row_off, pos[2] + 1 + col_inset + col_off, cols, rows)
+  return require("images.terminal").draw(
+    file,
+    pos[1] + 1 + row_inset + row_off + pad_row,
+    pos[2] + 1 + col_inset + col_off + pad_col,
+    cols,
+    rows
+  )
 end
 
 ---@class Images.Anchor.Opts

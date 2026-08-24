@@ -158,4 +158,52 @@ return function(H)
 
     vim.api.nvim_buf_delete(scratch, { force = true })
   end)
+
+  -- ── draw(): display.terminal_padding addiert einen festen Zell-Versatz ────
+  -- Ausgleich für Terminals, deren OSC-1337-Platzierung ihr eigenes
+  -- window_padding nicht mitrechnet (siehe anchor.lua's terminal_padding()).
+  -- Default {0,0} muss No-op sein — nicht konfiguriert darf sich für alle
+  -- bestehenden Aufrufer nichts ändern.
+  H.tmpdir(function(dir)
+    local img = dir .. "/probe.png"
+    H.write(img, "\137PNG\r\n\26\n-- nicht dekodierbar, aber nicht leer")
+
+    local scratch = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(scratch, 0, -1, false, { "", "", "", "", "" })
+    local win = vim.api.nvim_open_win(scratch, false, {
+      relative = "editor",
+      row = 10,
+      col = 10,
+      width = 10,
+      height = 5,
+      style = "minimal",
+      border = "none",
+      focusable = false,
+      noautocmd = true,
+    })
+
+    local captured
+    local real_draw = require("images.terminal").draw
+    require("images.terminal").draw = function(_file, row, col, cols, rows)
+      captured = { row = row, col = col, cols = cols, rows = rows }
+      return true
+    end
+
+    local prev_conf = require("images.config").get()
+
+    require("images.config").setup({})
+    anchor.draw(win, "full", img)
+    H.eq(captured.row, 11, "ohne terminal_padding-Konfiguration: kein Versatz")
+    H.eq(captured.col, 11, "ohne terminal_padding-Konfiguration: kein Versatz")
+
+    require("images.config").setup({ display = { terminal_padding = { row = 2, col = 1 } } })
+    anchor.draw(win, "full", img)
+    H.eq(captured.row, 13, "terminal_padding.row addiert sich auf die Zeile")
+    H.eq(captured.col, 12, "terminal_padding.col addiert sich auf die Spalte")
+
+    require("images.config").setup(prev_conf)
+    require("images.terminal").draw = real_draw
+    vim.api.nvim_win_close(win, true)
+    vim.api.nvim_buf_delete(scratch, { force = true })
+  end)
 end

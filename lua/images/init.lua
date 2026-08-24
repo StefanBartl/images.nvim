@@ -607,11 +607,11 @@ function M.setup(opts)
   require("images.bindings.keymaps").register(conf)
   require("images.bindings.autocmds").register(conf)
 
-  -- Zellgröße einmal erfragen (oder den konfigurierten Wert übernehmen),
-  -- damit die Zeichenbox eng um das Bild sitzt statt um eine Annahme. Läuft
-  -- asynchron und ohne dass ein Zeichenpfad darauf wartet, siehe images.cell.
+  -- `display.cell_aspect` übernehmen, damit die Zeichenbox eng um das Bild
+  -- sitzt statt um die 0.5-Annahme. Nicht gemessen, sondern konfiguriert —
+  -- warum eine Messung aus Neovim heraus nicht möglich ist, steht in
+  -- images.cell.
   require("images.cell").apply()
-  require("images.cell").query()
 
   -- Einmaliges (über Neustarts persistiertes) Popup beim ersten `setup()`
   -- nach der Installation: welche CLI-Tools schalten was frei, und warum
