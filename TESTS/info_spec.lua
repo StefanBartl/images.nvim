@@ -1,31 +1,32 @@
--- TESTS/info_spec.lua — Metadaten-Formatierung.
+-- TESTS/info_spec.lua — metadata formatting.
 --
--- `collect` liest das Dateisystem und ruft optional ImageMagick; geprüft wird
--- hier die reine Aufbereitung plus das Verhalten bei fehlender Datei.
+-- `collect` reads the filesystem and optionally shells out to ImageMagick;
+-- what is checked here is the pure formatting, plus the behaviour for a
+-- missing file.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local info = require("images.info")
 
   -- ── human_size ─────────────────────────────────────────────────────────────
-  H.eq(info.human_size(0), "0 B", "null Bytes")
-  H.eq(info.human_size(512), "512 B", "unter 1 KB bleibt in Bytes, ohne Nachkommastelle")
-  H.eq(info.human_size(1024), "1.0 KB", "genau 1 KB kippt in die nächste Einheit")
-  H.eq(info.human_size(1536), "1.5 KB", "Nachkommastelle bei Bruchteilen")
-  H.eq(info.human_size(1024 * 1024), "1.0 MB", "Megabyte")
-  H.eq(info.human_size(1024 * 1024 * 1024), "1.0 GB", "Gigabyte")
-  -- Über GB wird nicht weiter skaliert: die Einheitenliste endet dort, und ein
-  -- Bild jenseits davon ist ohnehin ein Sonderfall.
-  H.contains(info.human_size(5 * 1024 * 1024 * 1024), "GB", "oberhalb GB bleibt es bei GB")
+  H.eq(info.human_size(0), "0 B", "zero bytes")
+  H.eq(info.human_size(512), "512 B", "below 1 KB stays in bytes, without a decimal")
+  H.eq(info.human_size(1024), "1.0 KB", "exactly 1 KB tips into the next unit")
+  H.eq(info.human_size(1536), "1.5 KB", "a decimal for fractional values")
+  H.eq(info.human_size(1024 * 1024), "1.0 MB", "megabytes")
+  H.eq(info.human_size(1024 * 1024 * 1024), "1.0 GB", "gigabytes")
+  -- Nothing scales past GB: the unit list ends there, and an image beyond that
+  -- is a special case anyway.
+  H.contains(info.human_size(5 * 1024 * 1024 * 1024), "GB", "above GB it stays in GB")
 
-  -- ── collect meldet fehlende Dateien statt zu werfen ────────────────────────
-  local data, err = info.collect("/definitiv/nicht/vorhanden.png")
-  H.falsy(data, "fehlende Datei liefert keine Daten")
-  H.contains(err or "", "nicht gefunden", "…sondern eine Begründung")
+  -- ── collect reports a missing file instead of throwing ─────────────────────
+  local data, err = info.collect("/definitely/does/not/exist.png")
+  H.falsy(data, "a missing file returns no data")
+  H.contains(err or "", "not found", "…but a reason")
 
-  -- ── lines() auf einem Datensatz ohne Abmessungen ───────────────────────────
-  -- Der Fall ohne ImageMagick: Größe und Datum müssen trotzdem herauskommen,
-  -- sonst wäre das Feature ohne die optionale Abhängigkeit wertlos.
+  -- ── lines() on a record without dimensions ─────────────────────────────────
+  -- The no-ImageMagick case: size and date must still come out, or the feature
+  -- would be worthless without the optional dependency.
   local lines = info.lines({
     path = "/tmp/x.png",
     bytes = 2048,
@@ -34,10 +35,10 @@ return function(H)
     width = nil,
     height = nil,
   })
-  H.ok(#lines >= 2, "mindestens Pfad und Größe")
-  H.contains(table.concat(lines, "\n"), "2.0 KB", "Größe erscheint formatiert")
+  H.ok(#lines >= 2, "at least path and size")
+  H.contains(table.concat(lines, "\n"), "2.0 KB", "size appears formatted")
 
-  -- ── lines() mit Abmessungen ────────────────────────────────────────────────
+  -- ── lines() with dimensions ────────────────────────────────────────────────
   lines = info.lines({
     path = "/tmp/x.png",
     bytes = 100,
@@ -47,5 +48,5 @@ return function(H)
     height = 100,
   })
   local joined = table.concat(lines, "\n")
-  H.contains(joined, "PNG 200x100", "Format und Abmessungen in einer Zeile")
+  H.contains(joined, "PNG 200x100", "format and dimensions on one line")
 end

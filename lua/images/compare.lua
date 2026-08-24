@@ -60,9 +60,7 @@ function M.open(scope, arg)
   ---@param surface Lib.UI.Kit.Surface
   local function render(item, surface)
     local factor = pending_scale[item]
-    if not browse.draw_in_window(item, surface.winid, factor) then
-      pcall(surface.set_title, surface, "(cannot be drawn)")
-    end
+    if not browse.draw_in_window(item, surface.winid, factor) then pcall(surface.set_title, surface, "(cannot be drawn)") end
   end
 
   ---@param a string absolute path
