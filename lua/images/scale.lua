@@ -1,41 +1,42 @@
 ---@module 'images.scale'
----@brief Reine Berechnung: wie groß zwei Bilder relativ zueinander wirken sollen.
+---@brief Pure computation: how large two images should appear relative to
+--- each other.
 ---@description
---- Ohne das würde `:Image compare` jedes Bild unabhängig auf seine Pane
---- strecken — ein 200x100-Icon neben einem 4000x2000-Foto sähen dann gleich
---- groß aus, genau das Problem, das FEATURES.md an der Galerie beschreibt
---- ("wegnormiert"). Mit echten Pixelmaßen (via `images.info`, wenn
---- ImageMagick installiert ist) bekommt das kleinere Bild stattdessen eine
---- proportional kleinere Box, statt seine Pane zu füllen.
+--- Without this, `:Image compare` would stretch each image onto its pane
+--- independently — a 200x100 icon next to a 4000x2000 photo would then look
+--- the same size, exactly the problem FEATURES.md describes for the gallery
+--- ("normalised away"). With real pixel dimensions (via `images.info`, when
+--- ImageMagick is installed) the smaller image gets a proportionally smaller
+--- box instead of filling its pane.
 ---
---- Reine Funktion, kein Terminal- oder Dateisystemzugriff — daher ohne
---- Terminal testbar, wie `images.gallery`.
+--- A pure module: no terminal or filesystem access, and therefore testable
+--- without a terminal, like `images.gallery`.
 
 local M = {}
 
---- Wie stark ein Bild relativ zum größeren geschrumpft wird, bevor es
---- unlesbar würde. 0.35 heißt: auch ein winziges Icon neben einem riesigen
---- Foto zeigt noch mindestens 35% der Pane — genug, um "kleiner" zu
---- vermitteln, ohne zu verschwinden.
+--- How far an image may shrink relative to the larger one before it would
+--- become unreadable. 0.35 means: even a tiny icon next to a huge photo still
+--- shows at least 35% of the pane — enough to convey "smaller" without
+--- disappearing.
 M.MIN_SCALE = 0.35
 
 ---@class Images.Scale.Dims
----@field width integer Pixel
----@field height integer Pixel
+---@field width integer pixels
+---@field height integer pixels
 
 ---@class Images.Scale.Result
----@field a number Faktor für Bild A, 0 < a <= 1
----@field b number Faktor für Bild B, 0 < b <= 1
+---@field a number factor for image A, 0 < a <= 1
+---@field b number factor for image B, 0 < b <= 1
 
---- Skalenfaktoren für zwei Bilder berechnen. Verglichen wird über die
---- Bilddiagonale (`sqrt(w²+h²)`) als ein einzelner Größenwert — bei
---- unterschiedlichen Seitenverhältnissen gibt es keine eindeutig "richtige"
---- Metrik, aber die Diagonale ist eine gängige, nachvollziehbare Wahl.
+--- Compute scale factors for two images. The comparison runs over the image
+--- diagonal (`sqrt(w²+h²)`) as a single size value — for differing aspect
+--- ratios there is no uniquely "correct" metric, but the diagonal is a common
+--- and comprehensible choice.
 ---
---- Ohne beide Maße (z.B. weil ImageMagick fehlt) bekommen beide 1.0 — exakt
---- das bisherige Verhalten, jedes Bild füllt seine Pane. Laut Leitplanke in
---- docs/ROADMAP/README.md verbessert ImageMagick Features, ermöglicht sie
---- aber nicht.
+--- Without both dimensions (e.g. because ImageMagick is missing) both get 1.0
+--- — exactly the previous behaviour, each image fills its pane. Per the
+--- guardrail in docs/ROADMAP/README.md, ImageMagick improves features but
+--- never enables them.
 ---@param a Images.Scale.Dims|nil
 ---@param b Images.Scale.Dims|nil
 ---@return Images.Scale.Result
@@ -52,16 +53,16 @@ function M.compute(a, b)
   return { a = ratio, b = 1 }
 end
 
---- Standard-Skalierung für eine benannte Position ohne expliziten `scale`
---- (siehe `M.anchor_box`) — klein genug, um Randbereiche wie "top-left"
---- erkennbar von einer Vollflächenanzeige zu unterscheiden.
+--- Default scaling for a named position without an explicit `scale` (see
+--- `M.anchor_box`) — small enough that edge positions such as "top-left" are
+--- recognisably different from a full-area display.
 M.DEFAULT_ANCHOR_SCALE = 0.45
 
---- Horizontaler/vertikaler Anteil (0 = Kante, 0.5 = mittig, 1 = Gegenkante),
---- den eine Box vom übrigen Platz einnimmt — dieselbe Formel für alle neun
---- Positionen, nur mit anderen (h, v). "full" braucht keinen Sondereintrag:
---- bei `scale = 1` ist `win_width - cols == 0`, jeder Anker liefert also
---- ohnehin Offset 0.
+--- Horizontal/vertical fraction (0 = edge, 0.5 = centred, 1 = opposite edge)
+--- of the leftover space a box takes up — the same formula for all nine
+--- positions, only with different (h, v). "full" needs no special case: at
+--- `scale = 1`, `win_width - cols == 0`, so every anchor yields offset 0
+--- anyway.
 ---@type table<string, { h: number, v: number }>
 local ANCHORS = {
   full = { h = 0.5, v = 0.5 },
@@ -76,8 +77,8 @@ local ANCHORS = {
   ["bottom-right"] = { h = 1, v = 1 },
 }
 
---- Gültige Positionsnamen, sortiert — für Validierung, `<Tab>`-Completion
---- und Doku, damit keine der beiden Listen aus dem Tritt geraten kann.
+--- Valid position names, in order — for validation, `<Tab>` completion and
+--- documentation, so that neither list can drift out of step with the other.
 ---@type string[]
 M.POSITIONS = { "full" }
 for _, name in ipairs({
@@ -94,25 +95,20 @@ for _, name in ipairs({
   M.POSITIONS[#M.POSITIONS + 1] = name
 end
 
---- Zellenbox innerhalb eines Fensters an einer benannten Position bestimmen.
---- `position = "full"` ignoriert `scale` (immer 1); jede andere Position
---- nutzt `scale` (Default `M.DEFAULT_ANCHOR_SCALE`) und zentriert die
---- resultierende Box am jeweiligen Anker statt sie in eine Ecke zu kleben —
---- "top-right" sitzt also mittig am oberen rechten Rand, nicht bündig in
---- der Ecke.
----@param win_width integer Zellen
----@param win_height integer Zellen
----@param position string einer von `M.POSITIONS`
----@param scale number|nil 0 < scale <= 1; ignoriert bei `position = "full"`
+--- Determine the cell box inside a window at a named position.
+--- `position = "full"` ignores `scale` (always 1); every other position uses
+--- `scale` (default `M.DEFAULT_ANCHOR_SCALE`) and centres the resulting box on
+--- its anchor rather than gluing it into a corner — so "top-right" sits
+--- centred against the top right edge, not flush in the corner.
+---@param win_width integer cells
+---@param win_height integer cells
+---@param position string one of `M.POSITIONS`
+---@param scale number|nil 0 < scale <= 1; ignored for `position = "full"`
 ---@return integer|nil cols, integer|nil rows, integer|nil col_offset, integer|nil row_offset, string|nil err
 function M.anchor_box(win_width, win_height, position, scale)
   local anchor = ANCHORS[position]
   if not anchor then
-    return nil,
-      nil,
-      nil,
-      nil,
-      ("Unbekannte Position: %s (erwartet %s)"):format(tostring(position), table.concat(M.POSITIONS, "|"))
+    return nil, nil, nil, nil, ("unknown position: %s (expected %s)"):format(tostring(position), table.concat(M.POSITIONS, "|"))
   end
 
   local effective_scale = (position == "full") and 1 or math.max(0.05, math.min(1, scale or M.DEFAULT_ANCHOR_SCALE))
@@ -124,24 +120,24 @@ function M.anchor_box(win_width, win_height, position, scale)
   return cols, rows, col_offset, row_offset, nil
 end
 
---- Angenommenes Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe).
---- images.nvim fragt das Terminal dafür nie ab (siehe die "keine
---- Zellmessung"-Leitplanke in docs/ROADMAP/README.md) — 0.5 ist eine grobe,
---- für gängige Monospace-Schriften typische Annahme (eine Zelle ist ungefähr
---- doppelt so hoch wie breit). Für `images.redact` reicht das: `M.fit_cells`
---- wählt die Zeichenbox so, dass `preserveAspectRatio=1` kaum noch etwas zu
---- letterboxen hat, und `M.cell_box_to_pixels`s Sicherheitsmarge fängt den
---- Rest ab — lieber eine Zelle zu viel geschwärzt als eine zu wenig.
+--- Assumed pixel aspect ratio of a terminal cell (width/height). images.nvim
+--- never queries the terminal for it (see the "no cell measurement" guardrail
+--- in docs/ROADMAP/README.md) — 0.5 is a coarse assumption typical of common
+--- monospace fonts (a cell is roughly twice as tall as it is wide). That is
+--- enough for `images.redact`: `M.fit_cells` picks the draw box so that
+--- `preserveAspectRatio=1` has almost nothing left to letterbox, and
+--- `M.cell_box_to_pixels`'s safety margin absorbs the rest — better one cell
+--- too much blacked out than one too little.
 ---
---- Wird von `images.cell` überschrieben, sobald das Terminal seine Zellgröße
---- verraten hat oder `display.cell_aspect` einen Wert vorgibt. Bleibt beides
---- aus, gilt weiter die Annahme — kein Aufrufer muss das unterscheiden.
+--- Overwritten by `images.cell` as soon as `display.cell_aspect` supplies a
+--- value. Without one the assumption stands — no caller has to tell the
+--- difference.
 M.CELL_ASPECT = 0.5
 
---- Zeichenbox in Zellen bestimmen, die `image_px`s Seitenverhältnis (über
---- `M.CELL_ASPECT` in Zellen ausgedrückt) innerhalb der Maximalgröße
---- ausfüllt — dieselbe "an die längere Achse anpassen"-Idee wie bei jedem
---- Seitenverhältnis-Fit, nur mit dem Zwischenschritt Pixel→Zelle.
+--- Determine the draw box in cells that fills `image_px`'s aspect ratio
+--- (expressed in cells via `M.CELL_ASPECT`) within the maximum size — the same
+--- "fit to the longer axis" idea as any aspect-ratio fit, just with the
+--- intermediate step from pixels to cells.
 ---@param max_cols integer
 ---@param max_rows integer
 ---@param image_px Images.Scale.Dims|nil
@@ -157,12 +153,11 @@ function M.fit_cells(max_cols, max_rows, image_px)
   return max_cols, math.max(1, rows)
 end
 
---- Eine 1-basierte, einschließende Zellbox (relativ zur Zeichenbox) in eine
---- Pixelbox der Quelldatei umrechnen. Setzt voraus, dass `draw_cols`/
---- `draw_rows` bereits über `M.fit_cells` gewählt wurden — sonst würde die
---- angenommene 1:1-Entsprechung zwischen Zellgitter und sichtbarem Bild
---- spürbar danebenliegen. `padding_cells` wächst die Box vor der Umrechnung
---- nach außen: eine Redaktion soll lieber zu groß als zu klein ausfallen.
+--- Convert a 1-based, inclusive cell box (relative to the draw box) into a
+--- pixel box of the source file. Assumes `draw_cols`/`draw_rows` were chosen
+--- via `M.fit_cells` — otherwise the assumed 1:1 correspondence between cell
+--- grid and visible image would be noticeably off. `padding_cells` grows the
+--- box outwards before conversion: a redaction should err on the large side.
 ---@param box { row1: integer, col1: integer, row2: integer, col2: integer }
 ---@param draw_cols integer
 ---@param draw_rows integer
