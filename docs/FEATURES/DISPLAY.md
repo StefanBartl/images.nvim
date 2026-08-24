@@ -116,6 +116,66 @@ text without creating a window. Every consumer of `images.draw()` gets
 this handled once, in one place, instead of re-solving the same timing
 problem per caller.
 
+## Placement calibration
+
+Measures how this terminal actually places an image, and stores the
+correction so every later draw lands where it was asked to.
+
+- **Tab:** true
+- **Module:** `images/calibrate.lua` (the interactive part),
+  `images/testcard.lua` (generates the card),
+  `images/calibration.lua` (persistence)
+- **Usercmds:** `:Image calibrate` ([usercmds](../BINDINGS.md#user-commands))
+- **Config:** writes `display.terminal_padding`; the sub-cell remainder is
+  covered by `display.draw_inset`
+
+### Why this is not automatic
+
+Images are positioned with `CSI row;col H`, which addresses whole cells
+only — OSC 1337 has no pixel offset. A terminal whose window padding is
+not a multiple of the cell size therefore places the image slightly off,
+and nothing in Neovim can see that: `:h TermResponse` forwards only DA1,
+OSC, DCS and APC responses, and the cell-size reply (`CSI 16 t` →
+`CSI 6 ; h ; w t`) is a plain CSI response, so it never arrives.
+`nvim_list_uis()` reports cells, not pixels. Neither cell size nor window
+padding is knowable from inside the editor.
+
+The offset is not even a constant that could be written into the docs:
+during measurement the same file needed one correction at one cursor
+position and a different one at another. See
+[docs/ROADMAP/TERMINALS.md](../ROADMAP/TERMINALS.md) for the full log.
+
+### How the tool works
+
+`:Image calibrate` opens a framed window and draws a test card generated
+to exactly that box's aspect ratio — generated, not shipped, because the
+box depends on `display.cell_aspect` and the window size and so is only
+known at runtime; a card of any other ratio would letterbox, and that
+letterbox border could not be told apart from a placement error.
+
+The card is then nudged into place with `hjkl` or the arrow keys, one
+cell per press, redrawn immediately. `r` resets, `<CR>` accepts, `q`
+cancels. Nobody has to estimate how far off it is — the answer is
+"push until it sits", which is the same information without the detour
+through a number that cannot be read off a screen.
+
+An earlier version asked about each edge through a select popup instead.
+That could not work: the popup is a window, and Neovim paints over the
+cells it covers, including the image being judged.
+
+Accepting offers to store the result under `stdpath("data")`, from where
+it is merged on every `setup()`. It is deliberately not written into the
+user's spec: the right value depends on the terminal and font size of the
+machine, so a synced dotfile would carry a wrong value to the next one.
+Precedence is defaults < calibration < explicit `setup()` options, and
+calibration warns when a hand-written option shadows what was just
+measured.
+
+If nudging steps over the correct position without ever landing on it,
+the remaining offset is smaller than one cell. The window says so in its
+footer while it is open, and `display.draw_inset` is what covers that
+remainder — the protocol limit, stated rather than hidden.
+
 ## Status line segment
 
 Reports whether an image is currently shown, for embedding in a

@@ -65,13 +65,24 @@ end
 --- to count keypresses; the footer carries the keys *and* the whole-cell
 --- caveat, because a caveat that only appears in a dismissable notification
 --- is a caveat nobody reads.
+---
+--- The caveat is dropped rather than truncated on a narrow window: half a
+--- sentence about a limitation is worse than none, because it reads like a
+--- rendering glitch instead of a statement.
 ---@return string title
 ---@return string footer
 local function labels()
   local row = state and state.row or 0
   local col = state and state.col or 0
-  return (" Calibration   row %d   col %d "):format(row, col),
-    " hjkl/arrows: move (whole cells only) · r: reset · <CR>: accept · q: cancel "
+  local title = (" Calibration   row %d   col %d "):format(row, col)
+
+  local keys = " hjkl/arrows move · r reset · <CR> accept · q cancel "
+  local caveat = "· whole cells only, any smaller offset needs display.draw_inset "
+
+  local width = 0
+  if state and state.win and vim.api.nvim_win_is_valid(state.win) then width = vim.api.nvim_win_get_width(state.win) end
+  if vim.fn.strdisplaywidth(keys .. caveat) <= width then return title, keys .. caveat end
+  return title, keys
 end
 
 ---@internal
