@@ -6,29 +6,29 @@ local M = {}
 ---@return nil
 local function check_output()
   if vim.api.nvim_ui_send then
-    vim.health.ok("`nvim_ui_send` verfügbar — Bildausgabe möglich")
+    vim.health.ok("`nvim_ui_send` available — images can be drawn")
   else
     vim.health.error(
-      "`nvim_ui_send` fehlt (benötigt API-Level 14)",
-      { "Neovim aktualisieren — ohne diese API kann kein Bild gezeichnet werden" }
+      "`nvim_ui_send` is missing (requires API level 14)",
+      { "update Neovim — without this API no image can be drawn" }
     )
   end
 end
 
 ---@return nil
 local function check_terminal()
-  -- Dieselbe Prüfung, die auch vor dem Zeichnen läuft — eine zweite Heuristik
-  -- hier würde nur auseinanderlaufen.
+  -- The same check that runs before drawing — a second heuristic here would
+  -- only drift apart from it.
   local cap = require("images.terminal").capability(false)
 
   if cap.ok and cap.terminal then
-    vim.health.ok(("`%s` erkannt — OSC 1337 wird unterstützt"):format(cap.terminal))
+    vim.health.ok(("`%s` detected — OSC 1337 is supported"):format(cap.terminal))
   elseif cap.ok then
-    vim.health.warn("Unterstützung wird angenommen (`display.assume_supported`)")
+    vim.health.warn("support is being assumed (`display.assume_supported`)")
   else
-    vim.health.warn(cap.reason or "Terminal nicht erkannt", {
+    vim.health.warn(cap.reason or "terminal not recognised", {
       cap.hint or "",
-      "images.nvim braucht ein Terminal mit iTerm2-Protokoll (OSC 1337).",
+      "images.nvim needs a terminal that speaks the iTerm2 protocol (OSC 1337).",
     })
   end
 
@@ -41,28 +41,28 @@ local function check_clipboard()
 
   if require("lib.nvim.cross.platform.is_windows")() then
     if executable.exists("powershell.exe") then
-      vim.health.ok("`powershell.exe` gefunden — `:Image paste` verfügbar")
+      vim.health.ok("`powershell.exe` found — `:Image paste` available")
     else
-      vim.health.warn("`powershell.exe` nicht gefunden — `:Image paste` funktioniert nicht")
+      vim.health.warn("`powershell.exe` not found — `:Image paste` will not work")
     end
     return
   end
 
   if require("lib.nvim.cross.platform.is_macos")() then
     if executable.exists("pngpaste") then
-      vim.health.ok("`pngpaste` gefunden — `:Image paste` verfügbar")
+      vim.health.ok("`pngpaste` found — `:Image paste` available")
     else
-      vim.health.warn("`pngpaste` fehlt", { "brew install pngpaste" })
+      vim.health.warn("`pngpaste` is missing", { "brew install pngpaste" })
     end
     return
   end
 
   if executable.exists("wl-paste") then
-    vim.health.ok("`wl-paste` gefunden — `:Image paste` verfügbar")
+    vim.health.ok("`wl-paste` found — `:Image paste` available")
   elseif executable.exists("xclip") then
-    vim.health.ok("`xclip` gefunden — `:Image paste` verfügbar")
+    vim.health.ok("`xclip` found — `:Image paste` available")
   else
-    vim.health.warn("Weder `wl-paste` noch `xclip` gefunden — `:Image paste` funktioniert nicht")
+    vim.health.warn("neither `wl-paste` nor `xclip` found — `:Image paste` will not work")
   end
 end
 
@@ -71,16 +71,14 @@ local function check_screenshot()
   local screenshot = require("images.screenshot")
   if screenshot.available() then
     if require("lib.nvim.cross.platform.is_windows")() then
-      vim.health.ok("Snipping Tool (`ms-screenclip:`) verfügbar — `:Image screenshot`")
+      vim.health.ok("Snipping Tool (`ms-screenclip:`) available — `:Image screenshot`")
     else
-      vim.health.ok("`:Image screenshot` verfügbar")
+      vim.health.ok("`:Image screenshot` available")
     end
   else
-    -- info statt warn: :Image paste bleibt der unveränderte Weg, ohne
-    -- screenshot-fähige Werkzeuge geht nur der eine Zusatzbefehl nicht.
-    vim.health.info(
-      screenshot.unavailable_reason() .. " — `:Image screenshot` bleibt aus, `:Image paste` funktioniert weiterhin"
-    )
+    -- info rather than warn: :Image paste remains the unchanged route, and
+    -- without screenshot-capable tools only that one extra command is missing.
+    vim.health.info(screenshot.unavailable_reason() .. " — `:Image screenshot` stays off, `:Image paste` keeps working")
   end
 end
 
@@ -88,18 +86,17 @@ end
 local function check_imagemagick()
   if require("lib.nvim.cross.executable").exists("magick") then
     vim.health.ok(
-      "`magick` gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung, SVG-Anzeige, `:Image export` und `:Image redact` verfügbar"
+      "`magick` found — `:Image info` dimensions, `:Image compare`'s relative scaling, SVG display, `:Image export` and `:Image redact` available"
     )
   else
-    -- Kein `vim.health.warn`: ImageMagick verbessert info/compare/SVG, ist
-    -- aber für die dort keine Voraussetzung (siehe Leitplanke in
-    -- docs/ROADMAP/README.md) — `info` fehlen dann nur die Abmessungen,
-    -- `compare` zeigt beide Bilder gleich groß, und SVGs melden beim
-    -- Zeichnen einen klaren Fehler statt eines stillen Fehlschlags.
-    -- `:Image export`/`redact` sind die explizite Ausnahme von dieser
-    -- Leitplanke: beide laufen ausschließlich über `magick`, ohne Fallback.
+    -- Not `vim.health.warn`: ImageMagick improves info/compare/SVG but is not a
+    -- prerequisite for them (see the guardrail in docs/ROADMAP/README.md) --
+    -- `info` merely lacks the dimensions, `compare` shows both images at the
+    -- same size, and SVGs report a clear error when drawn rather than failing
+    -- silently. `:Image export`/`redact` are the explicit exception to that
+    -- guardrail: both run exclusively through `magick`, with no fallback.
     vim.health.info(
-      "`magick` nicht gefunden — `:Image info`-Abmessungen, `:Image compare`s relative Skalierung und SVG-Anzeige bleiben aus, alles andere funktioniert (`:Image export`/`redact` ausgenommen, die `magick` zwingend brauchen)"
+      "`magick` not found — `:Image info` dimensions, `:Image compare`'s relative scaling and SVG display stay off; everything else works (except `:Image export`/`redact`, which require `magick`)"
     )
   end
 end
@@ -107,27 +104,27 @@ end
 ---@return nil
 local function check_deps()
   if pcall(require, "lib.nvim.usercmd.composer") then
-    vim.health.ok("`lib.nvim` gefunden")
+    vim.health.ok("`lib.nvim` found")
   else
-    vim.health.error("`lib.nvim` fehlt", { "StefanBartl/lib.nvim als Dependency eintragen" })
+    vim.health.error("`lib.nvim` is missing", { "add StefanBartl/lib.nvim as a dependency" })
   end
 
   if pcall(require, "markdown.util.path") then
-    vim.health.ok("`markdown.nvim` gefunden — dessen Pfad-Resolver wird genutzt")
+    vim.health.ok("`markdown.nvim` found — its path resolver will be used")
   else
-    vim.health.info("`markdown.nvim` nicht vorhanden — interne Pfadauflösung wird genutzt")
+    vim.health.info("`markdown.nvim` not present — the internal path resolution will be used")
   end
 end
 
 ---@return nil
----Meldet images.nvims eigene docs/install.json über lib.nvim.deps — dieselben
----Tools, die check_imagemagick()/check_clipboard() bereits prüfen, aber mit
----dem deklarierten `why` je Tool und einem Verweis auf `:Lib deps show`.
----Tut nichts, wenn lib.nvim.deps fehlt (älteres lib.nvim).
+---Reports images.nvim's own docs/install.json through lib.nvim.deps -- the same
+---tools check_imagemagick()/check_clipboard() already cover, but with the
+---declared `why` per tool and a pointer to `:Lib deps show`. Does nothing when
+---lib.nvim.deps is absent (an older lib.nvim).
 local function check_lib_deps()
   local ok, deps_health = pcall(require, "lib.nvim.deps.health")
   if not ok then return end
-  vim.health.start("images.nvim: deklarierte Tools (lib.nvim.deps)")
+  vim.health.start("images.nvim: declared tools (lib.nvim.deps)")
   deps_health.report_for("images.nvim")
 end
 

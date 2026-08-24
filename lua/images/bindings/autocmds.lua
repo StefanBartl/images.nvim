@@ -1,16 +1,16 @@
 ---@module 'images.bindings.autocmds'
----@brief Autocmds für images.nvim.
+---@brief Autocmds for images.nvim.
 ---@description
---- Die Aufräum-Autocmds (Bild bei Cursorbewegung entfernen) werden bewusst nicht
---- hier registriert, sondern erst beim Anzeigen eines Bildes und mit `once`
---- (siehe `images.init`). Sonst liefen sie permanent mit, obwohl sie nur für die
---- wenigen Sekunden relevant sind, in denen ein Bild auf dem Schirm steht.
+--- The cleanup autocmds (remove the image on cursor movement) are deliberately
+--- not registered here but only once an image is shown, and with `once` (see
+--- `images.init`). Otherwise they would run permanently while being relevant
+--- only for the few seconds an image is actually on screen.
 
 local autocmd = require("lib.nvim.autocmd")
 
 local M = {}
 
---- Autocmds registrieren.
+--- Register the autocmds.
 ---@param _cfg ImagesNvim.Config
 ---@return nil
 function M.register(_cfg)
@@ -18,7 +18,7 @@ function M.register(_cfg)
     require("images.terminal").clear()
   end, {
     group = autocmd.group("images.autocmds", true),
-    desc = "images: angezeigtes Bild vor dem Beenden entfernen",
+    desc = "images: clear the displayed image before quitting",
   })
 end
 
