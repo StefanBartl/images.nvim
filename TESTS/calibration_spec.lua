@@ -48,6 +48,20 @@ return function(H)
   H.eq(loaded.cell_aspect, 0.46, "the new value is there")
   H.eq(loaded.terminal_padding and loaded.terminal_padding.row, -2, "…and the old one still stands")
 
+  -- ── Zero is a value, not an absence ──────────────────────────────────────
+  -- A correction back to zero has to overwrite a stored non-zero, or a stale
+  -- offset can never be undone. The tool once refused to record it at all,
+  -- treating "the value is zero" as "nothing was measured"; this pins the
+  -- persistence half of that.
+  H.ok(calibration.save({ terminal_padding = { row = 0, col = 0 } }), "saving zeros reports success")
+  loaded = calibration.load(true)
+  H.eq(loaded.terminal_padding.row, 0, "a stored row is overwritten by zero")
+  H.eq(loaded.terminal_padding.col, 0, "…and so is a stored col")
+  H.eq(loaded.cell_aspect, 0.46, "…while untouched keys survive")
+  H.eq(config.setup({}).display.terminal_padding.row, 0, "…and the zero reaches the merged configuration")
+
+  calibration.save({ terminal_padding = { row = -2, col = 1 } }) -- restore for the checks below
+
   -- ── Precedence: defaults < calibration < explicit options ────────────────
   local conf = config.setup({})
   H.eq(conf.display.terminal_padding.row, -2, "without an option of your own, the measured value applies")

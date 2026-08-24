@@ -123,12 +123,26 @@ end
 
 ---@internal
 --- Report the result and offer to persist it.
+---
+--- "Nothing to save" means *unchanged from what is stored*, never "the value is
+--- zero". Those are different questions, and conflating them made a correction
+--- back to zero impossible to record: a stale `row = 1` in the state file kept
+--- shifting every image down by a cell, while calibration cheerfully reported
+--- that placement already sat correctly. Zero is a measurement like any other.
 ---@param row integer
 ---@param col integer
 ---@return nil
 local function offer_save(row, col)
-  if row == 0 and col == 0 then
-    notify().info("Nothing to save — placement already sits without a correction.")
+  local stored = (require("images.calibration").load().terminal_padding or {})
+  local stored_row = type(stored.row) == "number" and stored.row or 0
+  local stored_col = type(stored.col) == "number" and stored.col or 0
+
+  if row == stored_row and col == stored_col then
+    if row == 0 and col == 0 then
+      notify().info("Nothing to save — placement sits without a correction.")
+    else
+      notify().info(("Nothing to save — the stored calibration is already { row = %d, col = %d }."):format(row, col))
+    end
     return
   end
 
