@@ -9,12 +9,23 @@
 --- Ausgabeschicht. Da `snacks.image` und `image.nvim` beide nur Kitty-APC senden,
 --- sind sie dort prinzipiell unbrauchbar, unabhängig von jeder Konfiguration.
 ---
---- Drei Eigenheiten, die beim Bauen Zeit gekostet haben:
+--- Fünf Eigenheiten, die beim Bauen Zeit gekostet haben:
 ---
 --- * Geschrieben wird über `vim.api.nvim_ui_send`, nicht über `io.stdout:write`.
 ---   Letzteres zeichnet nur beim ersten Mal pro Terminal-Session.
 --- * Ohne Cursor-Positionierung landet das Bild am unteren Rand und schiebt die
 ---   Statusline hoch. Daher `ESC[s` / `ESC[<row>;<col>H` / Payload / `ESC[u`.
+--- * Diese Teile müssen in **einem** `nvim_ui_send` rausgehen, siehe
+---   `sequence_for`. Neovims eigener TUI-Renderer schreibt in denselben
+---   tty-Strom; zwischen zwei Aufrufen kann er flushen und dabei eigene
+---   Cursorbewegungen einschieben. Passiert das zwischen Positionierung und
+---   Payload, zeichnet das Terminal das Bild dort, wo Neovims Cursor gerade
+---   steht — dasselbe Ergebnis wie ganz ohne Positionierung, nur sporadisch
+---   statt immer und damit deutlich schwerer zuzuordnen.
+--- * Ein Bild, das über die letzte Zeile hinausragt, scrollt den ganzen Schirm
+---   — Neovims Grid inklusive. `ESC[u` stellt danach die Cursorposition wieder
+---   her, den Scroll aber nicht: die Statusline bleibt hochgerutscht, bis
+---   `M.clear` per `:mode` alles neu malt. Dagegen `clamp_to_screen`.
 --- * `width`/`height` werden in **Zellen** angegeben, nicht in Pixeln. Zusammen
 ---   mit `preserveAspectRatio=1` skaliert das Terminal selbst, und die Zellgröße
 ---   in Pixeln muss nirgends bekannt sein.
@@ -183,9 +194,49 @@ local function payload_for(raw, cols, rows)
   })
 end
 
+--- Zeichenbox so beschneiden, dass sie auf den Schirm passt.
+---
+--- Vertikal bleibt eine Zeile frei, und das ist kein Sicherheitsabstand aus
+--- Vorsicht: OSC 1337 mit `inline=1` rückt den Cursor nach dem Bild um dessen
+--- Höhe nach unten. Endet das Bild auf der letzten Zeile, löst genau dieser
+--- eine Schritt den Scroll aus, den die Box selbst gerade noch vermieden
+--- hätte — und ein Scroll verschiebt Neovims ganzes Grid, ohne dass Neovim
+--- davon erfährt (siehe Moduldoku).
+---@param row integer 1-basierte Terminalzeile
+---@param col integer 1-basierte Terminalspalte
+---@param cols integer gewünschte Breite in Zellen
+---@param rows integer gewünschte Höhe in Zellen
+---@return integer cols
+---@return integer rows
+local function clamp_to_screen(row, col, cols, rows)
+  return math.max(1, math.min(cols, vim.o.columns - col + 1)), math.max(1, math.min(rows, vim.o.lines - row))
+end
+
+--- Die vollständige Sequenz für ein Bild an einer Position — als **ein**
+--- String, der in einem Stück rausgeht. Warum das zusammenbleiben muss, steht
+--- in der Moduldoku; hier nur der Zusatz `ESC[?7l`/`ESC[?7h`: Autowrap aus,
+--- damit ein Pixel Überbreite keinen Zeilenumbruch erzwingt, der seinerseits
+--- am unteren Rand scrollen würde.
+---@param raw string Rohe Dateibytes
+---@param row integer 1-basierte Terminalzeile
+---@param col integer 1-basierte Terminalspalte
+---@param cols integer Breite in Zellen
+---@param rows integer Höhe in Zellen
+---@return string
+local function sequence_for(raw, row, col, cols, rows)
+  return table.concat({
+    ESC .. "[s", -- Cursor sichern
+    ESC .. "[?7l", -- Autowrap aus
+    ("%s[%d;%dH"):format(ESC, row, col), -- positionieren
+    payload_for(raw, cols, rows),
+    ESC .. "[?7h", -- Autowrap zurück
+    ESC .. "[u", -- Cursor zurück
+  })
+end
+
 --- Anstehende Bildschirmausgabe erzwingen, BEVOR gezeichnet wird.
 ---
---- Vierte Eigenheit, die Zeit gekostet hat: `nvim_ui_send` schreibt sofort
+--- Sechste Eigenheit, die Zeit gekostet hat: `nvim_ui_send` schreibt sofort
 --- ans Terminal, Neovims eigener Repaint läuft dagegen erst, wenn die
 --- Steuerung in die Hauptschleife zurückkehrt. Wer also ein Fenster öffnet
 --- und im selben Tick hineinzeichnet, sendet das Bild und lässt Neovim
@@ -202,11 +253,15 @@ local function flush_pending_redraw()
 end
 
 --- Ein Bild an einer Terminalposition zeichnen.
+---
+--- `cols`/`rows` sind ein Wunsch, keine Zusage: was von `row`/`col` aus nicht
+--- mehr auf den Schirm passt, wird vorher weggeschnitten (`clamp_to_screen`).
+--- Ein zu großer Wert kostet also Bildgröße, nicht die Bildschirmordnung.
 ---@param file string Absoluter Pfad zu einer Bilddatei
 ---@param row integer 1-basierte Terminalzeile
 ---@param col integer 1-basierte Terminalspalte
----@param cols integer Maximale Breite in Zellen
----@param rows integer Maximale Höhe in Zellen
+---@param cols integer Gewünschte Breite in Zellen, auf den Schirm beschnitten
+---@param rows integer Gewünschte Höhe in Zellen, auf den Schirm beschnitten
 ---@return boolean ok
 ---@return string|nil err
 function M.draw(file, row, col, cols, rows)
@@ -217,13 +272,11 @@ function M.draw(file, row, col, cols, rows)
   local raw, err = read_file(file)
   if not raw then return false, err end
 
+  cols, rows = clamp_to_screen(row, col, cols, rows)
+
   flush_pending_redraw()
 
-  local send = vim.api.nvim_ui_send
-  send(ESC .. "[s")
-  send(ESC .. "[" .. row .. ";" .. col .. "H")
-  send(payload_for(raw, cols, rows))
-  send(ESC .. "[u")
+  vim.api.nvim_ui_send(sequence_for(raw, row, col, cols, rows))
 
   showing = true
   return true
@@ -237,8 +290,13 @@ end
 ---@field rows integer Höhe in Zellen
 
 --- Mehrere Bilder in einem Rutsch zeichnen.
---- Der Cursor wird einmal für den ganzen Block gesichert statt pro Bild — bei
---- einer Galerie mit vielen Kacheln spart das die Hälfte der Sequenzen.
+---
+--- Jede Kachel geht als eigene, in sich vollständige Sequenz raus (Cursor
+--- sichern, positionieren, zeichnen, zurück) statt einmal für den ganzen
+--- Block. Das kostet pro Kachel ein paar Bytes mehr, ist aber der Punkt der
+--- Übung: nur so klebt jede Positionierung untrennbar an ihrer Payload. Alles
+--- zu einem einzigen String zu verketten wäre noch strenger, hielte dann aber
+--- sämtliche Base64-Anteile einer Galerie gleichzeitig im Speicher.
 ---@param placements Images.Placement[]
 ---@return integer drawn Anzahl tatsächlich gezeichneter Bilder
 ---@return string[] errors Fehlermeldungen der übersprungenen Bilder
@@ -250,18 +308,16 @@ function M.draw_many(placements)
 
   flush_pending_redraw()
 
-  send(ESC .. "[s")
   for _, p in ipairs(placements) do
     local raw, err = read_file(p.file)
     if raw then
-      send(ESC .. "[" .. p.row .. ";" .. p.col .. "H")
-      send(payload_for(raw, p.cols, p.rows))
+      local cols, rows = clamp_to_screen(p.row, p.col, p.cols, p.rows)
+      send(sequence_for(raw, p.row, p.col, cols, rows))
       drawn = drawn + 1
     else
       errors[#errors + 1] = err or ("Übersprungen: " .. tostring(p.file))
     end
   end
-  send(ESC .. "[u")
 
   if drawn > 0 then showing = true end
   return drawn, errors

@@ -20,6 +20,7 @@
 ---@field max_cols integer Maximale Bildbreite in Terminalzellen
 ---@field max_rows integer Maximale Bildhöhe in Terminalzeilen
 ---@field gallery_gap integer Zellen Abstand zwischen Galerie-Kacheln
+---@field cell_aspect number Pixel-Seitenverhältnis einer Zelle (Breite/Höhe); 0 = beim Terminal erfragen, siehe images.cell
 ---@field hover_mode "overlay"|"float" Wie `:Image show`/Hover anzeigt (nicht die Galerie)
 ---@field assume_supported boolean Terminal-Erkennung übergehen (nur die Warnung)
 ---@field clear_events string[] Autocmd-Events, die das Bild wieder entfernen

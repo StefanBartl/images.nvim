@@ -132,6 +132,10 @@ end
 --- wählt die Zeichenbox so, dass `preserveAspectRatio=1` kaum noch etwas zu
 --- letterboxen hat, und `M.cell_box_to_pixels`s Sicherheitsmarge fängt den
 --- Rest ab — lieber eine Zelle zu viel geschwärzt als eine zu wenig.
+---
+--- Wird von `images.cell` überschrieben, sobald das Terminal seine Zellgröße
+--- verraten hat oder `display.cell_aspect` einen Wert vorgibt. Bleibt beides
+--- aus, gilt weiter die Annahme — kein Aufrufer muss das unterscheiden.
 M.CELL_ASPECT = 0.5
 
 --- Zeichenbox in Zellen bestimmen, die `image_px`s Seitenverhältnis (über

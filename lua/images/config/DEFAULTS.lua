@@ -17,6 +17,13 @@ return {
     -- gebraucht — der Punkt, an dem snacks.image auf Windows scheitert.
     max_cols = 60,
     max_rows = 25,
+    -- Pixel-Seitenverhältnis einer Terminalzelle (Breite/Höhe). 0 heißt:
+    -- einmal pro Sitzung beim Terminal erfragen (siehe images.cell) und, wenn
+    -- keine Antwort kommt, bei der Annahme 0.5 aus images.scale bleiben. Ein
+    -- Wert > 0 übergeht die Abfrage. Wirkt sich darauf aus, wie eng die
+    -- Zeichenbox um ein Bild sitzt — ein zu grober Wert lässt einen leeren
+    -- Streifen unter dem Bild stehen.
+    cell_aspect = 0,
     gallery_gap = 1,
     -- "overlay" (default) zeichnet über den Text, verschwindet bei
     -- Cursorbewegung per Repaint — das bewährte Verhalten seit Version 1.
