@@ -1,39 +1,42 @@
--- TESTS/remote_spec.lua — Remote-Bild-Erkennung und der Default-Aus-Zustand.
+-- TESTS/remote_spec.lua — remote image detection and the off-by-default state.
 --
--- Kein echter Download in diesem Test: `fetch` mit dem Default
--- (`display.remote.enabled = false`) liefert seinen Fehler synchron, ohne
--- jemals ein Netzwerk anzufassen — genau der Fall, der ohne Zustimmung
--- niemals eine Anfrage auslösen soll.
+-- No real download in this test: `fetch` with the default
+-- (`display.remote.enabled = false`) returns its error synchronously without
+-- ever touching the network — precisely the case that must never fire a request
+-- without consent.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local remote = require("images.remote")
 
-  -- ── is_remote: nur http(s) ──────────────────────────────────────────────────
-  H.ok(remote.is_remote("https://example.com/bild.png"), "https wird erkannt")
-  H.ok(remote.is_remote("http://example.com/bild.png"), "http wird erkannt")
-  H.falsy(remote.is_remote("ftp://example.com/bild.png"), "ftp wird bewusst nicht unterstützt")
-  H.falsy(remote.is_remote("/lokal/bild.png"), "ein lokaler Pfad ist nicht remote")
-  H.falsy(remote.is_remote("C:\\lokal\\bild.png"), "ein Windows-Pfad ist nicht remote")
-  H.falsy(remote.is_remote("relativ/bild.png"), "ein relativer Pfad ist nicht remote")
+  -- ── is_remote: http(s) only ──────────────────────────────────────────────
+  H.ok(remote.is_remote("https://example.com/image.png"), "https is recognised")
+  H.ok(remote.is_remote("http://example.com/image.png"), "http is recognised")
+  H.falsy(remote.is_remote("ftp://example.com/image.png"), "ftp is deliberately unsupported")
+  H.falsy(remote.is_remote("/local/image.png"), "a local path is not remote")
+  H.falsy(remote.is_remote("C:\\local\\image.png"), "a Windows path is not remote")
+  H.falsy(remote.is_remote("relative/image.png"), "a relative path is not remote")
 
-  -- ── fetch: default aus, kein Netzwerkzugriff ────────────────────────────────
-  require("images.config").setup(nil) -- Defaults: remote.enabled = false
-  local png, err = remote.fetch("https://example.com/bild.png")
-  H.falsy(png, "ohne Zustimmung wird nichts geladen")
-  H.contains(err or "", "deaktiviert", "…mit einer Begründung, die auf die Option verweist")
-  H.contains(err or "", "display.remote.enabled", "…und zwar der genaue Optionsname")
+  -- ── fetch: off by default, no network access ─────────────────────────────
+  require("images.config").setup(nil) -- defaults: remote.enabled = false
+  local png, err
+  remote.fetch("https://example.com/image.png", function(p, e)
+    png, err = p, e
+  end)
+  H.falsy(png, "nothing is downloaded without consent")
+  H.contains(err or "", "disabled", "…with a reason that points at the option")
+  H.contains(err or "", "display.remote.enabled", "…naming the exact option")
 
-  -- ── resolve.is_image erkennt Remote-URLs mit erkennbarer Endung ─────────────
+  -- ── resolve.is_image recognises remote URLs with a discernible extension ─
   local resolve = require("images.resolve")
-  H.ok(resolve.is_image("https://example.com/foto.jpg"), "https-URL mit Endung gilt als Bild")
-  H.ok(resolve.is_image("https://example.com/foto.png?v=2"), "…auch mit Query-String danach")
-  H.falsy(resolve.is_image("https://example.com/api/image"), "…aber nicht ohne erkennbare Endung")
+  H.ok(resolve.is_image("https://example.com/photo.jpg"), "an https URL with an extension counts as an image")
+  H.ok(resolve.is_image("https://example.com/photo.png?v=2"), "…even with a query string after it")
+  H.falsy(resolve.is_image("https://example.com/api/image"), "…but not without a discernible extension")
 
-  -- ── resolve.to_path lädt Remote-URLs nicht (bleibt Sache von images.remote) ─
+  -- ── resolve.to_path does not download remote URLs (images.remote's job) ──
   H.eq(
-    resolve.to_path("https://example.com/foto.jpg"),
+    resolve.to_path("https://example.com/photo.jpg"),
     nil,
-    "to_path bleibt rein lokal, auch mit aktivem remote wäre das falsch hier"
+    "to_path stays purely local; doing otherwise would be wrong here even with remote on"
   )
 end

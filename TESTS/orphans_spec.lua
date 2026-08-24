@@ -1,13 +1,13 @@
--- TESTS/orphans_spec.lua — verwaiste Bilder im Zielverzeichnis finden.
+-- TESTS/orphans_spec.lua — finding orphaned images in the target directory.
 --
--- Braucht echtes Dateisystem und einen benannten Buffer (target_dir hängt an
--- `nvim_buf_get_name`), ist also kein reines Modul wie gallery/resolve/info —
--- aber immer noch ohne Terminal prüfbar, was hier gezeigt wird.
+-- Needs a real filesystem and a named buffer (target_dir depends on
+-- `nvim_buf_get_name`), so it is not a pure module like gallery/resolve/info —
+-- but still testable without a terminal, which is what this shows.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local orphans = require("images.orphans")
-  require("images.config").setup(nil) -- Default paste.dir = "assets"
+  require("images.config").setup(nil) -- default paste.dir = "assets"
 
   local root = vim.fn.tempname()
   vim.fn.mkdir(root, "p")
@@ -22,42 +22,42 @@ return function(H)
 
   touch(root .. "/assets/a.png")
   touch(root .. "/assets/b.png")
-  touch(root .. "/assets/notes.txt") -- keine Bilddatei, muss ignoriert werden
+  touch(root .. "/assets/notes.txt") -- not an image file, must be ignored
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(buf, root .. "/doc.md")
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "![a](assets/a.png)" })
-  -- Buffer-Namen sind erst nach dem ersten Schreiben/:write real auf der
-  -- Platte verankert; `resolve.to_path` prüft aber nur `fs_stat` auf den
-  -- berechneten Pfad, der schon aus dem (noch ungespeicherten) Namen folgt.
+  -- A buffer name is only anchored on disk after the first write/:write; but
+  -- `resolve.to_path` merely runs `fs_stat` on the computed path, which already
+  -- follows from the (as yet unsaved) name.
 
-  -- ── a.png ist referenziert, b.png nicht ────────────────────────────────────
+  -- ── a.png is referenced, b.png is not ────────────────────────────────────
   local found = orphans.find(buf)
-  H.eq(#found, 1, "genau ein Bild ist verwaist")
-  H.eq(found[1].rel, "b.png", "…nämlich das unreferenzierte")
+  H.eq(#found, 1, "exactly one image is orphaned")
+  H.eq(found[1].rel, "b.png", "…namely the unreferenced one")
 
-  -- ── Nach dem Verlinken ist nichts mehr verwaist ────────────────────────────
+  -- ── Once linked, nothing is orphaned any more ────────────────────────────
   vim.api.nvim_buf_set_lines(buf, 1, 1, false, { "![b](assets/b.png)" })
   found = orphans.find(buf)
-  H.eq(#found, 0, "beide referenziert → keine Verwaisten mehr")
+  H.eq(#found, 0, "both referenced -> no orphans left")
 
-  -- ── Kein Zielverzeichnis: kein Fehler, leere Liste ─────────────────────────
+  -- ── No target directory: no error, an empty list ─────────────────────────
   local other_root = vim.fn.tempname()
   vim.fn.mkdir(other_root, "p")
   local other_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(other_buf, other_root .. "/doc.md")
   found = orphans.find(other_buf)
-  H.eq(#found, 0, "fehlendes Zielverzeichnis liefert eine leere Liste, keinen Fehler")
+  H.eq(#found, 0, "a missing target directory yields an empty list, not an error")
 
-  -- ── Nicht-Bilddateien werden nicht mitgezählt ──────────────────────────────
+  -- ── Non-image files are not counted ──────────────────────────────────────
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
   found = orphans.find(buf)
   local rels = {}
   for _, o in ipairs(found) do
     rels[o.rel] = true
   end
-  H.falsy(rels["notes.txt"], "notes.txt ist kein Bild und taucht nicht auf")
-  H.ok(rels["a.png"] and rels["b.png"], "beide Bilder sind jetzt unreferenziert")
+  H.falsy(rels["notes.txt"], "notes.txt is not an image and does not appear")
+  H.ok(rels["a.png"] and rels["b.png"], "both images are now unreferenced")
 
   pcall(vim.api.nvim_buf_delete, buf, { force = true })
   pcall(vim.api.nvim_buf_delete, other_buf, { force = true })

@@ -1,16 +1,16 @@
--- TESTS/redact_spec.lua — `:Image redact`, nur der sicher prüfbare Teil.
+-- TESTS/redact_spec.lua — `:Image redact`, only the safely testable part.
 --
--- `M.open()` öffnet ein echtes Fenster und zeichnet (`images.terminal.draw`)
--- — bleibt ungeprüft, wie `images.zen.open()` in zen_spec.lua. Die eigentliche
--- Geometrie (`images.scale.fit_cells`/`cell_box_to_pixels`) und das Brennen
--- (`images.convert.redact`) sind in scale_spec.lua/convert_spec.lua getestet.
+-- `M.open()` opens a real window and draws (`images.terminal.draw`) — that
+-- stays unchecked, like `images.zen.open()` in zen_spec.lua. The actual
+-- geometry (`images.scale.fit_cells`/`cell_box_to_pixels`) and the burn-in
+-- (`images.convert.redact`) are covered in scale_spec.lua/convert_spec.lua.
 
----@param H table Harness aus TESTS/run.lua
+---@param H table harness from TESTS/run.lua
 return function(H)
   local redact = require("images.redact")
 
-  -- ── Kein offenes Fenster: is_open/close sind sichere No-ops ────────────────
-  H.falsy(redact.is_open(), "kein Redact-Fenster offen")
-  redact.close() -- darf nicht fehlschlagen
-  H.falsy(redact.is_open(), "close() bleibt ein No-op ohne offenes Fenster")
+  -- ── No window open: is_open/close are safe no-ops ────────────────────────
+  H.falsy(redact.is_open(), "no redaction window is open")
+  redact.close() -- must not fail
+  H.falsy(redact.is_open(), "close() stays a no-op without an open window")
 end
