@@ -55,30 +55,75 @@ return function(H)
   H.ok(png3 ~= nil, "reconverting after a change yields a path")
   H.ok(png3 ~= png, "…but under a different cache name than before")
 
+  -- `to_pdf` and `redact` are asynchronous: both hand their result to
+  -- `on_done` and their return values are nil on every path that actually
+  -- starts a conversion. Asserting on the return value tested nil against nil
+  -- and reported "export yields a path: nil".
+  --
+  -- Waits for the *result*, never a fixed sleep -- a `vim.wait(200)` after an
+  -- async call is a coin flip on a loaded machine. The callback may also fire
+  -- synchronously (the early-return failures do), which `vim.wait` handles
+  -- because it evaluates the predicate before the first sleep.
+  ---@param start fun(cb: function)
+  ---@return any, any, boolean fired
+  local function await(start)
+    local fired, a, b = false, nil, nil
+    start(function(x, y)
+      a, b, fired = x, y, true
+    end)
+    vim.wait(20000, function() return fired end, 20)
+    return a, b, fired
+  end
+
   -- ── to_pdf: missing file ─────────────────────────────────────────────────
+  -- The one case that also reports synchronously, because it fails before
+  -- starting -- so both routes are asserted.
   local pdf, pdf_err = convert.to_pdf("/definitely/does/not/exist.png")
   H.falsy(pdf, "a missing file yields no PDF")
   H.contains(pdf_err or "", "not found", "…but a reason")
 
+  local pdf_ok, pdf_msg, fired = await(function(cb)
+    convert.to_pdf("/definitely/does/not/exist.png", cb)
+  end)
+  H.ok(fired, "…and on_done still fires for a pre-start failure")
+  H.falsy(pdf_ok, "…reporting failure")
+  H.contains(pdf_msg or "", "not found", "…with the same reason")
+
   -- ── to_pdf: real conversion ──────────────────────────────────────────────
-  pdf, pdf_err = convert.to_pdf(assert(png))
-  H.ok(pdf, "export yields a path: " .. tostring(pdf_err))
-  H.ok(pdf ~= nil and vim.uv.fs_stat(pdf) ~= nil, "…and the file really exists")
-  H.contains(pdf or "", ".pdf", "…with a .pdf extension")
-  H.eq(vim.fn.fnamemodify(pdf or "", ":r"), vim.fn.fnamemodify(png or "", ":r"), "…same stem as the source file")
+  -- Callback shape here is (ok, out_path_or_err) -- note it differs from
+  -- `redact`'s (out_path, err) below.
+  local ok_pdf, pdf_path
+  ok_pdf, pdf_path, fired = await(function(cb) convert.to_pdf(assert(png), cb) end)
+  H.ok(fired, "export calls back")
+  H.ok(ok_pdf, "export succeeds: " .. tostring(pdf_path))
+  H.ok(pdf_path ~= nil and vim.uv.fs_stat(pdf_path) ~= nil, "…and the file really exists")
+  H.contains(pdf_path or "", ".pdf", "…with a .pdf extension")
+  H.eq(
+    vim.fn.fnamemodify(pdf_path or "", ":r"),
+    vim.fn.fnamemodify(png or "", ":r"),
+    "…same stem as the source file"
+  )
 
   -- ── redact: missing file ─────────────────────────────────────────────────
-  local redacted, redact_err = convert.redact("/definitely/does/not/exist.png", { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } })
+  -- `redact` returns nothing at all, on any path, so every case goes through
+  -- the callback.
+  local redacted, redact_err
+  redacted, redact_err = await(function(cb)
+    convert.redact("/definitely/does/not/exist.png", { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } }, cb)
+  end)
   H.falsy(redacted, "a missing file yields no result")
   H.contains(redact_err or "", "not found", "…but a reason")
 
   -- ── redact: no box ───────────────────────────────────────────────────────
-  redacted, redact_err = convert.redact(assert(png), {})
+  redacted, redact_err = await(function(cb) convert.redact(assert(png), {}, cb) end)
   H.falsy(redacted, "without a box there is nothing to redact")
   H.contains(redact_err or "", "box", "…with an explanatory message")
 
   -- ── redact: real redaction ───────────────────────────────────────────────
-  redacted, redact_err = convert.redact(assert(png), { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } })
+  redacted, redact_err, fired = await(function(cb)
+    convert.redact(assert(png), { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } }, cb)
+  end)
+  H.ok(fired, "redaction calls back")
   H.ok(redacted, "redaction yields a path: " .. tostring(redact_err))
   H.ok(redacted ~= nil and vim.uv.fs_stat(redacted) ~= nil, "…and the file really exists")
   H.contains(redacted or "", ".redacted.png", "…named .redacted.<extension>")
