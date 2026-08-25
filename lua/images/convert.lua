@@ -90,8 +90,9 @@ end
 --- fail before starting at all (no magick, file not found).
 ---@param path string absolute path to an image file
 ---@param on_done fun(ok: boolean, out_path_or_err: string)|nil
----@return string|nil pdf_path  set only on the synchronous (magick) success path
----@return string|nil err       set only on the synchronous (magick) failure path
+---@return nil  always nil -- there is no synchronous success path any more
+---@return string|nil err  set only when the export fails before starting
+---                        (no magick, file not found)
 function M.to_pdf(path, on_done)
   local ok_pp, pdfport = pcall(require, "pdfport")
   if ok_pp and type(pdfport.can_create) == "function" and pdfport.can_create("image") then

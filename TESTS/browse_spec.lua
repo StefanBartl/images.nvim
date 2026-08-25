@@ -40,11 +40,19 @@ return function(H)
   -- ── roots: cwd ──────────────────────────────────────────────────────────────
   H.tmpdir(function(root)
     local chdir = require("lib.nvim.fs.chdir")
+    local normkey = require("lib.nvim.fs.normkey")
     local before = vim.uv.cwd()
     chdir(root)
     local resolved = browse.roots("cwd", nil)
     chdir(before)
-    H.eq(resolved, require("images.resolve").normalize_path(root), "cwd resolves to the current working directory")
+    -- Both sides go through normkey, which expands a Windows 8.3 short name
+    -- to its long form. `roots("cwd")` reads `uv.cwd()`, and Windows reports
+    -- the long name for a directory entered by its short one, while `root` is
+    -- still the raw `tempname()` string -- so a plain compare read
+    -- "C:/Users/STEFAN~1/..." vs "C:/Users/StefanBartl/...". Canonicalising
+    -- the expectation keeps the assertion about *which directory* was
+    -- resolved rather than about how the OS chose to spell it.
+    H.eq(normkey(resolved), normkey(root), "cwd resolves to the current working directory")
   end)
 
   -- ── roots: a nil scope falls back to cwd ─────────────────────────────────
