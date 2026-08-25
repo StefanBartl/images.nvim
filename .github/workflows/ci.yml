@@ -36,14 +36,16 @@ jobs:
       - run: LIB_NVIM_PATH=.deps/lib.nvim nvim --headless -u NONE -l TESTS/run.lua
 
   map:
-    # `--check` is the whole check: it verifies the committed module map is
-    # current and that no layer rule in scripts/gen_map.lua is violated.
-    # Worth having even with the pre-commit hook installed — the hook is
-    # opt-in per clone, so without this the map goes stale on main unnoticed.
+    # Generates the map; the gate is the generator's own exit code, which is
+    # non-zero when a layer rule in scripts/gen_map.lua is violated.
     #
-    # Platform-independent thanks to `.gitattributes` (`eol=lf`): the map
-    # embeds source text, so a CRLF checkout produces a different map than an
-    # LF one and `--check` would report staleness that is not there.
+    # NOT `--check`: that mode compares the freshly generated map against the
+    # committed one, and `docs/map/` is in .gitignore here (derived output,
+    # deliberately not source -- see the comment there). On a fresh checkout
+    # there is nothing to compare against, so `--check` reported the map as
+    # stale on every single run and this job could never go green. Staleness of
+    # a working copy is the pre-commit hook's business; the layer rules are
+    # what CI can meaningfully enforce.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,4 +59,4 @@ jobs:
           path: .deps/documentation.nvim
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
-      - run: nvim --headless -l scripts/gen_map.lua --check
+      - run: nvim --headless -l scripts/gen_map.lua
