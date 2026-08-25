@@ -90,7 +90,15 @@ function M.to_path(target, buf)
     if resolved and vim.uv.fs_stat(resolved) then return normalize(resolved) end
   end
 
-  local expanded = vim.fn.expand(target)
+  -- Deliberately not `vim.fn.expand`. `target` is link text read out of a
+  -- Markdown buffer, and a backtick span in vim.fn.expand's argument is a
+  -- *command substitution* run through `&shell` -- so
+  -- `![x](`mkdir /tmp/pwned; echo a.png#`)` executed on resolve. Confirmed:
+  -- the directory appeared. The trailing `#` is what got it past is_image,
+  -- whose second alternative matches an extension anywhere before a `?`/`#`.
+  -- Only `~` and environment variables are wanted here, which is all
+  -- expand_path does.
+  local expanded = require("lib.nvim.cross.fs.expand_path")(target)
   if vim.uv.fs_stat(expanded) then return normalize(vim.fn.fnamemodify(expanded, ":p")) end
 
   local bases = {}

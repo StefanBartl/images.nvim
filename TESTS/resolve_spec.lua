@@ -91,4 +91,30 @@ return function(H)
     H.eq(cap and cap.path, "https://example.com/photo.jpg", "…and the same one as the `<img>`")
     pcall(vim.api.nvim_buf_delete, fig, { force = true })
   end
+
+  -- A link target is text out of a Markdown buffer, so it must never be handed
+  -- to vim.fn.expand: a backtick span there is a *command substitution* run
+  -- through &shell. This used to execute -- confirmed, the directory appeared --
+  -- and is_image was no obstacle, because its second alternative matches an
+  -- extension anywhere before a `?`/`#`, so the payload could keep one inside
+  -- the backticks while the whole string still read as one span to Vim.
+  do
+    local shell = { vim.o.shell, vim.o.shellcmdflag, vim.o.shellquote, vim.o.shellxquote, vim.o.shellredir }
+    vim.o.shell = "sh"
+    vim.o.shellcmdflag = "-c"
+    vim.o.shellquote = ""
+    vim.o.shellxquote = ""
+    vim.o.shellredir = ">%s 2>&1"
+
+    local dir = (vim.fn.tempname() .. "-resolve-shell-probe"):gsub("\\\\", "/")
+    local target = "`mkdir -p " .. dir .. "; echo a.png#`"
+
+    H.ok(resolve.is_image(target), "the payload does get past is_image (the gate is not the fix)")
+    pcall(resolve.to_path, target)
+    vim.wait(1500)
+    H.ok(vim.fn.isdirectory(dir) ~= 1, "to_path does not run a backtick span in the target")
+
+    vim.o.shell, vim.o.shellcmdflag, vim.o.shellquote, vim.o.shellxquote, vim.o.shellredir =
+      shell[1], shell[2], shell[3], shell[4], shell[5]
+  end
 end
