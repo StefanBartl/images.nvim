@@ -196,7 +196,8 @@ Requires Neovim 0.10+ (for `vim.base64`) with API level 14 (for
 ```
 
 Run `:checkhealth images` to verify that your terminal, clipboard tool and
-dependencies are in place.
+dependencies are in place. For packer.nvim, vim-plug and the full prerequisite
+list, see [docs/installation.md](docs/installation.md).
 
 ## Usage
 
