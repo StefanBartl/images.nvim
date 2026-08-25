@@ -262,7 +262,7 @@ cells — a redacted image is drawn without pixel-precise mouse input being
 available in a terminal at all, so the box is sized generously on purpose
 (configurable via `display.redact.padding_cells`, default one cell of
 margin): over-redacting is the safe failure mode, under-redacting is not.
-See [docs/ROADMAP/REDACT.md](docs/ROADMAP/REDACT.md) for the full design
+See [docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md) for the full design
 rationale.
 
 `:Image draw <position> [path]` (Lua: `images.draw(target, position, path,

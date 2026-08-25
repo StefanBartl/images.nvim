@@ -5,13 +5,17 @@ prioritisation.
 
 | File | Contents |
 | --- | --- |
-| [FEATURES.md](./FEATURES.md) | Features in the plugin itself — display, editing, clipboard |
 | [CROSS-PLUGIN.md](./CROSS-PLUGIN.md) | Cross-cutting features with the other `*.nvim` repos |
 | [TERMINALS.md](./TERMINALS.md) | Protocols, backends, terminal detection |
 
+A third file, `FEATURES.md`, was planned for ideas about the plugin's own
+display/editing/clipboard side and never written — the list below took its
+place, and the two files above are the whole folder.
+
 ## Already implemented
 
-So that the list above (FEATURES.md) does not get mixed up with what is done:
+For what the features *do*, see [`docs/FEATURES/`](../FEATURES/); this list is
+here so nothing above gets confused with what already exists:
 
 - Display via OSC 1337 with cursor positioning (`:Image`, `:Image show`)
 - A gallery of several images on a grid (`:Image gallery [columns]`), including
@@ -36,8 +40,10 @@ So that the list above (FEATURES.md) does not get mixed up with what is done:
   window), black them out and save as a new file; the original stays
   (`:Image redact`, `images.redact`, `images.convert.redact`) — geometry via
   `images.scale.fit_cells`/`cell_box_to_pixels` with a configurable safety
-  margin (`display.redact.padding_cells`); requires ImageMagick. Concept:
-  [REDACT.md](./REDACT.md)
+  margin (`display.redact.padding_cells`); requires ImageMagick. Documented in
+  [`docs/FEATURES/CAPTURE.md`](../FEATURES/CAPTURE.md) — the `REDACT.md`
+  concept note this used to point at was never written; the feature shipped
+  first.
 - Find orphaned images in `paste.dir` and delete them on confirmation
   (`:Image orphans`)
 - A filesystem-wide search with a live preview via `snacks.picker`, a soft
