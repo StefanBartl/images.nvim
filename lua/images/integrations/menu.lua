@@ -56,19 +56,27 @@ function M.items(bufnr)
     out,
     contextmenu.entry(true, "  Show image under cursor", images.hover, km.show),
     contextmenu.entry(true, "  Gallery (every image in the buffer)", images.gallery, km.gallery),
-    contextmenu.entry(true, "  Next image", function() images.step(1) end, km.next),
-    contextmenu.entry(true, "  Previous image", function() images.step(-1) end, km.prev)
+    contextmenu.entry(true, "  Next image", function()
+      images.step(1)
+    end, km.next),
+    contextmenu.entry(true, "  Previous image", function()
+      images.step(-1)
+    end, km.prev)
   )
 
   contextmenu.group(
     out,
-    contextmenu.entry(true, "  Paste image from clipboard", function() images.paste() end, km.paste),
+    contextmenu.entry(true, "  Paste image from clipboard", function()
+      images.paste()
+    end, km.paste),
     contextmenu.entry(true, "  Take a screenshot", images.screenshot, km.screenshot)
   )
 
   contextmenu.group(
     out,
-    contextmenu.entry(true, "  Show image info", function() images.info() end)
+    contextmenu.entry(true, "  Show image info", function()
+      images.info()
+    end)
   )
 
   return out

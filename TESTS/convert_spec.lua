@@ -71,7 +71,9 @@ return function(H)
     start(function(x, y)
       a, b, fired = x, y, true
     end)
-    vim.wait(20000, function() return fired end, 20)
+    vim.wait(20000, function()
+      return fired
+    end, 20)
     return a, b, fired
   end
 
@@ -93,16 +95,14 @@ return function(H)
   -- Callback shape here is (ok, out_path_or_err) -- note it differs from
   -- `redact`'s (out_path, err) below.
   local ok_pdf, pdf_path
-  ok_pdf, pdf_path, fired = await(function(cb) convert.to_pdf(assert(png), cb) end)
+  ok_pdf, pdf_path, fired = await(function(cb)
+    convert.to_pdf(assert(png), cb)
+  end)
   H.ok(fired, "export calls back")
   H.ok(ok_pdf, "export succeeds: " .. tostring(pdf_path))
   H.ok(pdf_path ~= nil and vim.uv.fs_stat(pdf_path) ~= nil, "…and the file really exists")
   H.contains(pdf_path or "", ".pdf", "…with a .pdf extension")
-  H.eq(
-    vim.fn.fnamemodify(pdf_path or "", ":r"),
-    vim.fn.fnamemodify(png or "", ":r"),
-    "…same stem as the source file"
-  )
+  H.eq(vim.fn.fnamemodify(pdf_path or "", ":r"), vim.fn.fnamemodify(png or "", ":r"), "…same stem as the source file")
 
   -- ── redact: missing file ─────────────────────────────────────────────────
   -- `redact` returns nothing at all, on any path, so every case goes through
@@ -115,7 +115,9 @@ return function(H)
   H.contains(redact_err or "", "not found", "…but a reason")
 
   -- ── redact: no box ───────────────────────────────────────────────────────
-  redacted, redact_err = await(function(cb) convert.redact(assert(png), {}, cb) end)
+  redacted, redact_err = await(function(cb)
+    convert.redact(assert(png), {}, cb)
+  end)
   H.falsy(redacted, "without a box there is nothing to redact")
   H.contains(redact_err or "", "box", "…with an explanatory message")
 
