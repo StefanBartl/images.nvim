@@ -645,7 +645,7 @@ An .svg says "ImageMagick (`magick` not found)" ~
     Install ImageMagick and make sure `magick` is on PATH — WezTerm cannot
     decode SVG itself, so there is no fallback for this one format.
 
-A URL says "Remote-Bilder sind deaktiviert" ~
+A URL says "remote images are disabled" ~
     Expected: `display.remote.enabled` defaults to false, on purpose (see
     |images-remote-config|). Set it to true to allow the download.
 
