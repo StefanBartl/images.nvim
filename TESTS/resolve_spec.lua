@@ -107,10 +107,10 @@ return function(H)
     vim.o.shellredir = ">%s 2>&1"
 
     local dir = (vim.fn.tempname() .. "-resolve-shell-probe"):gsub("\\", "/")
-    local target = "`mkdir -p " .. dir .. "; echo a.png#`"
+    local probe = "`mkdir -p " .. dir .. "; echo a.png#`"
 
-    H.ok(resolve.is_image(target), "the payload does get past is_image (the gate is not the fix)")
-    pcall(resolve.to_path, target)
+    H.ok(resolve.is_image(probe), "the payload does get past is_image (the gate is not the fix)")
+    pcall(resolve.to_path, probe)
     vim.wait(1500)
     H.ok(vim.fn.isdirectory(dir) ~= 1, "to_path does not run a backtick span in the target")
 
