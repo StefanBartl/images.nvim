@@ -106,7 +106,7 @@ return function(H)
     vim.o.shellxquote = ""
     vim.o.shellredir = ">%s 2>&1"
 
-    local dir = (vim.fn.tempname() .. "-resolve-shell-probe"):gsub("\\\\", "/")
+    local dir = (vim.fn.tempname() .. "-resolve-shell-probe"):gsub("\\", "/")
     local target = "`mkdir -p " .. dir .. "; echo a.png#`"
 
     H.ok(resolve.is_image(target), "the payload does get past is_image (the gate is not the fix)")
