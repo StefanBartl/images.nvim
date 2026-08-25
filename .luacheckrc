@@ -2,8 +2,10 @@
 std = "lua51"
 cache = true
 
--- Neovim injects `vim` as a read-only global.
-read_globals = { "vim" }
+-- Neovim injects `vim` as a read-only global. `bit` is LuaJIT's bit library,
+-- always present in Neovim but not part of the `lua51` std this file pins --
+-- images/testcard.lua needs it for the hand-rolled PNG writer's CRC/Adler.
+read_globals = { "vim", "bit" }
 
 -- Line length is handled by stylua, not luacheck.
 max_line_length = false
