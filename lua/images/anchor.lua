@@ -65,15 +65,21 @@ end
 --- as an image overlapping the border instead of sitting inside it.
 --- `images.scale.anchor_box` is not affected: `nvim_win_get_width`/`_height`
 --- already report the content area only, identically with or without a border.
+---
+--- The trailing segments are returned as well. They do not indent anything --
+--- nothing is drawn against the bottom or right edge -- but `placed_position`
+--- needs them to know a floating window's full extent on screen.
 ---@param winid integer already verified as valid
----@return integer row_inset 0 or 1
----@return integer col_inset 0 or 1
+---@return integer row_inset 0 or 1 rows the top border indents the content
+---@return integer col_inset 0 or 1 columns the left border indents the content
+---@return integer row_trail 0 or 1 rows the bottom border occupies
+---@return integer col_trail 0 or 1 columns the right border occupies
 local function border_inset(winid)
   local ok, config = pcall(vim.api.nvim_win_get_config, winid)
-  if not ok then return 0, 0 end
+  if not ok then return 0, 0, 0, 0 end
 
   local border = config.border
-  if type(border) ~= "table" then return 0, 0 end -- "none", or no border set
+  if type(border) ~= "table" then return 0, 0, 0, 0 end -- "none", or no border set
 
   -- Order per `:h nvim_open_win()`: {top-left, top, top-right, right,
   -- bottom-right, bottom, bottom-left, left}. Each segment is either a
@@ -89,7 +95,58 @@ local function border_inset(winid)
     return false
   end
 
-  return (present(1, 2, 3) and 1 or 0), (present(1, 7, 8) and 1 or 0)
+  return (present(1, 2, 3) and 1 or 0),
+    (present(1, 7, 8) and 1 or 0),
+    (present(5, 6, 7) and 1 or 0),
+    (present(3, 4, 5) and 1 or 0)
+end
+
+---@internal
+--- Where a window is actually drawn, as opposed to where it asked to be.
+---
+--- A floating window that would overhang the screen edge is not drawn where its
+--- configuration puts it: Neovim moves it back inside. **`nvim_win_get_position`
+--- keeps reporting the requested position regardless**, and so does
+--- `screenpos()` — there is no API that returns the placed position. Draw
+--- against the reported one and the image lands beside its own frame, by
+--- exactly as far as the window would have overhung.
+---
+--- Measured on a 170-column screen (`images-probe`, hover over a markdown link
+--- with a 50-column file tree open on the left):
+---
+--- | reported col | content + border | `170 − extent` | drawn at |
+--- | --- | --- | --- | --- |
+--- | 141 | 80 + 2 | **88** | 88 |
+--- | 83 | 80 + 2 | 88 | 83 (no overhang) |
+--- | 34 | 102 + 2 | 66 | 34 (no overhang) |
+---
+--- This is why the fault only ever showed up with a file tree on the **left**:
+--- it pushes the cursor right, a cursor-relative hover float then overhangs,
+--- and Neovim silently moves it. A file tree on the right leaves the cursor at
+--- low columns, nothing overhangs, nothing moves. `:Image calibrate` is
+--- `relative = "editor"` and centred, so it never overhangs either — which is
+--- what made the fault look like a hover-only problem for a long time.
+---
+--- Rows are clamped against the full `vim.o.lines` rather than against the
+--- editable area. If Neovim reserves the command line, this bound is one row
+--- too permissive and a float at the very bottom stays as wrong as before —
+--- deliberately, because the opposite error would shift correctly placed
+--- images. Only the horizontal case is measured; the vertical one follows the
+--- same rule because the mechanism is not axis-specific.
+---@param winid integer already verified as valid
+---@param pos integer[] `nvim_win_get_position` result
+---@param extent_rows integer content height plus both horizontal border segments
+---@param extent_cols integer content width plus both vertical border segments
+---@return integer row
+---@return integer col
+local function placed_position(winid, pos, extent_rows, extent_cols)
+  local ok, config = pcall(vim.api.nvim_win_get_config, winid)
+  -- Split windows are laid out by Neovim and always fit; only floats move.
+  if not ok or config.relative == nil or config.relative == "" then return pos[1], pos[2] end
+
+  local row = math.max(0, math.min(pos[1], vim.o.lines - extent_rows))
+  local col = math.max(0, math.min(pos[2], vim.o.columns - extent_cols))
+  return row, col
 end
 
 --- Additional fixed row/column offset from `display.terminal_padding` —
@@ -173,8 +230,11 @@ local function draw_now(winid, position, file, scale, inset, padding)
   local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
-  local row_inset, col_inset = border_inset(winid)
+  local row_inset, col_inset, row_trail, col_trail = border_inset(winid)
   local pad_row, pad_col = terminal_padding(padding)
+
+  -- Where the window really sits, which is not always where it asked to sit.
+  local win_row, win_col = placed_position(winid, pos, height + row_inset + row_trail, width + col_inset + col_trail)
 
   local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
   if not (cols and rows and col_off and row_off) then return false, box_err end
@@ -197,8 +257,8 @@ local function draw_now(winid, position, file, scale, inset, padding)
   require("images.terminal").clear()
   return require("images.terminal").draw(
     file,
-    pos[1] + 1 + row_inset + row_off + pad_row,
-    pos[2] + 1 + col_inset + col_off + pad_col,
+    win_row + 1 + row_inset + row_off + pad_row,
+    win_col + 1 + col_inset + col_off + pad_col,
     cols,
     rows
   )

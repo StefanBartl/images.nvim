@@ -219,8 +219,8 @@ return function(H)
   end)
 
   -- ── draw(): display.draw_inset keeps a margin free all round ─────────────
-  -- Toleranz gegen Sub-Zellen-Versatz auf Terminals mit nicht
-  -- zell-ausgerichtetem Fenster-Padding (siehe anchor.lua's draw_inset).
+  -- Tolerance against the sub-cell offset on terminals whose window padding is
+  -- not cell-aligned (see anchor.lua's draw_inset).
   -- Both are checked: that the margin takes effect, and that a caller can opt
   -- out of it explicitly — images.redact depends on exactly that.
   H.tmpdir(function(dir)
@@ -279,6 +279,87 @@ return function(H)
     require("images.config").setup(prev_conf)
     require("images.terminal").draw = real_draw
     vim.api.nvim_win_close(win, true)
+    vim.api.nvim_buf_delete(scratch, { force = true })
+  end)
+
+  -- ── draw(): a float that overhangs is drawn where it lands ───────────────
+  -- Neovim moves a floating window that would not fit back inside the screen,
+  -- but `nvim_win_get_position` keeps reporting the position that was asked
+  -- for -- and so does `screenpos()`. Drawing against the reported value put
+  -- the image beside its own frame, by exactly the overhang. In practice this
+  -- only ever surfaced with a file tree open on the LEFT: it pushes the cursor
+  -- right, so a cursor-relative hover float overhangs and gets moved. The
+  -- geometry below is the one measured when the fault was found (a 170-column
+  -- screen, an 80-wide float reported at column 141).
+  H.tmpdir(function(dir)
+    local img = dir .. "/probe.png"
+    H.write(img, "\137PNG\r\n\26\n-- not decodable, but not empty")
+
+    local prev_cols, prev_lines = vim.o.columns, vim.o.lines
+    vim.o.columns, vim.o.lines = 170, 43
+
+    local scratch = vim.api.nvim_create_buf(false, true)
+    local captured
+    local real_draw = require("images.terminal").draw
+    require("images.terminal").draw = function(_file, row, col, cols, rows)
+      captured = { row = row, col = col, cols = cols, rows = rows }
+      return true
+    end
+    local prev_conf = require("images.config").get()
+    require("images.config").setup({ display = { draw_inset = 1, terminal_padding = { row = 0, col = 0 } } })
+
+    ---@param row integer
+    ---@param col integer
+    ---@param width integer
+    ---@param height integer
+    ---@return integer winid
+    local function float(row, col, width, height)
+      return vim.api.nvim_open_win(scratch, false, {
+        relative = "editor",
+        row = row,
+        col = col,
+        width = width,
+        height = height,
+        style = "minimal",
+        border = "rounded",
+        focusable = false,
+        noautocmd = true,
+      })
+    end
+
+    -- 141 + 80 + 2 border = 223 on a 170-column screen: it cannot sit there.
+    -- Neovim draws it at 170 - 82 = 88, so the image belongs at 88 + 1 (to
+    -- one-indexed) + 1 (border) + 1 (draw_inset) = 91.
+    local win = float(7, 141, 80, 18)
+    H.eq(vim.api.nvim_win_get_position(win)[2], 141, "the API still reports the impossible column")
+    anchor.draw(win, "full", img)
+    H.eq(captured.col, 91, "an overhanging float is drawn where Neovim puts it, not where it asked")
+    vim.api.nvim_win_close(win, true)
+
+    -- One column short of overhanging: nothing moves, nothing may change.
+    win = float(7, 83, 80, 18)
+    anchor.draw(win, "full", img)
+    H.eq(captured.col, 86, "a float that still fits is left alone")
+    vim.api.nvim_win_close(win, true)
+
+    -- A wider float well inside the screen -- guards against a correction that
+    -- forgets to account for the window's own width.
+    win = float(9, 34, 102, 25)
+    anchor.draw(win, "full", img)
+    H.eq(captured.col, 37, "the correction accounts for the window's width, not just its position")
+    vim.api.nvim_win_close(win, true)
+
+    -- The same rule vertically. 30 + 18 + 2 = 50 rows on a 43-row screen, so
+    -- the top edge lands at 43 - 20 = 23.
+    win = float(30, 10, 80, 18)
+    anchor.draw(win, "full", img)
+    H.eq(captured.row, 26, "the same correction applies to rows")
+    H.eq(captured.col, 13, "…without disturbing a column that was already fine")
+    vim.api.nvim_win_close(win, true)
+
+    require("images.config").setup(prev_conf)
+    require("images.terminal").draw = real_draw
+    vim.o.columns, vim.o.lines = prev_cols, prev_lines
     vim.api.nvim_buf_delete(scratch, { force = true })
   end)
 end

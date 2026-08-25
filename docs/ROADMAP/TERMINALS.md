@@ -25,7 +25,7 @@ Two pitfalls when measuring, both of which cost time:
 ## Placement: what was measured, and what follows from it
 
 A hover float draws the image into a window whose geometry is simultaneously
-the draw box. Four distinct failure modes appeared in the process. Three could
+the draw box. Five distinct failure modes appeared in the process. Four could
 be fixed; one is a limit of the protocol. The measurements come from WezTerm
 `20240203-110809` on Windows 11, Neovim 0.12.2, JetBrainsMono Nerd Font 12pt —
 the derived rules hold generally, the concrete numbers only for this setup.
@@ -71,7 +71,42 @@ content area only.
 **Rule.** Indent by one cell per axis as soon as the corresponding border
 segment is set. Implemented in `images.anchor.border_inset`.
 
-### 4. The image sits a fraction of a cell off (not solvable)
+### 4. The image sits beside its own frame, by the width of a sidebar
+
+**Finding.** With a file tree open on the **left**, a hover drew the image far
+to the right of its float — and, far enough right, shrunk to a sliver in the
+corner. With the file tree on the right, or with none, the same hover was
+correct, and `:Image calibrate` was correct in every case.
+
+A probe on the coordinates actually computed showed the arithmetic to be exact
+every time, which is what made this take so long: the numbers sent matched the
+window's reported geometry perfectly. The reported geometry was the problem.
+On a 170-column screen:
+
+| reported col | content + border | fits? | drawn at |
+| --- | --- | --- | --- |
+| 141 | 80 + 2 | 141 + 82 = 223 > 170, no | **88** = 170 − 82 |
+| 83 | 80 + 2 | yes | 83 |
+| 34 | 102 + 2 | yes | 34 |
+
+A floating window that would overhang the screen edge is moved back inside by
+Neovim. **`nvim_win_get_position` keeps reporting the requested position**, and
+so does `screenpos()` — neither returns where the window landed. Drawing
+against the reported value puts the image beside its frame by exactly the
+overhang, and `clamp_to_screen` then shrinks the box to whatever is left of the
+screen, which is where the sliver came from.
+
+Why only a file tree on the *left*: it pushes the cursor right, so a
+cursor-relative hover float overhangs and gets moved. On the right the cursor
+stays at low columns and nothing moves. `:Image calibrate` is
+`relative = "editor"` and centred, so it never overhangs — which is why the
+one deliberately controlled test kept coming out clean while the real feature
+did not.
+
+**Rule.** Never draw against a float's reported position without checking that
+it fits. Implemented in `images.anchor.placed_position`.
+
+### 5. The image sits a fraction of a cell off (not solvable)
 
 **Finding.** Isolation tests with a full WezTerm restart between every run:
 
