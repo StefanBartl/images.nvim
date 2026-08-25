@@ -61,25 +61,24 @@ local opts = require("documentation.config").build(root, {
   repo_url = "https://github.com/StefanBartl/images.nvim",
   branch = "main",
 
-  -- Zwei Invarianten, die sonst still verrotten. Beide stehen als Leitplanke
-  -- in docs/ROADMAP/README.md; ohne Pruefung sind sie nur eine Absichts-
-  -- erklaerung im Fliesstext.
+  -- Two invariants that would otherwise rot in silence. Both are stated as
+  -- guardrails in docs/ROADMAP/README.md; without a check they are a
+  -- statement of intent in prose and nothing more.
   layers = {
-    -- `terminal` bekommt Groessen und Positionen als Argumente und schaut sie
-    -- nie selbst nach. Sobald es die Konfiguration liest, wandert die
-    -- Layout-Entscheidung in die Zeichenschicht und laesst sich nicht mehr
-    -- ohne Terminal pruefen.
+    -- `terminal` takes sizes and positions as arguments and never looks them
+    -- up itself. The moment it reads configuration, the layout decision moves
+    -- into the drawing layer and stops being checkable without a terminal.
     {
       from = "images.terminal",
       to = "images.config",
-      why = "die Zeichenschicht nimmt Groessen als Argument entgegen, statt Konfiguration zu lesen",
+      why = "the drawing layer takes sizes as arguments instead of reading configuration",
     },
-    -- `gallery` ist reine Rechnung: es liefert Platzierungen und zeichnet
-    -- nicht. Das haelt die Rasteraufteilung ohne Terminal testbar.
+    -- `gallery` is pure arithmetic: it returns placements and draws nothing.
+    -- That is what keeps the grid layout testable without a terminal.
     {
       from = "images.gallery",
       to = "images.terminal",
-      why = "die Rasteraufteilung ist reine Rechnung und zeichnet nicht selbst",
+      why = "the grid layout is pure arithmetic and does no drawing of its own",
     },
   },
 })

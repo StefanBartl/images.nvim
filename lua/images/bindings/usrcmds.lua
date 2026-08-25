@@ -51,8 +51,8 @@ function M.register(cfg)
     range = true,
 
     -- Bare `:Image` shows the image under the cursor -- the most common case
-    -- braucht keinen Subcommand. Mit Bereich (`:'<,'>Image`) wird daraus eine
-    -- Galerie der Bilder in diesem Bereich statt einer einzelnen Anzeige.
+    -- needs no subcommand. Given a range (`:'<,'>Image`) it becomes a gallery
+    -- of the images inside it instead of a single display.
     default = function(ctx)
       local images = require("images")
       if has_range(ctx) then
@@ -95,9 +95,9 @@ function M.register(cfg)
       {
         path = { "gallery" },
         args = { { name = "columns", type = "NUMBER", optional = true } },
-        -- Bereich zeigt nur die Bilder darin statt aller Bilder des Buffers —
-        -- derselbe Bezug wie bei `list`, nur direkt als Galerie statt als
-        -- Auswahl.
+        -- A range narrows this to the images inside it rather than every
+        -- image in the buffer -- the same scoping `list` uses, but rendered
+        -- straight as a gallery instead of offered as a choice.
         desc = "Show the buffer's (or the selection's) images side by side",
         run = function(ctx)
           local images = require("images")

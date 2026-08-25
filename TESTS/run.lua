@@ -58,10 +58,10 @@ if not add_lib_nvim() then
   os.exit(1)
 end
 
--- Nur die seiteneffektfreien Module. Alles, was zeichnet, braucht ein
--- Terminal mit Grafikprotokoll und ist headless nicht pruefbar — genau
--- deshalb sind Rasteraufteilung, Linkerkennung und Metadaten von der
--- Zeichenschicht getrennt.
+-- The side-effect-free modules only. Anything that draws needs a terminal
+-- speaking a graphics protocol and cannot be checked headlessly -- which is
+-- exactly why the grid layout, the link detection and the metadata handling
+-- are separate from the drawing layer in the first place.
 local specs = {
   "gallery_spec.lua",
   "resolve_spec.lua",
