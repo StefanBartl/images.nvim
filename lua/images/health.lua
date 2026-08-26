@@ -103,7 +103,7 @@ end
 
 ---@return nil
 local function check_deps()
-  if pcall(require, "lib.nvim.usercmd.composer") then
+  if pcall(require, "lib.nvim.bindings.usercmd.composer") then
     vim.health.ok("`lib.nvim` found")
   else
     vim.health.error("`lib.nvim` is missing", { "add StefanBartl/lib.nvim as a dependency" })

@@ -128,7 +128,7 @@ function M.open(path)
   end
   winid = win
 
-  local autocmd = require("lib.nvim.autocmd")
+  local autocmd = require("lib.nvim.bindings.autocmd")
   local group = autocmd.group("images.zen", true)
   autocmd.create({ "WinResized", "VimResized" }, function()
     redraw(file)

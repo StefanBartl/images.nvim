@@ -4,7 +4,7 @@ Cheatsheet of everything images.nvim registers.
 
 ## User commands
 
-One verb built with `lib.nvim.usercmd.composer`, so dispatch, `<Tab>`
+One verb built with `lib.nvim.bindings.usercmd.composer`, so dispatch, `<Tab>`
 completion and this table all come from the same spec.
 
 | Command | Range | Description |

@@ -157,7 +157,7 @@ function M.open(path, display)
     end
   end
 
-  local autocmd = require("lib.nvim.autocmd")
+  local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("WinClosed", function()
     winid = nil
   end, {

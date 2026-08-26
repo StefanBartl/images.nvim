@@ -209,12 +209,12 @@ function M.open(path)
   winid, bufnr, file, image_px, draw_cols, draw_rows = win, buf, target, px, cols, rows
   boxes = {}
 
-  local map = require("lib.nvim.map")
+  local map = require("lib.nvim.bindings.keymap")
   map("n", "w", write_redacted, { buffer = buf, nowait = true }, "images.redact: redact and save")
   map("n", "u", undo_box, { buffer = buf, nowait = true }, "images.redact: remove the last box")
   map("x", "<CR>", confirm_box, { buffer = buf, nowait = true }, "images.redact: mark the selection as a box")
 
-  local autocmd = require("lib.nvim.autocmd")
+  local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("WinClosed", function()
     winid = nil
     require("images.terminal").clear()

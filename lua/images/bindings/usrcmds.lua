@@ -14,7 +14,7 @@
 
 local M = {}
 
-local composer = require("lib.nvim.usercmd.composer")
+local composer = require("lib.nvim.bindings.usercmd.composer")
 
 -- Like the built-in FILE (readable file, <Tab> file completion), but
 -- additionally permitting an http(s) URL — for `:Image show <url>` with

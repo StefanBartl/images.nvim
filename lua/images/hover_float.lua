@@ -100,7 +100,7 @@ function M.open(file)
   end
   winid = win
 
-  local autocmd = require("lib.nvim.autocmd")
+  local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("WinClosed", function()
     winid = nil
     require("images.terminal").clear()

@@ -88,7 +88,7 @@ local function map_double_click(buf)
     if vim.api.nvim_replace_termcodes(existing.lhs or "", true, true, true) == want then return end
   end
 
-  require("lib.nvim.map")("n", DOUBLE_CLICK, function()
+  require("lib.nvim.bindings.keymap")("n", DOUBLE_CLICK, function()
     if not require("images").hover() then
       -- No image link hit: the double click should behave normally (select the
       -- word) rather than being swallowed silently.
@@ -138,9 +138,9 @@ function M.register(cfg)
   local prefix = common_prefix(keys)
   if prefix then require("images.bindings.which_key").setup(prefix) end
 
-  local map = require("lib.nvim.map")
+  local map = require("lib.nvim.bindings.keymap")
   ---@param ev { buf: integer }
-  require("lib.nvim.autocmd").create("FileType", function(ev)
+  require("lib.nvim.bindings.autocmd").create("FileType", function(ev)
     if not vim.api.nvim_buf_is_valid(ev.buf) then return end
     for _, action in ipairs(ACTIONS) do
       local lhs = keys[action.option]
@@ -148,7 +148,7 @@ function M.register(cfg)
     end
     if keys.double_click then map_double_click(ev.buf) end
   end, {
-    group = require("lib.nvim.autocmd").group("images.keymaps", true),
+    group = require("lib.nvim.bindings.autocmd").group("images.keymaps", true),
     pattern = keys.filetypes or { "markdown" },
     desc = "images: install the buffer-local keymaps",
   })

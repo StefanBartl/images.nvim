@@ -6,7 +6,7 @@
 --- `images.init`). Otherwise they would run permanently while being relevant
 --- only for the few seconds an image is actually on screen.
 
-local autocmd = require("lib.nvim.autocmd")
+local autocmd = require("lib.nvim.bindings.autocmd")
 
 local M = {}
 
