@@ -11,7 +11,7 @@
 --- across all three engines — only snacks allows a custom `preview` function
 --- per picker. Since that live preview is the entire point of this feature,
 --- this module binds directly to `snacks.picker` (a soft dependency, the same
---- pattern as `images.bindings.which_key`) and falls back to a plain selection
+--- pattern as the guarded which-key probe elsewhere here) and falls back to a plain selection
 --- without preview when snacks is absent.
 
 local M = {}
