@@ -133,6 +133,69 @@ silent-no-op-with-a-warning. If a known-good terminal (WezTerm via
 there is no capability query for OSC 1337, so detection is inherently a
 best guess from environment variables.
 
+## The image spills past its frame — that is a placement problem, not a drawing one
+
+Two things are unknowable from inside Neovim: the terminal's cell size and its
+window padding. The protocol addresses whole cells (`CSI row;col H`), so a
+sub-cell placement error cannot be corrected from a plugin at all — and drawing
+flush therefore looks broken on any terminal whose padding is not cell-aligned.
+
+`display.draw_inset` defaults to `1`: a cell is kept free around the image, so
+the same offset stays *inside* the frame and reads as intentional. That is the
+robust default, and it costs one cell. Set it to `0` — together with
+`cell_aspect` and `terminal_padding` — once you have actually measured your
+setup and want a flush image.
+
+`images.redact` opts out explicitly (`inset = 0`), and that is not
+inconsistency: its draw box is not a presentation choice, it is the basis for
+mapping marked cells back to image pixels.
+
+## `:Image calibrate` instead of guessing an offset
+
+The correction a terminal needs is not a constant — the same file wanted `-2`
+at one cursor position and `-3` at another, with `-2` already overshooting at a
+third. So no number written into any documentation would be right, and none can
+be detected either: `TermResponse` forwards no CSI replies and `nvim_list_uis`
+has no pixels.
+
+`:Image calibrate` asks the one party who can see the screen. It draws a
+generated test card that exactly fills a framed window and asks, per edge, what
+is wrong and by how much — in whole lines and columns, the unit the protocol
+positions in and the only one anyone can judge by eye. Every answer redraws
+immediately, so it converges instead of guessing once, and an offset below one
+cell is reported as the protocol limit it is rather than papered over.
+
+Run it once per terminal setup, not per project. Reach for it when images look
+consistently misplaced; reach for `:Image check` first when they do not appear
+at all — those are different failures.
+
+## Counts work where counts make sense
+
+`3<leader>in` lands three images on and wraps exactly as one step would, and
+`3u` in redact removes three boxes, clamped to what is there. Worth the habit
+when stepping through a document's images rather than pressing the key three
+times.
+
+Paste prompts for a name instead of inventing one — the file is going into your
+asset folder and will be linked by that name, so it is the one moment where
+being asked is cheaper than renaming afterwards.
+
+## A captioned image counts now — as long as markdown.nvim is installed
+
+The line scanner matched only `![alt](target)`, which meant a captioned image —
+an `<img>` inside a `<figure>` block, the usual way to caption in Markdown —
+was invisible to `:Image zen`, `gallery`, `orphans` and the hover float.
+
+Line scanning now routes through markdown.nvim's scanner, which reads HTML
+targets, and the existing Markdown pattern stays as the fallback when
+markdown.nvim is not installed. The practical consequence is the one to
+remember: **`orphans` gets more accurate when markdown.nvim is present**, and a
+document full of `<figure>` blocks will report differently depending on whether
+it is.
+
+The cursor on a `<figcaption>` draws the image the caption belongs to, because
+`under_cursor` asks `figure_at()` when the line itself carries no target.
+
 ## `images.draw()` for other plugins, not just this one
 
 If you're scripting something that needs to put an image in a specific
