@@ -33,10 +33,17 @@ browsing shows a live image thumbnail per entry using a custom preview
 function; without it, `:Image pickers` falls back to a plain list with no
 preview.
 
+- **Module:** `images/browse.lua` (`draw_in_window`)
+- **Usercmds:** `:Image pickers`
+- **Dependency:** snacks.nvim, soft — the list still works without it
+
 ## filetree.nvim and open.nvim
 
 `filetree.nvim` uses images.nvim as the first backend of its own preview
 feature, and `open.nvim` routes `:Open image` here.
+
+- **Module:** `images/init.lua` (`draw`) — the entry point both call
+- **Dependency:** none here; the relationship runs from those plugins to this one
 
 ## pdfport.nvim for export
 
@@ -45,6 +52,10 @@ plugin is installed (asynchronous, lossless via `img2pdf` if available,
 otherwise `magick` through pdfport's own fallback chain). Soft dependency,
 `pcall`'d — without pdfport.nvim, the previous synchronous
 ImageMagick-only export path is unchanged.
+
+- **Module:** `images/convert.lua`
+- **Usercmds:** `:Image export`
+- **Dependency:** pdfport.nvim, soft and `pcall`'d — falls back to the synchronous ImageMagick path
 
 ## lib.nvim.deps: missing-tool reporting
 
