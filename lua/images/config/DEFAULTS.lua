@@ -52,6 +52,10 @@ return {
     -- Directory names `:Image pickers` skips while scanning, in addition to
     -- ".git", which is always excluded.
     browse_exclude = { ".deps", "node_modules" },
+    -- Upper bound on entries visited by that scan. A safety net against a
+    -- `cwd` that turns out to be the home directory, not an error: the
+    -- results found so far are still shown.
+    browse_max_entries = 20000,
     -- Size of the `:Image zen` window, as a fraction of the editor.
     zen = { width = 0.9, height = 0.85 },
     remote = {

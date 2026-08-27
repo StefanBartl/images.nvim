@@ -27,6 +27,7 @@
 ---@field assume_supported boolean skip terminal detection (affects the warning only)
 ---@field clear_events string[] autocmd events that remove the image again
 ---@field browse_exclude string[] directory names `:Image pickers` skips while scanning
+---@field browse_max_entries integer upper bound on entries that scan visits (default 20000); a safety net, not an error
 ---@field zen ImagesNvim.ZenConfig size of the `:Image zen` window
 ---@field remote ImagesNvim.RemoteConfig remote images for `:Image show`/hover
 ---@field screenshot ImagesNvim.ScreenshotConfig `:Image screenshot`, only relevant on Windows

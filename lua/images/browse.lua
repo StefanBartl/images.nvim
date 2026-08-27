@@ -29,7 +29,13 @@ local ALWAYS_EXCLUDE = { [".git"] = true }
 --- Upper bound on visited entries, as a safety net against a huge `cwd` scan
 --- (e.g. accidentally started in the home directory). Not an error, just a
 --- quiet stop — the results found so far are still useful.
-local MAX_ENTRIES = 20000
+---@return integer
+local function max_entries()
+  local ok, config = pcall(require, "images.config")
+  if not ok or type(config.get) ~= "function" then return 20000 end
+  local n = ((config.get() or {}).display or {}).browse_max_entries
+  return (type(n) == "number" and n > 0) and n or 20000
+end
 
 --- Collect image files below `root` (breadth-first, iterative rather than
 --- recursive — avoids stack depth on deeply nested trees).
@@ -60,7 +66,7 @@ local function walk(root, exclude, extensions)
         local name, kind = vim.uv.fs_scandir_next(handle)
         if not name then break end
         visited = visited + 1
-        if visited > MAX_ENTRIES then
+        if visited > max_entries() then
           table.sort(found)
           return found
         end
