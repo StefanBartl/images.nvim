@@ -176,9 +176,11 @@ at all — those are different failures.
 when stepping through a document's images rather than pressing the key three
 times.
 
-Paste prompts for a name instead of inventing one — the file is going into your
-asset folder and will be linked by that name, so it is the one moment where
-being asked is cheaper than renaming afterwards.
+A count before paste (`1<leader>iv`) prompts for a name instead of letting the
+template invent one — the file is going into your asset folder and will be
+linked by that name, so it is the one moment where being asked is cheaper than
+renaming afterwards. Without a count, `<leader>iv` names it silently, same as
+always.
 
 ## A captioned image counts now — as long as markdown.nvim is installed
 
