@@ -297,6 +297,7 @@ require("images").setup({
     assume_supported = false, -- true silences the "unknown terminal" warning
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     browse_exclude = { ".deps", "node_modules" }, -- dirs :Image pickers skips (".git" is always skipped)
+    browse_max_entries = 20000,                   -- upper bound on entries that scan visits
     zen = { width = 0.9, height = 0.85 },          -- :Image zen window size, as a fraction of the editor
     remote = {
       enabled = false,             -- true allows :Image show <url> / hover to download images
