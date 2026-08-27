@@ -92,6 +92,54 @@ return function(H)
     pcall(vim.api.nvim_buf_delete, fig, { force = true })
   end
 
+  -- ── plain-path fallback via gopath.nvim (soft dependency) ────────────────
+  -- Only when gopath.nvim is reachable (see TESTS/run.lua): a bare path with
+  -- no link syntax at all, the case `<figure>`/Markdown links never covered.
+  if pcall(require, "gopath.resolve") then
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local target_file = dir .. "/wezterm_padding.png"
+    local f = io.open(target_file, "w")
+    assert(f, "could not create the fixture file")
+    f:write("not a real png, existence is all that matters here")
+    f:close()
+
+    local plain_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(plain_buf, dir .. "/notes.txt")
+    vim.api.nvim_buf_set_lines(plain_buf, 0, -1, false, { "see wezterm_padding.png for the measurement" })
+    vim.api.nvim_set_current_buf(plain_buf)
+    vim.api.nvim_win_set_cursor(0, { 1, 6 }) -- inside "wezterm_padding.png"
+
+    local plain, plain_err = resolve.under_cursor()
+    H.ok(plain ~= nil, "a bare path with no link syntax resolves via gopath.nvim: " .. tostring(plain_err))
+    H.eq(plain and resolve.normalize_path(plain.path), resolve.normalize_path(target_file), "…to the same file")
+
+    -- `display.gopath_fallback = false` skips gopath's resolver entirely.
+    -- Proven by spying on it rather than by re-resolving: <cfile> alone
+    -- already finds this particular same-directory bare filename too (the
+    -- case that would NOT survive without gopath.nvim is exactly the harder
+    -- one gopath exists for, not this fixture) -- the flag is about whether
+    -- gopath gets consulted at all, not about this fixture's end result.
+    local gopath_resolve = require("gopath.resolve")
+    local original_resolve_at_cursor = gopath_resolve.resolve_at_cursor
+    local called = false
+    gopath_resolve.resolve_at_cursor = function(...)
+      called = true
+      return original_resolve_at_cursor(...)
+    end
+
+    require("images.config").setup({ display = { gopath_fallback = false } })
+    resolve.under_cursor()
+    H.falsy(called, "gopath_fallback = false skips gopath's resolver entirely")
+
+    gopath_resolve.resolve_at_cursor = original_resolve_at_cursor
+    require("images.config").setup(nil) -- restore defaults for the rest of the suite
+
+    pcall(vim.api.nvim_buf_delete, plain_buf, { force = true })
+    pcall(os.remove, target_file)
+    pcall(vim.fn.delete, dir, "d")
+  end
+
   -- A link target is text out of a Markdown buffer, so it must never be handed
   -- to vim.fn.expand: a backtick span there is a *command substitution* run
   -- through &shell. This used to execute -- confirmed, the directory appeared --

@@ -1,5 +1,13 @@
 ---@module 'images.resolve'
 ---@brief Find image targets in the buffer and resolve them to absolute paths.
+---@description
+--- Three sources, tried in order at the cursor: a Markdown link (built-in
+--- pattern, or markdown.nvim's scanner when present — see `links_in_line`), a
+--- `<figure>`/`<figcaption>` block (markdown.nvim only), then a bare
+--- filesystem path with no link syntax at all (gopath.nvim, soft dependency —
+--- see `resolve_via_gopath`), falling back to Vim's own `<cfile>` when none of
+--- those apply. Every source funnels through the same `resolve_target`, so a
+--- hit from any of them is indistinguishable to the rest of the plugin.
 
 local M = {}
 
@@ -134,8 +142,42 @@ local function resolve_target(raw, lnum)
   return { raw = raw, path = path, lnum = lnum }
 end
 
---- Image target under the cursor: the line's Markdown links first, otherwise
---- `<cfile>`.
+--- A plain filesystem path under the cursor, outside any Markdown link --
+--- `docs/ROADMAP/assets/wezterm_padding.png` written as bare text, not
+--- `![alt](...)`.
+---
+--- Soft dependency on gopath.nvim (`display.gopath_fallback`, default true):
+--- its resolver pipeline already solves "what path is the cursor on" far more
+--- robustly than Vim's own `<cfile>` below it -- several base directories, an
+--- existence check, a whole-line fallback -- and reimplementing any part of
+--- that here would be exactly the duplication this integration exists to
+--- avoid. Absent gopath.nvim, or with the option off, this returns nil and
+--- `<cfile>` remains the fallback it always was.
+---
+--- Only a CONFIRMED existing path is accepted (`res.exists`): gopath itself
+--- offers to create a missing file when the user deliberately opens one, but
+--- a hover glancing past a typo has no business popping up a "create this
+--- file?" prompt. `M.is_image` is what keeps this from ever hijacking a
+--- hover onto something gopath resolved for an unrelated reason (an LSP
+--- symbol, a `:help` subject, a URL) -- none of those end in a configured
+--- image extension, so they fall straight through.
+---@param lnum integer
+---@return ImagesNvim.Target|nil
+local function resolve_via_gopath(lnum)
+  if cfg().display.gopath_fallback == false then return nil end
+
+  local ok, gopath = pcall(require, "gopath.resolve")
+  if not ok then return nil end
+
+  local ok_res, res = pcall(gopath.resolve_at_cursor)
+  if not ok_res or not res then return nil end
+  if not (res.exists and type(res.path) == "string" and M.is_image(res.path)) then return nil end
+
+  return { raw = res.path, path = normalize(res.path), lnum = lnum }
+end
+
+--- Image target under the cursor: the line's Markdown links first, then a
+--- `<figure>` block, then a plain path via gopath.nvim, otherwise `<cfile>`.
 ---@return ImagesNvim.Target|nil
 ---@return string|nil err
 function M.under_cursor()
@@ -155,6 +197,9 @@ function M.under_cursor()
     local fig = html.figure_at(vim.api.nvim_get_current_buf(), lnum)
     if fig then return resolve_target(fig.target, lnum) end
   end
+
+  local gopath_target = resolve_via_gopath(lnum)
+  if gopath_target then return gopath_target end
 
   local cfile = vim.fn.expand("<cfile>")
   if cfile == "" then return nil, "no link or file name under the cursor" end

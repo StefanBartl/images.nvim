@@ -58,6 +58,34 @@ if not add_lib_nvim() then
   os.exit(1)
 end
 
+-- gopath.nvim is a soft dependency (images.resolve's plain-path fallback) --
+-- unlike lib.nvim above, its absence is not fatal, and resolve_spec.lua skips
+-- the relevant block when it cannot be required. Same sibling-checkout
+-- convention as add_lib_nvim, including the override: a worktree's ".."
+-- reaches the worktree's own parent, not the main checkout's siblings, so
+-- `$GOPATH_NVIM_PATH` is how a worktree run finds it at all.
+local function add_gopath_nvim()
+  local candidates = {}
+  if vim.env.GOPATH_NVIM_PATH then candidates[#candidates + 1] = vim.env.GOPATH_NVIM_PATH end
+  candidates[#candidates + 1] = repo .. "/../gopath.nvim"
+  candidates[#candidates + 1] = vim.fn.stdpath("data") .. "/lazy/gopath.nvim"
+
+  for _, path in ipairs(candidates) do
+    local norm = vim.fs.normalize(path)
+    if vim.fn.isdirectory(norm .. "/lua/gopath") == 1 then
+      vim.opt.rtp:append(norm)
+      package.path = table.concat({
+        norm .. "/lua/?.lua",
+        norm .. "/lua/?/init.lua",
+        package.path,
+      }, ";")
+      return norm
+    end
+  end
+  return nil
+end
+add_gopath_nvim()
+
 -- The side-effect-free modules only. Anything that draws needs a terminal
 -- speaking a graphics protocol and cannot be checked headlessly -- which is
 -- exactly why the grid layout, the link detection and the metadata handling

@@ -33,6 +33,7 @@
 ---@field screenshot ImagesNvim.ScreenshotConfig `:Image screenshot`, only relevant on Windows
 ---@field redact ImagesNvim.RedactConfig `:Image redact`
 ---@field ascii_fallback ImagesNvim.AsciiFallbackConfig block-graphics fallback for terminals without OSC 1337
+---@field gopath_fallback boolean resolve a plain filesystem path under the cursor (outside any Markdown link) via gopath.nvim's cursor resolver, when installed; default true, a no-op otherwise (see images.resolve)
 
 ---@class ImagesNvim.ZenConfig
 ---@field width number fraction of the editor width (0-1)

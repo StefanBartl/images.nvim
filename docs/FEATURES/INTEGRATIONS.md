@@ -16,6 +16,28 @@ for a live per-item image preview when snacks.picker is also installed.
 - **Module:** `images/resolve.lua` (`M.to_path`), `images/browse.lua`
   (`draw_in_window`)
 
+## gopath.nvim plain-path resolution
+
+`images.resolve.under_cursor()` tries, in order: a Markdown link, a
+`<figure>`/`<figcaption>` block (markdown.nvim only), then — when the
+cursor sits over a plain filesystem path with no link syntax at all, e.g.
+`docs/assets/screenshot.png` written as bare text — gopath.nvim's cursor
+resolver, before falling back to Vim's own `<cfile>`. gopath.nvim already
+solves "what path is the cursor on" more robustly than `<cfile>` (several
+base directories, an existence check, a whole-line fallback), so this
+consults it rather than reimplementing any part of that here; images.nvim
+still does all of the drawing. Only a result gopath confirms exists on
+disk is accepted, and only when its extension is one of `opts.extensions`
+— neither an LSP/treesitter symbol gopath might otherwise resolve to nor a
+typo offering a "create this file?" prompt has any business surfacing from
+a hover.
+
+- **Module:** `images/resolve.lua` (`resolve_via_gopath`, internal to
+  `under_cursor`)
+- **Config:** `display.gopath_fallback` (default `true`)
+- **Dependency:** gopath.nvim, soft and `pcall`'d — `<cfile>` remains the
+  fallback without it, unchanged from before this integration existed
+
 ## lib.nvim command grammar and picker
 
 `lib.nvim` provides the `:Image` command grammar via

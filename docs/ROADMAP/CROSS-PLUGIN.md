@@ -49,6 +49,45 @@ Windows/WezTerm setup. images.nvim is now wired in there as the preferred third
 provider (`markdown.util.image_preview`), with snacks/image.nvim remaining the
 fallback for setups where those actually work.
 
+### `gopath.nvim` — IMPLEMENTED, one direction; the other stayed a next step
+Two candidate directions surfaced at once, both from the same observation: the
+cursor hovering `docs/assets/screenshot.png` written as bare text (no
+`![alt](...)`) is a target neither plugin alone was built to notice — images'
+own resolver only ever looked at Markdown link syntax, and gopath's `open`
+action already routes such a path straight to the OS's external viewer without
+ever asking whether an inline preview exists.
+
+**Implemented: images.nvim → gopath.nvim, for the cursor target.**
+`images.resolve.under_cursor()` now asks gopath's `resolve_at_cursor()` (soft
+dependency, `display.gopath_fallback`) as a fourth source, after Markdown
+links and `<figure>` blocks and before the old `<cfile>` fallback — gopath's
+resolver pipeline already solves "what path is the cursor on" far more
+robustly than `<cfile>` (several base directories, an existence check, a
+whole-line fallback), so this consults it rather than reimplementing any part
+of it in images.nvim. Only a result gopath *confirms exists*, with an
+extension in `opts.extensions`, is accepted — an unconfirmed guess or an
+LSP/treesitter symbol gopath resolved for an unrelated reason never reaches
+the hover. Details: `docs/FEATURES/INTEGRATIONS.md#gopathnvim-plain-path-resolution`.
+
+**Deliberately not built in the same pass: gopath.nvim → images.nvim, for the
+`open` action.** `gopath.external.pdf` already has exactly the shape this
+would need — a mode chooser ("System app" first, soft dependency, `pcall`'d,
+config `picker`/`default`, opt-out even when the dependency is installed) — an
+`images.lua` module mirroring `pdf.lua` almost line for line would let
+gopath's `gF`-style open show an image inline via `images.show`/`images.zen`
+instead of always launching the system viewer. Held back for now because it is
+a genuinely separate feature (a deliberate "open" action, not the passive
+hover the first direction extends) with its own scope in a different repo, not
+because of any doubt about the design — the template is proven, this is next
+whenever gopath.nvim work resumes.
+
+**Why not one soft dependency covering both directions.** They query
+different things for different triggers (a read-only "what's under the
+cursor" during a hover vs. a render call during a deliberate open) and never
+call into each other, so nothing about them is actually shared — building one
+generic bridge module for both would only add an indirection neither
+direction needs.
+
 ### `mdview.nvim` — IMPLEMENTED, but the real gap was a different one
 A markdown preview without images is half a preview. Collect the image links
 while rendering and draw them in the right places.
@@ -196,8 +235,8 @@ snappiness, before building — no decision yet.
 For completeness, so the question stays settled:
 
 `cmdlog.nvim` (command history), `emojis.nvim` (character picker),
-`gopath.nvim` (navigation), `recommender.nvim` (repetition analysis),
-`replacer.nvim` (search/replace), `spotlight.nvim` (tokens in logs),
+`recommender.nvim` (repetition analysis), `replacer.nvim` (search/replace),
+`spotlight.nvim` (tokens in logs),
 `sandbox.nvim` (container TUI), `cascade.nvim` (line scan/scope), `lsp.nvim`
 and `dap.nvim`/`debugging.nvim` (language and debug tooling). `migrate.nvim`,
 `sessions.nvim` and `buffer-ctx.nvim` appear with reasons under "Rejected"

@@ -319,6 +319,7 @@ require("images").setup({
     ascii_fallback = {
       enabled = true, -- block-character rendering when the terminal check fails; needs ImageMagick
     },
+    gopath_fallback = true, -- resolve a bare path (no link syntax) via gopath.nvim, if installed
   },
   paste = {
     dir = "assets",              -- "" puts the file next to the document
@@ -382,6 +383,16 @@ both Kitty-only), and its `:Markdown links show` reuses
 name-preserved wrapper around `images.draw()` now — a new consumer should
 reach for `images.draw(target, position, path, opts)` directly instead,
 `draw_in_window` stays only for that existing call site.
+
+[gopath.nvim](https://github.com/StefanBartl/gopath.nvim) is a soft
+dependency for the cursor target itself: when the cursor sits over a plain
+filesystem path with no link syntax at all (`docs/assets/screenshot.png`
+written as bare text, not `![alt](...)`), its cursor resolver is asked before
+falling back to Vim's own `<cfile>` — several base directories, an existence
+check, a whole-line fallback, all without images.nvim reimplementing any of
+it. `display.gopath_fallback = false` turns this off even with gopath.nvim
+installed. Markdown links and `<figure>` blocks are unaffected either way —
+this only extends what counts as a target outside of link syntax.
 
 `lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
 picker used by `:Image list`, and the `kit.compare` component behind
