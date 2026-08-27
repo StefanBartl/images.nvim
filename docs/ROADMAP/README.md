@@ -102,7 +102,8 @@ precisely where `snacks.image` fails on Windows.
 This is also a limit rather than only a preference: the cell size cannot be
 queried from inside Neovim at all (`:h TermResponse` forwards no CSI replies).
 `display.cell_aspect` is therefore a configured value, and `:Image calibrate`
-asks the user rather than the terminal. See TERMINALS.md.
+asks the user rather than the terminal — nudged by eye against a letterbox
+strip, the same as `terminal_padding`. See TERMINALS.md.
 
 **Low-level code does not notify.** `terminal`, `gallery` and `info` return
 `ok, err` and never call `notify`. Only `lua/images/init.lua` decides what

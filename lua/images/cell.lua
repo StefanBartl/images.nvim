@@ -21,9 +21,12 @@
 --- worked, for exactly that reason. Details and measurements:
 --- `docs/ROADMAP/TERMINALS.md`.
 ---
---- Hence: set `display.cell_aspect` if you want it exact; otherwise the
---- assumption stands. That is no worse than before — the assumption was always
---- the value actually in effect.
+--- Hence: set `display.cell_aspect` if you want it exact, or let `:Image
+--- calibrate` measure it by eye — the same nudge-until-it-fits idea it already
+--- uses for `terminal_padding`, just against the letterbox strip instead of a
+--- position (see `images.calibrate`). Do neither and the assumption stands;
+--- that is no worse than before, since the assumption was always the value
+--- actually in effect.
 ---
 --- The value is written into `images.scale.CELL_ASPECT` rather than passed to
 --- every caller: `fit_cells` has four of them (`ascii`, `redact`, `zen` and
@@ -55,6 +58,18 @@ function M.aspect()
     local configured = (config.get().display or {}).cell_aspect
     if type(configured) == "number" and configured > 0 then return configured end
   end
+  return assumption()
+end
+
+--- The built-in assumption (0.5), regardless of anything configured or
+--- calibrated. `images.calibrate`'s reset needs this: "no correction" for an
+--- aspect ratio means falling back to the assumption, not zero, and by the
+--- time calibration runs `M.apply()` has usually already overwritten
+--- `images.scale.CELL_ASPECT` with a configured value — reading that global
+--- at reset time would reset to whatever is already active instead of to the
+--- true default.
+---@return number
+function M.default()
   return assumption()
 end
 

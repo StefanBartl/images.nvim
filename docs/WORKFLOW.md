@@ -159,15 +159,26 @@ be detected either: `TermResponse` forwards no CSI replies and `nvim_list_uis`
 has no pixels.
 
 `:Image calibrate` asks the one party who can see the screen. It draws a
-generated test card that exactly fills a framed window and asks, per edge, what
-is wrong and by how much — in whole lines and columns, the unit the protocol
-positions in and the only one anyone can judge by eye. Every answer redraws
-immediately, so it converges instead of guessing once, and an offset below one
-cell is reported as the protocol limit it is rather than papered over.
+generated test card that exactly fills a framed window; `hjkl`/arrows nudge it
+one cell per press, redrawn immediately, so it converges instead of guessing
+once — "push until it sits" rather than a number nobody could read off the
+screen. An offset below one cell is reported as the protocol limit it is
+rather than papered over.
 
-Run it once per terminal setup, not per project. Reach for it when images look
-consistently misplaced; reach for `:Image check` first when they do not appear
-at all — those are different failures.
+The same window measures `display.cell_aspect` too, with `+`/`-` in 0.01
+steps: a wrong aspect does not look like an offset, it looks like a letterbox
+strip along one edge that `hjkl` cannot nudge away, since the card's own
+shape is wrong rather than its position. Calibrating placement without ever
+noticing that strip is how a setup can look "correctly calibrated" and still
+spill an image past its frame.
+
+Run it once per terminal setup, not per project — and again on a different
+machine, even one running the same synced config: `terminal_padding` and
+`cell_aspect` are both font/terminal-specific and stored under
+`stdpath("data")`, never in the synced `setup()` spec, for exactly that
+reason. Reach for it when images look consistently misplaced or ill-fitted;
+reach for `:Image check` first when they do not appear at all — those are
+different failures.
 
 ## Counts work where counts make sense
 

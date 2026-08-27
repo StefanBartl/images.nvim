@@ -19,8 +19,10 @@ return {
     -- Pixel aspect ratio of a terminal cell (width/height). 0 = use the 0.5
     -- assumption from images.scale. Affects how tightly the draw box sits
     -- around an image: too coarse a value leaves an empty strip below it.
-    -- Measure it yourself (terminal width in pixels / columns, divided by row
-    -- height) -- it cannot be detected, see images.cell and
+    -- `:Image calibrate` measures this too now (alongside terminal_padding,
+    -- in the same window) and stores it per machine -- setting it here
+    -- overrides that measurement, same precedence as terminal_padding. It
+    -- cannot be detected automatically either way, see images.cell and
     -- docs/ROADMAP/TERMINALS.md.
     cell_aspect = 0,
     -- Margin in cells kept free all round when drawing. Default 1: the image
@@ -88,6 +90,15 @@ return {
     ascii_fallback = {
       enabled = true,
     },
+    -- Soft dependency, opt-out: when the cursor sits over a plain filesystem
+    -- path rather than a Markdown link (e.g. `docs/assets/screenshot.png`
+    -- written as bare text) and gopath.nvim is installed, its cursor resolver
+    -- is asked before falling back to Vim's own <cfile>. gopath.nvim already
+    -- solves "what path is the cursor on" far more robustly (several base
+    -- directories, existence confirmation, a whole-line fallback); this only
+    -- consults it, images.nvim still does all the drawing. false disables the
+    -- fallback outright, even with gopath.nvim installed. See images.resolve.
+    gopath_fallback = true,
   },
 
   paste = {

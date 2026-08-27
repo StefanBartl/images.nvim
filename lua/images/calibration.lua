@@ -4,8 +4,9 @@
 --- `:Image calibrate` produces values that hold for *this* terminal
 --- installation — not for the plugin, and not for a project. They therefore
 --- belong neither in the repository's configuration nor in a `setup()` spec
---- the user may well sync between machines: the same `terminal_padding` would
---- simply be wrong on another machine with a different font size.
+--- the user may well sync between machines: the same `terminal_padding` or
+--- `cell_aspect` would simply be wrong on another machine with a different
+--- font size.
 ---
 --- So `stdpath("data")`, where machine-local state belongs, and deliberately
 --- **not** an edit to the user's spec. A plugin that writes into someone

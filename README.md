@@ -153,17 +153,19 @@ values move the image up/left); raising the margin to paper over one just wastes
 space and still looks off.
 
 You do not have to work that value out by hand — **`:Image calibrate`** measures
-it with you. It draws a generated test card that exactly fills a framed window,
-then asks what you see at each edge ("flush", "gap", "cut off") and how far off
-it is, in whole text lines and columns — the unit the protocol positions in, and
-the only one anybody can judge by eye. Each answer redraws immediately, so it
-converges instead of guessing once. The result is offered for saving and then
-applies automatically on every start; it is stored per machine under
-`stdpath("data")`, not written into your config, because the right value depends
+it with you. It draws a generated test card that exactly fills a framed window;
+`hjkl`/arrows nudge it into place one cell at a time, redrawing immediately, so
+it converges instead of guessing once. The same window also measures
+`display.cell_aspect` (`+`/`-`, in 0.01 steps) — a wrong aspect shows up as a
+letterbox strip along one edge that no amount of position-nudging removes, since
+it is a wrong shape, not an offset. Both are offered for saving together and then
+apply automatically on every start; they are stored per machine under
+`stdpath("data")`, not written into your config, because the right values depend
 on the terminal and font size of the machine you are sitting at. An explicit
-`setup()` option always outranks a stored measurement. If the remaining offset is
-smaller than one cell, calibration says so plainly rather than pretending to fix
-it — that part is the protocol limit, and `display.draw_inset` is what covers it.
+`setup()` option always outranks a stored measurement, checked independently for
+each. If the remaining offset is smaller than one cell, calibration says so
+plainly rather than pretending to fix it — that part is the protocol limit, and
+`display.draw_inset` is what covers it.
 
 With a calibrated setup, `display.draw_inset = 0` gives you a flush image.
 `:Image redact` always draws flush regardless, because its cell-to-pixel mapping
@@ -217,7 +219,7 @@ list, see [docs/installation.md](docs/installation.md).
 | `:Image export [path]` | Export an image as PDF, next to the source file — via `pdfport.nvim` if installed, else requires ImageMagick |
 | `:Image redact [path]` | Open a censor mode: mark boxes (Visual mode + `<CR>`), `w` blacks them out into a new file — requires ImageMagick |
 | `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
-| `:Image calibrate` | Measure this terminal's image placement interactively (test card + questions), save the result -- see [Placement accuracy](#placement-accuracy) |
+| `:Image calibrate` | Measure this terminal's image placement and cell aspect ratio interactively (test card, nudged into place), save the result -- see [Placement accuracy](#placement-accuracy) |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
 | `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
 | `:Image draw <position> [path]` | Draw an image at a named position ("full", "center", "top-left", …) in the current window — the reliable, positioned single-shot primitive behind zen/hover/redact, also available as `images.draw()` for other plugins |
@@ -289,7 +291,8 @@ require("images").setup({
     max_cols = 60,   -- in terminal cells, not pixels
     max_rows = 25,
     cell_aspect = 0,  -- pixel width/height of one cell; 0 assumes 0.5. Cannot be
-                      -- detected (see "Placement accuracy"), so set it if you know it
+                      -- detected, but :Image calibrate measures it with you --
+                      -- see "Placement accuracy"
     draw_inset = 1,   -- cells of margin kept free around a drawn image; 0 draws flush
     terminal_padding = { row = 0, col = 0 }, -- whole-cell draw offset, see "Placement accuracy"
     gallery_gap = 1, -- cells between gallery tiles
