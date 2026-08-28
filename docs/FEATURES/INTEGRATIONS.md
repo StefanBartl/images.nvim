@@ -19,18 +19,29 @@ for a live per-item image preview when snacks.picker is also installed.
 ## gopath.nvim plain-path resolution
 
 `images.resolve.under_cursor()` tries, in order: a Markdown link, a
-`<figure>`/`<figcaption>` block (markdown.nvim only), then — when the
-cursor sits over a plain filesystem path with no link syntax at all, e.g.
-`docs/assets/screenshot.png` written as bare text — gopath.nvim's cursor
-resolver, before falling back to Vim's own `<cfile>`. gopath.nvim already
-solves "what path is the cursor on" more robustly than `<cfile>` (several
-base directories, an existence check, a whole-line fallback), so this
-consults it rather than reimplementing any part of that here; images.nvim
-still does all of the drawing. Only a result gopath confirms exists on
-disk is accepted, and only when its extension is one of `opts.extensions`
-— neither an LSP/treesitter symbol gopath might otherwise resolve to nor a
-typo offering a "create this file?" prompt has any business surfacing from
-a hover.
+`<figure>`/`<figcaption>` block (markdown.nvim only), then gopath.nvim's
+cursor resolver, before falling back to Vim's own `<cfile>`. Only a result
+gopath confirms exists on disk is accepted, and only when its extension is
+one of `opts.extensions` — neither an LSP/treesitter symbol gopath might
+otherwise resolve to nor a typo offering a "create this file?" prompt has
+any business surfacing from `:Image show`.
+
+**What this does and does not buy, measured.** Toggling
+`display.gopath_fallback` resolves the same files either way for ordinary
+paths: `to_path` already tries markdown.nvim's resolver, the buffer's own
+directory, then the cwd. What gopath adds on top is its harder cases — a
+truncated path (`...nvim/init.lua`), a `:line:col` suffix, a file findable
+only through `&path`/rtp/a tail search. Worth having for `:Image show` on
+whatever the cursor happens to be on; not the thing that makes a bare path
+*hover*.
+
+**The hover itself is markdown.nvim's**, and images.nvim is one provider
+inside it — `markdown.hover.preview.media` calls `images.info` and
+`images.scale.fit_cells` to draw the picture, the same way it calls
+`pdfport.render_page` for a PDF page. Bare paths (and truncated ones out of
+`:messages`) hover through `markdown.hover.bare_path`, in every filetype.
+See `docs/ROADMAP/CROSS-PLUGIN.md` for why the framework stays there rather
+than moving here.
 
 - **Module:** `images/resolve.lua` (`resolve_via_gopath`, internal to
   `under_cursor`)

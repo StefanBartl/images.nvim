@@ -49,25 +49,47 @@ Windows/WezTerm setup. images.nvim is now wired in there as the preferred third
 provider (`markdown.util.image_preview`), with snacks/image.nvim remaining the
 fallback for setups where those actually work.
 
-### `gopath.nvim` — IMPLEMENTED, one direction; the other stayed a next step
-Two candidate directions surfaced at once, both from the same observation: the
-cursor hovering `docs/assets/screenshot.png` written as bare text (no
-`![alt](...)`) is a target neither plugin alone was built to notice — images'
-own resolver only ever looked at Markdown link syntax, and gopath's `open`
-action already routes such a path straight to the OS's external viewer without
-ever asking whether an inline preview exists.
+### `gopath.nvim` — IMPLEMENTED, but read the role split below first
+The observation that started this: the cursor resting on
+`docs/assets/screenshot.png` written as bare text (no `![alt](...)`) produced
+no preview, in any buffer.
 
-**Implemented: images.nvim → gopath.nvim, for the cursor target.**
-`images.resolve.under_cursor()` now asks gopath's `resolve_at_cursor()` (soft
+**Implemented here: images.nvim → gopath.nvim, for the cursor target.**
+`images.resolve.under_cursor()` asks gopath's `resolve_at_cursor()` (soft
 dependency, `display.gopath_fallback`) as a fourth source, after Markdown
-links and `<figure>` blocks and before the old `<cfile>` fallback — gopath's
-resolver pipeline already solves "what path is the cursor on" far more
-robustly than `<cfile>` (several base directories, an existence check, a
-whole-line fallback), so this consults it rather than reimplementing any part
-of it in images.nvim. Only a result gopath *confirms exists*, with an
-extension in `opts.extensions`, is accepted — an unconfirmed guess or an
-LSP/treesitter symbol gopath resolved for an unrelated reason never reaches
-the hover. Details: `docs/FEATURES/INTEGRATIONS.md#gopathnvim-plain-path-resolution`.
+links and `<figure>` blocks and before the old `<cfile>` fallback. Only a
+result gopath *confirms exists*, with an extension in `opts.extensions`, is
+accepted — an unconfirmed guess or an LSP/treesitter symbol gopath resolved
+for an unrelated reason never reaches `:Image show`. Details:
+`docs/FEATURES/INTEGRATIONS.md#gopathnvim-plain-path-resolution`.
+
+**What this is NOT, measured rather than assumed.** It is not what makes bare
+paths hover. Toggling `display.gopath_fallback` off and on resolves the same
+files either way: `images.resolve.to_path` already tries markdown.nvim's
+resolver, then the buffer's directory, then the cwd, which covers ordinary
+relative and absolute paths on its own. What this adds is only gopath's
+harder cases — a truncated path, a `:line:col` suffix, a file findable solely
+through `&path`/rtp/a tail search. Useful for `:Image show` under the cursor;
+not the feature it was first written up as.
+
+**The hover itself lives in markdown.nvim, and should stay there.** Its
+`markdown.hover` is a ~1600-line preview framework — `classify` (image, PDF,
+markdown, file, directory, url, anchor, missing), `float`, `preview/text`
+(file head, directory listing, `#anchor` section), `preview/url`, plus
+debounce, an LRU cache and a generation counter for async results. In it,
+**images.nvim is one provider**: `preview/media` calls `images.info` and
+`images.scale.fit_cells` to draw a picture, exactly as it calls
+`pdfport.render_page` to rasterize a PDF page. `markdown.hover.bare_path`
+(added there, using gopath the same way) is what actually made bare paths and
+`:messages` paths hover, in every filetype.
+
+Moving that framework here was considered and rejected: images.nvim can draw
+images and nothing else, so it would have to duplicate ~1200 lines of text /
+directory / URL / float handling, or call back into markdown.nvim to list a
+directory — a worse arrangement than being its picture provider. The framework
+is admittedly generic enough that `lib.nvim` would be its natural home; that
+move is a real option, not a prerequisite, and nothing about the current split
+is wrong while it stays put.
 
 **Deliberately not built in the same pass: gopath.nvim → images.nvim, for the
 `open` action.** `gopath.external.pdf` already has exactly the shape this

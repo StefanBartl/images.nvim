@@ -385,14 +385,22 @@ reach for `images.draw(target, position, path, opts)` directly instead,
 `draw_in_window` stays only for that existing call site.
 
 [gopath.nvim](https://github.com/StefanBartl/gopath.nvim) is a soft
-dependency for the cursor target itself: when the cursor sits over a plain
-filesystem path with no link syntax at all (`docs/assets/screenshot.png`
-written as bare text, not `![alt](...)`), its cursor resolver is asked before
-falling back to Vim's own `<cfile>` — several base directories, an existence
-check, a whole-line fallback, all without images.nvim reimplementing any of
-it. `display.gopath_fallback = false` turns this off even with gopath.nvim
-installed. Markdown links and `<figure>` blocks are unaffected either way —
-this only extends what counts as a target outside of link syntax.
+dependency for resolving the cursor target: after Markdown links and
+`<figure>` blocks, and before Vim's own `<cfile>`, its resolver is asked what
+path the cursor is on. Ordinary relative and absolute paths resolve without
+it; what it adds are the awkward forms — a truncated `...nvim/init.lua`, a
+`:line:col` suffix, a file findable only through `&path`/rtp. Only paths it
+confirms exist, with an image extension, are accepted.
+`display.gopath_fallback = false` turns it off even when gopath.nvim is
+installed.
+
+If what you want is a **hover preview** — a float that appears when the
+cursor rests on a path, for images, PDFs, markdown sections, directories, in
+any filetype — that lives in
+[markdown.nvim](https://github.com/StefanBartl/markdown.nvim)'s
+`markdown.hover`, with images.nvim as its picture provider. See
+[docs/hover.md](https://github.com/StefanBartl/markdown.nvim/blob/main/docs/hover.md)
+there.
 
 `lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
 picker used by `:Image list`, and the `kit.compare` component behind
