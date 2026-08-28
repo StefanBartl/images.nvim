@@ -208,6 +208,26 @@ function M.register(cfg)
       },
 
       {
+        path = { "debug" },
+        args = {
+          { name = "mode", type = "STRING", enum = { "report", "columns", "float" } },
+          { name = "path", type = "FILE", optional = true },
+        },
+        desc = "Measure image placement: report (log draws), columns (constant vs. scaling offset), float (is a window where it says it is)",
+        run = function(ctx)
+          local debug = require("images.debug")
+          local mode = ctx.args.mode
+          if mode == "columns" then
+            debug.columns(ctx.args.path)
+          elseif mode == "float" then
+            debug.float(nil, nil, ctx.args.path)
+          else
+            debug.report()
+          end
+        end,
+      },
+
+      {
         path = { "compare" },
         args = {
           { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },

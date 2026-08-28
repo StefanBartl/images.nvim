@@ -196,6 +196,87 @@ their own is to be expected; it was only measured in WezTerm.
 `display.terminal_padding` is therefore worded terminal-neutrally and defaults
 to `{ row = 0, col = 0 }`, a plain no-op.
 
+### 6. The image is letterboxed inside its own frame
+
+**Finding.** A hovered image sat ~2.7 cells right of its frame's left edge,
+with matching slack on the right. It looked like a placement error and was
+chased as one; it is not one at all.
+
+The float is sized to fit the image — `fit_cells` returned 77x20 for a
+1200x675 picture, ratio 1.771 against the image's 1.778. `images.anchor`
+then keeps `draw_inset` cells free on **every** side and hands the terminal
+75x18, ratio **1.917**. Two cells off 20 rows is a larger relative change
+than two off 77 columns, so the box's shape moves, and
+`preserveAspectRatio=1` does exactly what it promises: fits the image and
+centres the remainder.
+
+**Rule.** Fit the image to the box it will actually be drawn in, then add
+the inset back for the frame. Implemented in `lib.nvim.hover.preview.media`'s
+`canvas_cells`. Any other consumer sizing a window to an image must do the
+same, or `draw_inset` will letterbox it.
+
+### 7. The image sits beside its frame by the width of a sidebar
+
+**Finding.** With a file tree open on the left, a hovered image landed ~26
+columns right of its frame — the tree's exact width — and overhung it.
+Without a tree it was correct. Superficially failure mode 4, but **not** the
+same cause: no float overhung the screen, so `placed_position` never
+engaged.
+
+**`nvim_win_get_position` reports a wrong column for a `relative = "cursor"`
+float when the editor window does not start at column 0.** It adds the
+window's origin to a cursor position that already contains it. Measured with
+a 26-column tree: a float whose frame is drawn at column ~59 reports **83**.
+Neovim draws it correctly; only the number handed back is wrong.
+
+That is fatal wherever a float's geometry *is* the drawing box: the offset
+computed from it is correct, the origin is not, and the picture lands beside
+its own frame.
+
+**Rule.** Do not open a float `relative = "cursor"` when its geometry will be
+read back. Take the cursor's true grid position from `screenpos()` and open
+`relative = "editor"`, which reports back exactly what it was given.
+Implemented in `lib.nvim.hover.float`.
+
+### Ruled out while hunting modes 6 and 7 — do not re-check these first
+
+Each of the following was measured, produced a clean result, and cost a
+round. Recorded so the next investigation starts further along:
+
+| Suspected | Verdict |
+| --- | --- |
+| `window_padding` (mode 5) | Set to `0`, WezTerm fully restarted — screen grew 170x37 → 172x39, confirming it took effect. **The offset survived.** It contributed to mode 6's slack but caused neither bug. |
+| Wrong `cell_aspect` | `:Image calibrate`'s card filled its frame exactly at 0.46. A wrong aspect letterboxes; it does not displace. |
+| Overhanging float (mode 4) | `placed_position` verified still correct when engaged (col 130 of 170, extent 82 → sent 91). But **no float overhung** in any measurement, so it never engaged. |
+| `images.terminal.draw` | Drew the same card at columns 8/51/94/137 with and without a file tree: identical pixel positions every time. Correct at any screen column. |
+| Deferred measurement | The float's reported position is identical at `open` time and one tick later at draw time. Not a timing window. |
+| A stale image from a previous hover | An explicit `clear()` changes nothing, and the offset neither travels with the cursor nor produces a second picture. |
+| Proportional / scale error | `columns` mode: no growth left-to-right. The error was constant, then turned out to be two separate constant errors. |
+
+### How to measure any of this: `:Image debug`
+
+The five failure modes above were each found by measurement, and the
+measurements are now part of the plugin rather than scratch scripts:
+
+| Command | Answers |
+| --- | --- |
+| `:Image debug report` | What coordinates go to the terminal, per draw, against an independently recomputed expectation. Run once to arm, again to print. |
+| `:Image debug columns` | Draw the same card at four columns. A displacement growing left-to-right is a scale error; a constant one is an offset `terminal_padding` can absorb. |
+| `:Image debug float [path]` | Open a float, draw into it, and mark the float's **reported** corner. Marker off the corner ⇒ failure mode 7. |
+
+**Two traps worth knowing before trusting a result.**
+
+First: a `delta` of `0/0` in `report` proves only that the sent coordinates
+match the *reported* float position. Both bugs above produced `0/0`
+throughout, because everything downstream of the origin was correct. Only
+`float`'s marker compares the report against reality.
+
+Second, and the reason failure mode 6 hid for so long: **`images.testcard`
+builds its card to whatever box it is handed.** A generated card fills any
+frame by construction and can never reveal an aspect-ratio problem. Pass a
+real image to `columns`/`float` — and note that a probe passing `inset = 0`
+is also bypassing mode 6 by definition.
+
 ### What is fundamentally impossible from inside Neovim
 
 For the cell size there is the query `CSI 16 t`, answered with

@@ -167,6 +167,14 @@ each. If the remaining offset is smaller than one cell, calibration says so
 plainly rather than pretending to fix it — that part is the protocol limit, and
 `display.draw_inset` is what covers it.
 
+If an image lands somewhere it should not, **`:Image debug`** measures rather
+than guesses — `report` for the coordinates actually sent, `columns` to tell
+a constant offset (which `terminal_padding` can absorb) from a scaling one
+(which it cannot), `float` to check whether a window is where Neovim claims.
+The failure modes these were built to distinguish, and the two real bugs they
+found, are written up in
+[docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
+
 With a calibrated setup, `display.draw_inset = 0` gives you a flush image.
 `:Image redact` always draws flush regardless, because its cell-to-pixel mapping
 depends on it.
@@ -226,6 +234,7 @@ list, see [docs/installation.md](docs/installation.md).
 | `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan, view side by side; with ImageMagick, scaled proportionally so a small icon doesn't look the same size as a large photo |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | Report whether this terminal can display images |
+| `:Image debug <mode> [path]` | Measure image placement when something lands in the wrong spot: `report` logs the coordinates sent per draw, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is -- see [docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md) |
 | `:Image clear` | Remove displayed images (and a `:Image zen` window, if open) |
 
 In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
