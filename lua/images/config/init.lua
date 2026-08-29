@@ -16,7 +16,7 @@ local user_opts = nil
 --- value into your own `setup()` spec therefore outranks the measurement — by
 --- design, a decision weighs more than a measurement. `pcall`, because an
 --- unreadable state file must never make `setup()` fail.
----@param opts table|nil
+---@param opts ImagesNvim.Opts|nil
 ---@return ImagesNvim.Config
 function M.setup(opts)
   local defaults = require("images.config.DEFAULTS")

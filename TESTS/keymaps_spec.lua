@@ -1,3 +1,6 @@
+---@diagnostic disable: missing-fields
+-- The config tables below carry only the keymap fields the registrar reads;
+-- a resolved ImagesNvim.Config per case would be noise, not coverage.
 -- TESTS/keymaps_spec.lua — which-key grouping of the `<leader>i` prefix.
 --
 -- which-key itself is not needed: `images.bindings.which_key` only asks for it

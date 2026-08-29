@@ -598,7 +598,7 @@ function M.recheck()
 end
 
 --- Set the plugin up.
----@param opts table|nil see `images.config.DEFAULTS`
+---@param opts ImagesNvim.Opts|nil see `images.config.DEFAULTS`
 ---@return nil
 function M.setup(opts)
   local conf = require("images.config").setup(opts)
