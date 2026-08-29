@@ -1,13 +1,15 @@
 > **Active development.** This repository is in its development phase — breaking changes are to be expected at any time. Pin a commit or tag if you depend on it.
 
-<pre>
+# images.nvim
+
+```
   ___
  |_ _|_ __  __ _ __ _ ___ ___
   | || '  \/ _` / _` / -_|_-<
  |___|_|_|_\__,_\__, \___/__/
                 |___/
         show images inside Neovim, on any terminal that speaks OSC 1337
-</pre>
+```
 
 ![Neovim](https://img.shields.io/badge/Neovim-0.10%2B-57A143?logo=neovim&logoColor=white)
 ![Lua](https://img.shields.io/badge/Made%20with-Lua-2C2D72?logo=lua&logoColor=white)
