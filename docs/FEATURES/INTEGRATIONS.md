@@ -40,8 +40,7 @@ inside it — `markdown.hover.preview.media` calls `images.info` and
 `images.scale.fit_cells` to draw the picture, the same way it calls
 `pdfport.render_page` for a PDF page. Bare paths (and truncated ones out of
 `:messages`) hover through `markdown.hover.bare_path`, in every filetype.
-See `docs/ROADMAP/CROSS-PLUGIN.md` for why the framework stays there rather
-than moving here.
+The framework deliberately stays there rather than moving here.
 
 - **Module:** `images/resolve.lua` (`resolve_via_gopath`, internal to
   `under_cursor`)

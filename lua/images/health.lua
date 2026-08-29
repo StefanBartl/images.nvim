@@ -90,7 +90,7 @@ local function check_imagemagick()
     )
   else
     -- Not `vim.health.warn`: ImageMagick improves info/compare/SVG but is not a
-    -- prerequisite for them (see the guardrail in docs/ROADMAP/README.md) --
+    -- prerequisite for them (a deliberate guardrail) --
     -- `info` merely lacks the dimensions, `compare` shows both images at the
     -- same size, and SVGs report a clear error when drawn rather than failing
     -- silently. `:Image export`/`redact` are the explicit exception to that

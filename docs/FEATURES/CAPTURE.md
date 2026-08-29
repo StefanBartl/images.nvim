@@ -109,7 +109,7 @@ Selection happens entirely in terminal cells — there is no pixel-precise
 mouse input available in a terminal at all, so each marked box gets a
 configurable safety margin (default one cell) added around it before
 burning in. Over-redacting is the safe failure mode; under-redacting is
-not. See `docs/ROADMAP/REDACT.md` for the fuller design rationale.
+not.
 
 ## Orphan cleanup
 

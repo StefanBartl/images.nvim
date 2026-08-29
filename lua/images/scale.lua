@@ -35,7 +35,7 @@ M.MIN_SCALE = 0.35
 ---
 --- Without both dimensions (e.g. because ImageMagick is missing) both get 1.0
 --- — exactly the previous behaviour, each image fills its pane. Per the
---- guardrail in docs/ROADMAP/README.md, ImageMagick improves features but
+--- guardrail, ImageMagick improves features but
 --- never enables them.
 ---@param a Images.Scale.Dims|nil
 ---@param b Images.Scale.Dims|nil
@@ -121,9 +121,9 @@ function M.anchor_box(win_width, win_height, position, scale)
 end
 
 --- Assumed pixel aspect ratio of a terminal cell (width/height). images.nvim
---- never queries the terminal for it (see the "no cell measurement" guardrail
---- in docs/ROADMAP/README.md) — 0.5 is a coarse assumption typical of common
---- monospace fonts (a cell is roughly twice as tall as it is wide). That is
+--- never queries the terminal for it (the "no cell measurement" guardrail) —
+--- 0.5 is a coarse assumption typical of common monospace fonts (a cell is
+--- roughly twice as tall as it is wide). That is
 --- enough for `images.redact`: `M.fit_cells` picks the draw box so that
 --- `preserveAspectRatio=1` has almost nothing left to letterbox, and
 --- `M.cell_box_to_pixels`'s safety margin absorbs the rest — better one cell

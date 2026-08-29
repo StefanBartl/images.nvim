@@ -8,13 +8,13 @@
 --- `M.to_png` — WezTerm decodes PNG/JPEG/GIF/WebP itself, but not SVG. Here a
 --- conversion is genuinely required rather than merely an improvement —
 --- deliberately the only *display* case where `magick` is a prerequisite
---- instead of a bonus (see the guardrail in docs/ROADMAP/README.md). Results
+--- instead of a bonus (a deliberate guardrail). Results
 --- are cached in `stdpath("cache")/images.nvim/svg`, named after source path
 --- plus modification time — a changed SVG automatically gets a new PNG rather
 --- than showing a stale one.
 ---
 --- `M.to_pdf` — the opposite direction of `pdfport.nvim`'s "PDF page as an
---- image" (see docs/ROADMAP/CROSS-PLUGIN.md): write an existing image out as a
+--- image": write an existing image out as a
 --- PDF next to its source, e.g. to attach a screenshot to a ticket that
 --- expects a PDF. No cache — unlike SVG display this is a one-off, explicit
 --- export, not a repeated draw path.
@@ -24,12 +24,10 @@
 --- via `img2pdf`, otherwise `magick` — which producer applies is pdfport's
 --- own `create_chain` to decide, not this plugin's). Without pdfport the
 --- existing synchronous `magick` path remains the only option, unchanged. A
---- soft dependency via `pcall`, as everywhere in this repo (see
---- CROSS-PLUGIN.md).
+--- soft dependency via `pcall`, as everywhere in this repo.
 ---
 --- `M.redact` — paint rectangles (pixel coordinates, see `images.scale`) black
---- and write the result as a new file; see docs/ROADMAP/REDACT.md for the full
---- concept (motivation: casedesk attachments containing customer data that has
+--- and write the result as a new file (motivation: casedesk attachments containing customer data that has
 --- to be made unrecognisable before any future handover to an AI). No cache,
 --- like `M.to_pdf` — a one-off export, not a draw path.
 

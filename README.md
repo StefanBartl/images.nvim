@@ -139,8 +139,7 @@ padding is not a multiple of the cell size therefore place the image a fraction
 of a cell off, and a plugin cannot correct for it: neither the cell size nor the
 padding is knowable from inside Neovim (`:h TermResponse` forwards only DA1,
 OSC, DCS and APC responses, and the cell-size reply is a plain CSI response;
-`nvim_list_uis()` reports cells, not pixels). This is measured and written up in
-[docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
+`nvim_list_uis()` reports cells, not pixels). This is measured, not assumed.
 
 Because of that, images are drawn with **one cell of margin inside their frame**
 by default (`display.draw_inset = 1`), centred rather than flush. A sub-cell
@@ -171,9 +170,7 @@ If an image lands somewhere it should not, **`:Image debug`** measures rather
 than guesses — `report` for the coordinates actually sent, `columns` to tell
 a constant offset (which `terminal_padding` can absorb) from a scaling one
 (which it cannot), `float` to check whether a window is where Neovim claims.
-The failure modes these were built to distinguish, and the two real bugs they
-found, are written up in
-[docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md).
+The failure modes these were built to distinguish turned up two real bugs.
 
 With a calibrated setup, `display.draw_inset = 0` gives you a flush image.
 `:Image redact` always draws flush regardless, because its cell-to-pixel mapping
@@ -234,7 +231,7 @@ list, see [docs/installation.md](docs/installation.md).
 | `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan, view side by side; with ImageMagick, scaled proportionally so a small icon doesn't look the same size as a large photo |
 | `:Image pin` | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | Report whether this terminal can display images |
-| `:Image debug <mode> [path]` | Measure image placement when something lands in the wrong spot: `report` logs the coordinates sent per draw, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is -- see [docs/ROADMAP/TERMINALS.md](docs/ROADMAP/TERMINALS.md) |
+| `:Image debug <mode> [path]` | Measure image placement when something lands in the wrong spot: `report` logs the coordinates sent per draw, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is |
 | `:Image clear` | Remove displayed images (and a `:Image zen` window, if open) |
 
 In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
@@ -422,9 +419,7 @@ Kitty-only one — see "Why not snacks.image or image.nvim" above); without it,
 `:Image pickers` falls back to a plain list with no preview.
 
 `filetree.nvim` uses this plugin as the first backend of its preview feature,
-and `open.nvim` routes `:Open image` here. See
-[docs/ROADMAP/CROSS-PLUGIN.md](docs/ROADMAP/CROSS-PLUGIN.md) for what else is
-possible across the sibling plugins.
+and `open.nvim` routes `:Open image` here.
 
 `images.integrations.menu` contributes a right-click context menu (Show
 image, Gallery, Next/Previous, Paste, Screenshot, Info) in the shape
@@ -467,7 +462,6 @@ which this plugin already depends on:
 - `:h images` — vimdoc reference
 - [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
 - generated module map — not committed (derived output, stale the moment anything changes); open any file in this repo and run `:DocMap` to build it into `docs/map/`, via [documentation.nvim](https://github.com/StefanBartl/documentation.nvim)
-- [docs/ROADMAP/](docs/ROADMAP/) — planned features and cross-plugin ideas
 
 ## Development
 

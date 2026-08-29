@@ -378,8 +378,7 @@ function M.replace(path)
 end
 
 --- Export an image as a PDF next to the source file — the opposite direction of
---- pdfport's "PDF page as an image" (still open there, see pdfport.nvim's own
---- docs/ROADMAP.md). Runs through pdfport.nvim (losslessly via img2pdf) when
+--- pdfport.s "PDF page as an image" (still open there). Runs through pdfport.nvim (losslessly via img2pdf) when
 --- installed and available; otherwise through `magick` — both paths
 --- asynchronous, see `images.convert.to_pdf`.
 ---@param path string|nil nil = the image under the cursor
@@ -406,7 +405,7 @@ end
 
 --- Open an image — or the one under the cursor — in redaction mode: mark boxes
 --- (visual mode + `<CR>`), black them out with `w` and save as a new file; the
---- original stays unchanged. See docs/ROADMAP/REDACT.md.
+--- original stays unchanged.
 ---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.redact(path)

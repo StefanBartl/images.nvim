@@ -22,8 +22,7 @@ return {
     -- `:Image calibrate` measures this too now (alongside terminal_padding,
     -- in the same window) and stores it per machine -- setting it here
     -- overrides that measurement, same precedence as terminal_padding. It
-    -- cannot be detected automatically either way, see images.cell and
-    -- docs/ROADMAP/TERMINALS.md.
+    -- cannot be detected automatically either way, see images.cell.
     cell_aspect = 0,
     -- Margin in cells kept free all round when drawing. Default 1: the image
     -- sits centred with a little air rather than flush. The reason is

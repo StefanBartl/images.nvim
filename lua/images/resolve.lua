@@ -143,7 +143,7 @@ local function resolve_target(raw, lnum)
 end
 
 --- A plain filesystem path under the cursor, outside any Markdown link --
---- `docs/ROADMAP/assets/wezterm_padding.png` written as bare text, not
+--- `docs/assets/wezterm_padding.png` written as bare text, not
 --- `![alt](...)`.
 ---
 --- Soft dependency on gopath.nvim (`display.gopath_fallback`, default true):

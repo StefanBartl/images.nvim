@@ -3,8 +3,7 @@
 --- unavailable.
 ---@description
 --- The fallback for any terminal without a graphics protocol (SSH, tmux
---- without passthrough, an unrecognised terminal) — see
---- docs/ROADMAP/CROSS-PLUGIN.md, section color_my_ascii.nvim.
+--- without passthrough, an unrecognised terminal).
 ---
 --- Originally considered as a color_my_ascii.nvim integration. Its highlighter
 --- colours known ASCII character classes (arrows, box drawing, operators, …)
@@ -15,7 +14,7 @@
 --- a dependency that does not fit.
 ---
 --- Requires ImageMagick — the fourth deliberate exception alongside SVG,
---- `:Image export` and `:Image redact` (see docs/ROADMAP/README.md): reading
+--- `:Image export` and `:Image redact`: reading
 --- pixel colours out of an arbitrary raster file needs a real image decoder,
 --- which plain Lua does not have.
 ---

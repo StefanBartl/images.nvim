@@ -142,8 +142,7 @@ padding is knowable from inside the editor.
 
 The offset is not even a constant that could be written into the docs:
 during measurement the same file needed one correction at one cursor
-position and a different one at another. See
-[docs/ROADMAP/TERMINALS.md](../ROADMAP/TERMINALS.md) for the full log.
+position and a different one at another.
 
 ### How the tool works
 

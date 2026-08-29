@@ -12,7 +12,7 @@
 --- **Why a hand-rolled PNG writer instead of ImageMagick.** Calibration has to
 --- work precisely where nothing is set up yet; a dependency you must install
 --- first would be the wrong hurdle at this point (see the "ImageMagick
---- improves, but never enables" guardrail in docs/ROADMAP/README.md). PNG can
+--- improves, but never enables" guardrail). PNG can
 --- be written without compression: the zlib stream may consist of *stored*
 --- blocks, which needs only CRC-32 and Adler-32, both a few lines. That makes
 --- the file large, but it lives only for the duration of one calibration.

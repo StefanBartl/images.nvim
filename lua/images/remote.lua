@@ -12,7 +12,7 @@
 --- `orphans`, `images.resolve.to_path`) — otherwise merely listing a buffer's
 --- images would fire N network requests just to show a list. `:Image
 --- gallery`/`compare`/`browse`/`zen` do not support remote images (yet) for
---- the same reason — open work, see docs/ROADMAP/FEATURES.md.
+--- the same reason — open work.
 
 local M = {}
 

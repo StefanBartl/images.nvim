@@ -2,7 +2,7 @@
 ---@brief Redaction mode: black out parts of an image in a zen-like window,
 --- leaving the original intact.
 ---@description
---- Concept: docs/ROADMAP/REDACT.md. Motivation: casedesk attachments
+--- Motivation: casedesk attachments
 --- (screenshots containing customer data under `Ressources/`) that have to be
 --- made unrecognisable before any future handover to an AI.
 ---

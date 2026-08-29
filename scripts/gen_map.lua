@@ -62,7 +62,7 @@ local opts = require("documentation.config").build(root, {
   branch = "main",
 
   -- Two invariants that would otherwise rot in silence. Both are stated as
-  -- guardrails in docs/ROADMAP/README.md; without a check they are a
+  -- guardrails of this plugin; without a check they are a
   -- statement of intent in prose and nothing more.
   layers = {
     -- `terminal` takes sizes and positions as arguments and never looks them

@@ -4,7 +4,7 @@
 --- A terminal may place an image somewhere other than `CSI row;col H` asked
 --- for: WezTerm does not account for its own `window_padding` when placing an
 --- OSC 1337 image, and terminals with their own window chrome presumably
---- behave the same (measurements: docs/ROADMAP/TERMINALS.md). The offset
+--- behave the same (measured). The offset
 --- cannot be detected from inside Neovim — `:h TermResponse` forwards no CSI
 --- replies and `nvim_list_uis()` reports no pixels — and it is not even
 --- constant: the same value was right at one cursor position and already
@@ -42,7 +42,7 @@
 --- Before this, that strip had no explanation in the tool itself — someone
 --- could calibrate padding perfectly and the image would still spill past
 --- its frame on a machine whose font metrics differ from wherever
---- `cell_aspect` was last measured (see docs/ROADMAP/TERMINALS.md: the value
+--- `cell_aspect` was last measured (the value
 --- is inherently per-font, per-terminal, exactly like `terminal_padding`, and
 --- just as wrong carried verbatim to a different machine). `+`/`-` nudge it
 --- in 0.01 steps and rebuild the card on every press, so the same "does it

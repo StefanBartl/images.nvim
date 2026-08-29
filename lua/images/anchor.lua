@@ -152,8 +152,8 @@ end
 --- Additional fixed row/column offset from `display.terminal_padding` —
 --- default `{ row = 0, col = 0 }`, a plain no-op for anyone without it.
 ---
---- The reason: some terminals (WezTerm demonstrably, see
---- docs/ROADMAP/TERMINALS.md) account for their own `window_padding` correctly
+--- The reason: some terminals (WezTerm demonstrably) account for their own
+--- `window_padding` correctly
 --- when painting text and borders, but not when placing an OSC 1337 image —
 --- the image then lands as many pixels too low/too far right as the window has
 --- padding. `CSI row;col H` positions in whole cells only; padding that is not
@@ -188,7 +188,7 @@ end
 --- **Why at all.** Placing an image flush against the frame only looks good if
 --- the placement is cell-accurate. That cannot be guaranteed: terminals whose
 --- window padding is not a multiple of the cell size shift the image by a
---- fraction of a cell (WezTerm demonstrably, see docs/ROADMAP/TERMINALS.md),
+--- fraction of a cell (WezTerm demonstrably),
 --- and neither cell size nor padding can be queried from inside Neovim (`:h
 --- TermResponse` forwards no CSI replies). Drawn flush, such an offset turns
 --- into a visible overhang past the frame.

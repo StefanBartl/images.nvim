@@ -169,8 +169,7 @@ Calling |images.setup()| is optional when using `opts`.
                         (`display.redact.padding_cells`, default 1) —
                         over-redacting is the safe failure mode. Requires
                         ImageMagick, the third of only four places it is a
-                        hard requirement (see |images-configuration|). Full
-                        design rationale: docs/ROADMAP/REDACT.md.
+                        hard requirement (see |images-configuration|).
 
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.

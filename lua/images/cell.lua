@@ -18,8 +18,7 @@
 --- terminal. `nvim_list_uis()` knows only cell dimensions (`width`/`height` in
 --- cells), no pixels. So there is no route from Neovim to the real cell size —
 --- an earlier attempt via `CSI 16 t` + `TermResponse` lived here and never
---- worked, for exactly that reason. Details and measurements:
---- `docs/ROADMAP/TERMINALS.md`.
+--- worked, for exactly that reason.
 ---
 --- Hence: set `display.cell_aspect` if you want it exact, or let `:Image
 --- calibrate` measure it by eye — the same nudge-until-it-fits idea it already

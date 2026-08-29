@@ -5,7 +5,7 @@
 --- out and the picture is still in the wrong place. The arithmetic is
 --- verifiable from inside Neovim; where the terminal *puts* the result is not.
 --- Closing that gap needs a measurement, and the measurements that found the
---- two real bugs (see docs/ROADMAP/TERMINALS.md, failure modes 6 and 7) were
+--- two real bugs (failure modes 6 and 7) were
 --- one-off scripts in a personal config — useless to anyone else hitting the
 --- same thing.
 ---
