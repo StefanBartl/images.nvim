@@ -488,3 +488,7 @@ Install the pre-commit hook once per clone:
 ```bash
 git config core.hooksPath scripts/hooks
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
