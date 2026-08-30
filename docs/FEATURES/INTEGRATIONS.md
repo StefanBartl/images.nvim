@@ -35,12 +35,28 @@ only through `&path`/rtp/a tail search. Worth having for `:Image show` on
 whatever the cursor happens to be on; not the thing that makes a bare path
 *hover*.
 
-**The hover itself is markdown.nvim's**, and images.nvim is one provider
-inside it — `markdown.hover.preview.media` calls `images.info` and
+**The hover itself is lib.nvim's**, and images.nvim is one provider inside
+it — `lib.nvim.hover.preview.media` calls `images.info` and
 `images.scale.fit_cells` to draw the picture, the same way it calls
 `pdfport.render_page` for a PDF page. Bare paths (and truncated ones out of
-`:messages`) hover through `markdown.hover.bare_path`, in every filetype.
+`:messages`) hover through `lib.nvim.hover.bare_path`, in every filetype.
 The framework deliberately stays there rather than moving here.
+
+It began in markdown.nvim, which is why older notes here name
+`markdown.hover.*`. Almost none of it turned out to be about markdown, and
+moving it into *this* plugin instead would have been the same mistake wearing
+different clothes: images.nvim draws pictures, and would then have owned
+directory listings, file heads and URL fetching. markdown.nvim still
+contributes its link scanning and `#heading` previews, through the hover's
+registry rather than by owning it.
+
+The float is lib.nvim's window, not one of ours, so its keys are documented
+there: `q` / `<Esc>` dismiss it (and keep it dismissed while the cursor stays
+on that target), `<M-PageDown>` / `<C-Down>` page a scrollable preview, and
+`:Lib hover toggle` switches the feature off for a session. **Not to be
+confused with this plugin's own hover** — `display.hover_mode`,
+`images.hover_float` — which is a separate feature with its own window and
+its own keys; see [DISPLAY.md](DISPLAY.md#hover-overlay--hover-float).
 
 - **Module:** `images/resolve.lua` (`resolve_via_gopath`, internal to
   `under_cursor`)
