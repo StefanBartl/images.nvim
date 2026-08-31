@@ -3,7 +3,7 @@
     {
       "bin": "magick",
       "required": false,
-      "why": "Enables SVG-to-PNG conversion (WezTerm/kitty can't decode SVG themselves), image-to-PDF export, and the redact feature (blacking out rectangles before sharing a screenshot).",
+      "why": "Enables SVG-to-PNG conversion (WezTerm/kitty can't decode SVG themselves), image-to-PDF export, the redact feature (blacking out rectangles before sharing a screenshot), and the three file operations `:Image scale` / `:Image optimise` / `:Image convert`.",
       "pkg": {
         "apt": "imagemagick",
         "dnf": "ImageMagick",

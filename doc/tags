@@ -8,10 +8,12 @@ images-commands	images.txt	/*images-commands*
 images-configuration	images.txt	/*images-configuration*
 images-contents	images.txt	/*images-contents*
 images-display-config	images.txt	/*images-display-config*
+images-fileops	images.txt	/*images-fileops*
 images-integrations	images.txt	/*images-integrations*
 images-introduction	images.txt	/*images-introduction*
 images-keymaps	images.txt	/*images-keymaps*
 images-keymaps-whichkey	images.txt	/*images-keymaps-whichkey*
+images-ocr	images.txt	/*images-ocr*
 images-paste-config	images.txt	/*images-paste-config*
 images-remote-config	images.txt	/*images-remote-config*
 images-requirements	images.txt	/*images-requirements*
@@ -21,6 +23,7 @@ images-troubleshooting	images.txt	/*images-troubleshooting*
 images.browse()	images.txt	/*images.browse()*
 images.clear()	images.txt	/*images.clear()*
 images.compare()	images.txt	/*images.compare()*
+images.convert()	images.txt	/*images.convert()*
 images.draw()	images.txt	/*images.draw()*
 images.export()	images.txt	/*images.export()*
 images.gallery()	images.txt	/*images.gallery()*
@@ -28,12 +31,15 @@ images.gallery_range()	images.txt	/*images.gallery_range()*
 images.hover()	images.txt	/*images.hover()*
 images.info()	images.txt	/*images.info()*
 images.list()	images.txt	/*images.list()*
+images.ocr()	images.txt	/*images.ocr()*
+images.optimise()	images.txt	/*images.optimise()*
 images.orphans()	images.txt	/*images.orphans()*
 images.paste()	images.txt	/*images.paste()*
 images.pin()	images.txt	/*images.pin()*
 images.recheck()	images.txt	/*images.recheck()*
 images.redact()	images.txt	/*images.redact()*
 images.replace()	images.txt	/*images.replace()*
+images.scale()	images.txt	/*images.scale()*
 images.screenshot()	images.txt	/*images.screenshot()*
 images.setup()	images.txt	/*images.setup()*
 images.show()	images.txt	/*images.show()*
@@ -41,3 +47,4 @@ images.statusline()	images.txt	/*images.statusline()*
 images.step()	images.txt	/*images.step()*
 images.txt	images.txt	/*images.txt*
 images.zen()	images.txt	/*images.zen()*
+no	images.txt	/*no*

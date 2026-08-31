@@ -111,6 +111,59 @@ configurable safety margin (default one cell) added around it before
 burning in. Over-redacting is the safe failure mode; under-redacting is
 not.
 
+## Scale, optimise, convert — image operations as file operations
+
+Three operations that read an image and write another one next to it. The
+source is never touched.
+
+| | writes | |
+|---|---|---|
+| `:Image scale <size> [path]` | `photo.scaled.png` | `50%`, `800x600`, `800x`, `x600`, `800x600!` |
+| `:Image optimise [path] [--quality=<n>]` | `photo.optimised.png` | metadata stripped, best compression |
+| `:Image convert <format> [path]` | `photo.<format>` | same stem, `<Tab>`-completed target list |
+
+- **Module:** `images/convert.lua` (`M.resize`, `M.optimise`, `M.to_format`,
+  `M.valid_geometry`, `M.target_formats`), `images/init.lua` (`M.scale`,
+  `M.optimise`, `M.convert`)
+- **Usercmds:** ([usercmds](../BINDINGS.md#user-commands))
+- **Needs:** ImageMagick, without a fallback — an image operation without an
+  image library is not a degraded feature, it is no feature.
+
+### Why the source is never edited in place
+
+These run on attachments: a screenshot a customer sent, a log a colleague
+pasted. An operation that rewrites the original is one undo away from losing
+evidence, so every result is a new file on a marked stem — the same stance
+`:Image redact` takes. `:Image convert` is the only one that can land on a
+name that already exists (`photo.jpg` → `photo.png` when there is already a
+`photo.png`); it refuses only the case where target and source would be the
+same file, and otherwise overwrites, like every other write here.
+
+### Why a geometry is validated before ImageMagick sees it
+
+`magick` treats an unparseable `-resize` argument as *no* resize and exits 0.
+A typo would therefore produce a `.scaled.` copy at the original size, with
+every sign of success. `M.valid_geometry` catches that in Lua first, so a
+mistyped size is an error rather than a silent no-op.
+
+### Why an optimised copy that is not smaller gets deleted
+
+`optimise` is asked for by someone who wants a smaller file. Handing them a
+larger one and calling it success is a lie, and leaving it on disk next to the
+original is clutter they then have to clean up. The result reports both sizes
+either way, so "already optimal" arrives with the numbers behind it rather
+than as a shrug.
+
+What actually happens: `-strip` removes camera EXIF, colour profiles and — on
+a screenshot — the window title, which is the metadata nobody thinks about
+before attaching a picture to a ticket. PNG additionally gets ImageMagick's
+highest compression level, which is lossless by definition. JPEG is re-encoded
+whatever happens, since `magick` cannot strip a JPEG without decoding it;
+without `--quality` ImageMagick carries the source's own quality setting over,
+which keeps that re-encode as close to a no-op as the format allows. Pass
+`--quality` when you want the trade: on a 1.1 MB photo, `--quality=60` came
+back at 437 KB.
+
 ## OCR — read the text out of an image
 
 Runs an image through `tesseract` and opens the recognised text in a

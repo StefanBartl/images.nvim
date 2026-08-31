@@ -86,17 +86,20 @@ end
 local function check_imagemagick()
   if require("lib.nvim.cross.executable").exists("magick") then
     vim.health.ok(
-      "`magick` found — `:Image info` dimensions, `:Image compare`'s relative scaling, SVG display, `:Image export` and `:Image redact` available"
+      "`magick` found — `:Image info` dimensions, `:Image compare`'s relative scaling, SVG display, `:Image export`, `:Image redact`, `:Image scale`, `:Image optimise` and `:Image convert` available"
     )
   else
     -- Not `vim.health.warn`: ImageMagick improves info/compare/SVG but is not a
     -- prerequisite for them (a deliberate guardrail) --
     -- `info` merely lacks the dimensions, `compare` shows both images at the
     -- same size, and SVGs report a clear error when drawn rather than failing
-    -- silently. `:Image export`/`redact` are the explicit exception to that
-    -- guardrail: both run exclusively through `magick`, with no fallback.
+    -- silently. `:Image export`/`redact` and the three file operations
+    -- (`scale`/`optimise`/`convert`) are the explicit exception to that
+    -- guardrail: all of them run exclusively through `magick`, with no
+    -- fallback -- an image operation without an image library is not a
+    -- degraded feature, it is no feature.
     vim.health.info(
-      "`magick` not found — `:Image info` dimensions, `:Image compare`'s relative scaling and SVG display stay off; everything else works (except `:Image export`/`redact`, which require `magick`)"
+      "`magick` not found — `:Image info` dimensions, `:Image compare`'s relative scaling and SVG display stay off; everything else works (except `:Image export`/`redact`/`scale`/`optimise`/`convert`, which require `magick`)"
     )
   end
 end

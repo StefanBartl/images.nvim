@@ -22,6 +22,9 @@ completion and this table all come from the same spec.
 | `:Image export [path]` | — | Export an image as PDF next to the source file (via `pdfport.nvim` if installed, else needs ImageMagick) |
 | `:Image redact [path]` | — | Censor mode: mark boxes (Visual + `<CR>`), `w` blacks them out into a new file (needs ImageMagick) |
 | `:Image ocr [path] [--lang=<code>]` | — | Read the text out of an image into a markdown scratch split (needs `tesseract`); `--lang`/`-l` overrides `ocr.lang` |
+| `:Image scale <size> [path]` | — | Resized copy next to the source (`photo.png` → `photo.scaled.png`); `size` is `50%`, `800x600`, `800x`, `x600` or `800x600!` (needs ImageMagick) |
+| `:Image optimise [path] [--quality=<n>]` | — | Smaller copy next to the source (`photo.png` → `photo.optimised.png`): metadata stripped, best compression. A result that is not smaller is deleted and reported (needs ImageMagick) |
+| `:Image convert <format> [path]` | — | Copy in another format, same stem (`photo.jpg` → `photo.png`); `pdf` takes the same route as `:Image export` (needs ImageMagick) |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image calibrate` | — | Measure this terminal's image placement, store the correction |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |

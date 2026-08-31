@@ -171,6 +171,61 @@ Calling |images.setup()| is optional when using `opts`.
                         ImageMagick, the third of only four places it is a
                         hard requirement (see |images-configuration|).
 
+:Image scale {size} [{path}]                            *images-fileops*
+                        Write a resized copy of {path} — or of the image
+                        under the cursor — next to the source
+                        (`photo.png` -> `photo.scaled.png`). {size} is an
+                        ImageMagick geometry: `50%`, `800x600`, `800x`,
+                        `x600`, `800x600!` (force, ignores the aspect
+                        ratio) or a bare `800` (fits inside 800x800).
+                        The original is never touched.
+
+                        The geometry is validated before `magick` runs.
+                        That is not politeness: `magick` treats an
+                        unparseable `-resize` argument as *no* resize and
+                        exits 0, so a typo would otherwise produce a
+                        `.scaled.` copy at the original size, looking
+                        exactly like success.
+
+                        Note `images.scale` (the module) is something else
+                        entirely — display arithmetic that never writes a
+                        file. This command maps to `images.convert.resize`.
+
+:Image optimise [{path}] [--quality={n}]
+                        Write a smaller copy of {path} — or of the image
+                        under the cursor — next to the source
+                        (`photo.png` -> `photo.optimised.png`). Metadata is
+                        stripped (`-strip`: camera EXIF, colour profiles,
+                        and on a screenshot the window title), and PNG
+                        additionally gets ImageMagick's highest compression
+                        level, which is lossless.
+
+                        JPEG is re-encoded whatever happens — `magick`
+                        cannot strip a JPEG without decoding it. Without
+                        {n} ImageMagick carries the source's own quality
+                        setting over, which keeps that re-encode as close
+                        to a no-op as the format allows; `--quality={n}`
+                        (1-100) buys size with quality.
+
+                        A copy that turns out NOT to be smaller is deleted
+                        rather than left next to the original, and the
+                        message says so with both sizes.
+
+:Image convert {format} [{path}]
+                        Write a copy of {path} — or of the image under the
+                        cursor — in another format, on the same stem
+                        (`photo.jpg` -> `photo.png`). {format} is
+                        <Tab>-completed from the configured `extensions`
+                        (minus `svg`, since rasterising into an SVG wrapper
+                        is not a conversion) plus `pdf`.
+
+                        `pdf` runs through the same route as |:Image|
+                        export, `pdfport.nvim` included — one PDF path, not
+                        two that could drift. Converting a file to the
+                        format it already has is refused: that would be an
+                        in-place edit of the source, which none of these
+                        operations does.
+
 :Image ocr [{path}] [--lang={code}]                       *images-ocr*
                         Read the text out of {path} — or out of the image
                         under the cursor — with `tesseract`, and open it in
@@ -516,6 +571,25 @@ images.paste({name})                                          *images.paste()*
                 Save the clipboard image and insert the link. With {name},
                 that filename is used directly instead of asking or falling
                 back to `paste.name_template` — see `:Image paste {name}`.
+
+images.scale({spec}, {path})                                *images.scale()*
+                Write a resized copy next to the source. {spec} is a
+                geometry, see |images-fileops|. Returns true when the
+                resize was started; the result arrives asynchronously.
+                Not to be confused with the `images.scale` *module*, which
+                is display arithmetic — this maps to
+                `images.convert.resize`.
+
+images.optimise({path}, {opts})                          *images.optimise()*
+                Write a smaller copy next to the source. {opts} accepts
+                `quality` (1-100) for lossy formats. Returns true when the
+                optimisation was started. A copy that is not smaller is
+                deleted and reported as such. See |images-fileops|.
+
+images.convert({format}, {path})                          *images.convert()*
+                Write a copy in another format, on the same stem. Returns
+                true when the conversion was started. `pdf` takes the same
+                route as |images.export()|. See |images-fileops|.
 
 images.ocr({path}, {opts})                                    *images.ocr()*
                 Read the text out of {path} — or out of the image under the

@@ -55,6 +55,9 @@ dependency.
 :Image zen                 the image under the cursor, full-screen, in a real window
 :Image compare cwd         pick two images, view side by side at their true relative size
 :Image ocr                 read the text out of the image under the cursor, into a buffer
+:Image scale 800x          resized copy next to the source, aspect preserved
+:Image optimise            smaller copy: metadata stripped, best compression
+:Image convert png         copy in another format, same stem
 ```
 
 ## Why not snacks.image or image.nvim
@@ -443,7 +446,10 @@ entries into its own menu. See
 ## Optional external tools
 
 ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative
-scaling, SVG display, and is required outright for `:Image redact`;
+scaling, SVG display, and is required outright for `:Image redact` and the
+three file operations `:Image scale` / `:Image optimise` / `:Image convert`
+(see
+[docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md#scale-optimise-convert--image-operations-as-file-operations));
 `chafa` is the terminal-image fallback; `tesseract` is required outright for
 `:Image ocr` (see
 [docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md#ocr--read-the-text-out-of-an-image),

@@ -15,8 +15,9 @@ plugin — see [Optional external tools](../README.md#optional-external-tools)
 for the full reasoning:
 
 - **ImageMagick** — `:Image info` dimensions, `:Image compare`'s relative
-  scaling, SVG display, and required outright for `:Image redact` and the
-  ASCII fallback.
+  scaling, SVG display, and required outright for `:Image redact`, the ASCII
+  fallback, and the three file operations `:Image scale` / `:Image optimise` /
+  `:Image convert`.
 - **`chafa`** — the terminal-image fallback renderer.
 - **`tesseract`** — required outright for `:Image ocr`, which reads the text
   out of an image. The language data installs separately per language

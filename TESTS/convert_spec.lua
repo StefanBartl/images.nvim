@@ -131,4 +131,119 @@ return function(H)
   H.contains(redacted or "", ".redacted.png", "…named .redacted.<extension>")
   H.ok(redacted ~= png, "…as its own file, not overwriting the original")
   H.ok(vim.uv.fs_stat(png) ~= nil, "…the original stays untouched")
+
+  -- == Image operations as file operations ==================================
+
+  -- ── valid_geometry: pure, so it runs before anything touches disk ────────
+  for _, good in ipairs({ "50%", "800x600", "800x600!", "800x", "x600", "800" }) do
+    H.ok(convert.valid_geometry(good), ("%q is a size"):format(good))
+  end
+  for _, bad in ipairs({ "", "big", "50 %", "800*600", "x", "-5", "800x600px", "%50" }) do
+    H.falsy(convert.valid_geometry(bad), ("%q is not a size"):format(bad))
+  end
+  H.falsy(convert.valid_geometry(nil), "nil is not a size")
+
+  -- ── target_formats ───────────────────────────────────────────────────────
+  local formats = convert.target_formats()
+  H.ok(vim.tbl_contains(formats, "png"), "png is a target format")
+  H.ok(vim.tbl_contains(formats, "pdf"), "…and pdf, which no `extensions` entry supplies")
+  H.falsy(vim.tbl_contains(formats, "svg"), "…but not svg: rasterising into an SVG wrapper is not a conversion")
+
+  -- ── resize: a bad geometry never reaches magick ──────────────────────────
+  -- The point of validating in Lua: `magick` treats an unparseable geometry as
+  -- "no geometry" and exits 0, so without this the result would be a
+  -- `.scaled.` copy at the original size.
+  local scaled, scale_err = await(function(cb)
+    convert.resize(assert(png), "not-a-size", cb)
+  end)
+  H.falsy(scaled, "a bad geometry yields no file")
+  H.contains(scale_err or "", "not a size", "…and says so before magick is ever run")
+
+  -- ── resize: real ─────────────────────────────────────────────────────────
+  scaled, scale_err, fired = await(function(cb)
+    convert.resize(assert(png), "50%", cb)
+  end)
+  H.ok(fired, "resize calls back")
+  H.ok(scaled, "resize yields a path: " .. tostring(scale_err))
+  H.ok(scaled ~= nil and vim.uv.fs_stat(scaled) ~= nil, "…and the file really exists")
+  H.contains(scaled or "", ".scaled.png", "…named .scaled.<extension>")
+  H.ok(vim.uv.fs_stat(png) ~= nil, "…the original stays untouched")
+
+  -- The resized file is genuinely smaller in pixels, not merely a copy — the
+  -- assertion the exit code alone would not give.
+  local info = require("images.info")
+  local before_dim = info.collect(assert(png))
+  local after_dim = info.collect(assert(scaled))
+  if before_dim and after_dim and before_dim.width and after_dim.width then
+    H.ok(after_dim.width < before_dim.width, "…and it really is narrower than the source")
+  end
+
+  -- ── optimise: an out-of-range quality is refused before magick ───────────
+  local opt, opt_err = await(function(cb)
+    convert.optimise(assert(png), { quality = 150 }, cb)
+  end)
+  H.falsy(opt, "quality 150 yields no file")
+  H.contains(opt_err or "", "between 1 and 100", "…with the range in the message")
+
+  -- ── optimise: missing file ───────────────────────────────────────────────
+  opt, opt_err = await(function(cb)
+    convert.optimise("/definitely/does/not/exist.png", nil, cb)
+  end)
+  H.falsy(opt, "a missing file yields no result")
+  H.contains(opt_err or "", "not found", "…but a reason")
+
+  -- ── optimise: real ───────────────────────────────────────────────────────
+  -- Both outcomes are correct here: a 10x10 red square converted from SVG has
+  -- essentially nothing to strip, so "already optimal" is the likely answer
+  -- and is asserted as a success, not a failure. What must hold either way is
+  -- that there is no error and that the sizes are reported.
+  local out_path, err_opt, before_bytes, after_bytes
+  local fired_opt = false
+  convert.optimise(assert(png), nil, function(o, e, b, a)
+    out_path, err_opt, before_bytes, after_bytes, fired_opt = o, e, b, a, true
+  end)
+  vim.wait(20000, function()
+    return fired_opt
+  end, 20)
+  H.ok(fired_opt, "optimise calls back")
+  H.falsy(err_opt, "…without an error: " .. tostring(err_opt))
+  H.ok(type(before_bytes) == "number" and before_bytes > 0, "…reporting the source size")
+  H.ok(type(after_bytes) == "number", "…and the size it managed")
+  if out_path then
+    H.contains(out_path, ".optimised.png", "a written result is named .optimised.<extension>")
+    H.ok(after_bytes < before_bytes, "…and is genuinely smaller")
+  else
+    H.ok(after_bytes >= before_bytes, "no result means it could not get smaller")
+    H.falsy(
+      vim.uv.fs_stat(vim.fn.fnamemodify(png, ":r") .. ".optimised.png"),
+      "…and the larger attempt was deleted rather than left behind"
+    )
+  end
+
+  -- ── to_format: refuses to rewrite the source in place ────────────────────
+  local conv, conv_err = await(function(cb)
+    convert.to_format(assert(png), "png", cb)
+  end)
+  H.falsy(conv, "converting a png to png yields no file")
+  H.contains(conv_err or "", "already", "…because that would be an in-place edit")
+  H.ok(vim.uv.fs_stat(png) ~= nil, "…and the source is still there")
+
+  -- ── to_format: real ──────────────────────────────────────────────────────
+  conv, conv_err, fired = await(function(cb)
+    convert.to_format(assert(png), "jpg", cb)
+  end)
+  H.ok(fired, "conversion calls back")
+  H.ok(conv, "conversion yields a path: " .. tostring(conv_err))
+  H.ok(conv ~= nil and vim.uv.fs_stat(conv) ~= nil, "…and the file really exists")
+  H.contains(conv or "", ".jpg", "…with the requested extension")
+  H.eq(vim.fn.fnamemodify(conv or "", ":r"), vim.fn.fnamemodify(png or "", ":r"), "…on the same stem as the source")
+
+  -- ── to_format: pdf takes the export route ────────────────────────────────
+  -- Same result as `to_pdf`, reached through the other name — the point being
+  -- that there is one PDF path, not two that could drift.
+  conv, conv_err = await(function(cb)
+    convert.to_format(assert(png), "pdf", cb)
+  end)
+  H.ok(conv, "pdf as a target yields a path: " .. tostring(conv_err))
+  H.contains(conv or "", ".pdf", "…a PDF")
 end

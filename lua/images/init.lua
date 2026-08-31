@@ -403,6 +403,112 @@ function M.export(path)
   return true
 end
 
+--- Write a resized copy of an image next to the source
+--- ("photo.png" -> "photo.scaled.png"); the original stays untouched.
+---
+--- The command is `:Image scale` and this function is `M.scale`, while the
+--- module underneath is `images.convert.resize` — the difference is
+--- deliberate, see that module's docs: `images.scale` is a different file
+--- entirely (display arithmetic) and prose about it has to keep meaning one
+--- thing.
+---@param spec string geometry: "50%", "800x600", "800x", "x600", "800x600!" or "800"
+---@param path string|nil nil = the image under the cursor
+---@return boolean ok  true = the resize was started (the result arrives
+---asynchronously); false = never started at all (no image found)
+function M.scale(spec, path)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("no image under the cursor or at the given path")
+    return false
+  end
+
+  require("images.convert").resize(file, spec, function(out_path, err)
+    if not out_path then
+      notify().error(err or "resize failed")
+      return
+    end
+    notify().info("scaled: " .. vim.fn.fnamemodify(out_path, ":~"))
+  end)
+
+  return true
+end
+
+--- Write a smaller copy of an image next to the source
+--- ("photo.png" -> "photo.optimised.png"); the original stays untouched.
+---
+--- Reports the size change in both directions, including the case where there
+--- was none — a copy that did not get smaller is deleted rather than left
+--- lying next to the original, see `images.convert.optimise`.
+---@param path string|nil nil = the image under the cursor
+---@param opts { quality?: integer }|nil  quality 1-100 for lossy formats; omitted = keep the source's
+---@return boolean ok  true = the optimisation was started; false = no image found
+function M.optimise(path, opts)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("no image under the cursor or at the given path")
+    return false
+  end
+
+  local human = require("images.info").human_size
+
+  require("images.convert").optimise(file, opts, function(out_path, err, before, after)
+    if err then
+      notify().error(err)
+      return
+    end
+    if not out_path then
+      -- Not an error: the file was already as small as this can make it. Said
+      -- plainly, with the numbers, because "nothing happened" without them
+      -- reads like a failure.
+      notify().info(
+        ("%s is already optimal (%s, best attempt %s) — nothing written"):format(
+          vim.fn.fnamemodify(file, ":t"),
+          human(before or 0),
+          human(after or 0)
+        )
+      )
+      return
+    end
+    local saved = (before or 0) - (after or 0)
+    notify().info(
+      ("optimised: %s (%s -> %s, %s smaller)"):format(
+        vim.fn.fnamemodify(out_path, ":~"),
+        human(before or 0),
+        human(after or 0),
+        human(saved)
+      )
+    )
+  end)
+
+  return true
+end
+
+--- Write a copy of an image in another format, on the same stem
+--- ("photo.jpg" -> "photo.png"); the original stays untouched.
+---
+--- `pdf` as a target runs through the same route as `M.export`, pdfport.nvim
+--- included — see `images.convert.to_format`.
+---@param format string target extension without the dot, see `images.convert.target_formats`
+---@param path string|nil nil = the image under the cursor
+---@return boolean ok  true = the conversion was started; false = no image found
+function M.convert(format, path)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("no image under the cursor or at the given path")
+    return false
+  end
+
+  require("images.convert").to_format(file, format, function(out_path, err)
+    if not out_path then
+      notify().error(err or "conversion failed")
+      return
+    end
+    notify().info("converted: " .. vim.fn.fnamemodify(out_path, ":~"))
+  end)
+
+  return true
+end
+
 --- Read the text out of an image — or out of the one under the cursor — and
 --- open it in a scratch split.
 ---

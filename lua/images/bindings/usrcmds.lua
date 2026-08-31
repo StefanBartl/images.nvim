@@ -171,6 +171,45 @@ function M.register(cfg)
       },
 
       {
+        path = { "scale" },
+        args = {
+          { name = "size", type = "STRING", values = { "50%", "25%", "800x600", "1280x", "x720" } },
+          { name = "path", type = "FILE", optional = true },
+        },
+        desc = "Write a resized copy next to the source (photo.png -> photo.scaled.png); needs ImageMagick",
+        run = function(ctx)
+          require("images").scale(ctx.args.size, ctx.args.path)
+        end,
+      },
+
+      {
+        path = { "optimise" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        flags = {
+          { name = "quality", short = "q", type = "NUMBER" },
+        },
+        desc = "Write a smaller copy next to the source: metadata stripped, best compression (photo.png -> photo.optimised.png); needs ImageMagick",
+        run = function(ctx)
+          require("images").optimise(ctx.args.path, { quality = ctx.flags.quality })
+        end,
+      },
+
+      {
+        path = { "convert" },
+        args = {
+          -- The enum is computed at registration time from the configured
+          -- extensions, the same way `:Image draw` takes its positions from
+          -- images.scale -- so adding a display format adds a target here too.
+          { name = "format", type = "STRING", enum = require("images.convert").target_formats() },
+          { name = "path", type = "FILE", optional = true },
+        },
+        desc = "Write a copy in another format, same stem (photo.jpg -> photo.png); `pdf` takes the same route as :Image export",
+        run = function(ctx)
+          require("images").convert(ctx.args.format, ctx.args.path)
+        end,
+      },
+
+      {
         path = { "ocr" },
         args = { { name = "path", type = "FILE", optional = true } },
         flags = {
