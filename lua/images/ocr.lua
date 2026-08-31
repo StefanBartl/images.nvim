@@ -151,9 +151,7 @@ function M.run(path, opts, on_done)
   end
 
   local bin = M.bin()
-  if not bin then
-    return done(nil, "OCR requires tesseract (`tesseract` not found on PATH)")
-  end
+  if not bin then return done(nil, "OCR requires tesseract (`tesseract` not found on PATH)") end
 
   local stat = vim.uv.fs_stat(path)
   if not stat then return done(nil, "file not found: " .. path) end

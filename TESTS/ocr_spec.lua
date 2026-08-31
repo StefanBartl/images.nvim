@@ -64,9 +64,7 @@ return function(H)
   -- Only meaningful with tesseract present: without it the earlier "no
   -- tesseract" guard fires first, which is the correct order but a different
   -- message.
-  if not ocr.available() then
-    return
-  end
+  if not ocr.available() then return end
 
   local text, err, fired = await(function(cb)
     ocr.run("/definitely/does/not/exist.png", nil, cb)
