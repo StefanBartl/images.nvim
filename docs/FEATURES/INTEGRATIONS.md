@@ -105,11 +105,32 @@ ImageMagick-only export path is unchanged.
 - **Usercmds:** `:Image export`
 - **Dependency:** pdfport.nvim, soft and `pcall`'d — falls back to the synchronous ImageMagick path
 
+## language.nvim after OCR — an integration with no code in it
+
+`:Image ocr` puts the recognised text into a `markdown` scratch buffer, and
+that is the whole integration: `language.nvim`'s spell checking attaches to
+the buffer on its own, and every public entry point of `language.translate`
+is buffer-bound (`run_region` wants a `bufnr` plus coordinates), so
+selecting a paragraph and running `:Translate` needs nothing from this
+plugin.
+
+Worth stating explicitly because the roadmap entry that asked for this
+described a bridge between two plugins, and building one would have been
+wasted work — with a worse result, since a bespoke bridge would have
+supported whichever subset of `:Translate`'s flags someone thought to wire
+up, instead of all of them.
+
+- **Module:** `images/ocr.lua`, `images/init.lua` (`M.ocr`)
+- **Usercmds:** `:Image ocr [path] [--lang=<code>]`, then `:Translate` /
+  `:Spellcheck` from language.nvim
+- **Dependency:** none. language.nvim is not required, not `pcall`'d, not
+  referenced — the two meet in a buffer, not in an API.
+
 ## lib.nvim.deps: missing-tool reporting
 
-ImageMagick and `chafa` are declared as optional dependencies, with the
-reasoning per tool, in `docs/install.json`, parsed by lib.nvim's `deps`
-module. The first time `setup()` runs after installing images.nvim, a
+ImageMagick, `tesseract` and `chafa` are declared as optional dependencies,
+with the reasoning per tool, in `docs/install.json`, parsed by lib.nvim's
+`deps` module. The first time `setup()` runs after installing images.nvim, a
 popup shows what's missing and why, once ever.
 
 - **Module:** `lua/images/health.lua` (`check_deps`, `check_lib_deps`)

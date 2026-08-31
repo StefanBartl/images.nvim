@@ -171,6 +171,32 @@ Calling |images.setup()| is optional when using `opts`.
                         ImageMagick, the third of only four places it is a
                         hard requirement (see |images-configuration|).
 
+:Image ocr [{path}] [--lang={code}]                       *images-ocr*
+                        Read the text out of {path} — or out of the image
+                        under the cursor — with `tesseract`, and open it in
+                        a `markdown` scratch split below. The buffer is
+                        named after the source image and reused, so a
+                        second run on the same screenshot replaces the
+                        previous result rather than stacking windows.
+                        `--lang`/`-l` overrides `ocr.lang` for this call.
+
+                        A split rather than a preview popup on purpose:
+                        recognised text is raw material — you correct a
+                        misread character, select a paragraph and run
+                        `:Translate` (language.nvim), yank a stack trace,
+                        write it out next to a ticket.
+
+                        Requires `tesseract` plus the language data for
+                        whatever `ocr.lang` names; those install separately
+                        from the binary, and `:checkhealth images` lists
+                        what is present. On Windows the UB-Mannheim
+                        installer leaves "Add to PATH" unticked, so
+                        images.nvim also probes
+                        `C:/Program Files/Tesseract-OCR/`; `ocr.bin`
+                        overrides both. SVG input goes through the cached
+                        SVG->PNG conversion first, since tesseract reads
+                        raster formats only.
+
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.
                         Only considers `paste.dir`, not the whole project —
@@ -304,6 +330,11 @@ under the same key).
         ask_alt_text = false,
         alt_link_template = "![%s](%s)",
         ask_filename = false,
+      },
+      ocr = {
+        lang = "eng",
+        args = {},
+        bin = nil,
       },
       keymaps = {
         show = "<leader>im",
@@ -485,6 +516,13 @@ images.paste({name})                                          *images.paste()*
                 Save the clipboard image and insert the link. With {name},
                 that filename is used directly instead of asking or falling
                 back to `paste.name_template` — see `:Image paste {name}`.
+
+images.ocr({path}, {opts})                                    *images.ocr()*
+                Read the text out of {path} — or out of the image under the
+                cursor — and open it in a scratch split. {opts} accepts
+                `lang` and `args`, both overriding the `ocr` configuration
+                for this call. Returns true when OCR was started; the
+                result arrives asynchronously. See |images-ocr|.
 
 images.screenshot()                                      *images.screenshot()*
                 Take a screenshot interactively and insert the link, like

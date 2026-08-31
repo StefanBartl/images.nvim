@@ -171,6 +171,21 @@ function M.register(cfg)
       },
 
       {
+        path = { "ocr" },
+        args = { { name = "path", type = "FILE", optional = true } },
+        flags = {
+          -- A flag rather than a second positional: `:Image ocr deu` would
+          -- otherwise be indistinguishable from a file called "deu", and the
+          -- language is the rarer of the two arguments anyway.
+          { name = "lang", short = "l", type = "STRING" },
+        },
+        desc = "Read the text out of an image into a scratch buffer (tesseract); --lang=<code> overrides ocr.lang",
+        run = function(ctx)
+          require("images").ocr(ctx.args.path, { lang = ctx.flags.lang })
+        end,
+      },
+
+      {
         path = { "redact" },
         args = { { name = "path", type = "FILE", optional = true } },
         desc = "Open an image in redaction mode: mark boxes and black them out, the original stays",

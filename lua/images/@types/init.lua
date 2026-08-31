@@ -6,6 +6,7 @@
 ---@field extensions string[] extensions treated as images
 ---@field display ImagesNvim.DisplayConfig
 ---@field paste ImagesNvim.PasteConfig
+---@field ocr ImagesNvim.OcrConfig
 ---@field keymaps ImagesNvim.KeymapConfig
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu? ImagesNvim.MenuConfig enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
@@ -63,6 +64,11 @@
 ---@field alt_link_template string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename boolean ask for a file name before inserting (extension always forced to .png)
 
+---@class ImagesNvim.OcrConfig : ImagesNvim.OcrOpts
+---@field lang string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
+---@field args string[] extra tesseract arguments, appended verbatim (e.g. { "--psm", "6" })
+---@field bin string|nil absolute path to the tesseract binary; nil = PATH, then the usual Windows install directories
+
 --- Every keymap entry accepts `false` to disable it.
 ---@class ImagesNvim.KeymapConfig : ImagesNvim.KeymapOpts
 ---@field show string|false image under the cursor
@@ -88,6 +94,7 @@
 ---@field extensions? string[] extensions treated as images
 ---@field display?    ImagesNvim.DisplayOpts
 ---@field paste?      ImagesNvim.PasteOpts
+---@field ocr?        ImagesNvim.OcrOpts
 ---@field keymaps?    ImagesNvim.KeymapOpts
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu?       ImagesNvim.MenuOpts enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
@@ -141,6 +148,11 @@
 ---@field ask_alt_text?       boolean ask for alt text before inserting
 ---@field alt_link_template?  string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename?       boolean ask for a file name before inserting (extension always forced to .png)
+
+---@class ImagesNvim.OcrOpts
+---@field lang? string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
+---@field args? string[] extra tesseract arguments, appended verbatim (e.g. { "--psm", "6" })
+---@field bin?  string absolute path to the tesseract binary; unset = PATH, then the usual Windows install directories
 
 ---@class ImagesNvim.KeymapOpts
 ---@field show?         string|false image under the cursor

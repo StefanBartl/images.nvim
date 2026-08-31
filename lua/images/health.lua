@@ -102,6 +102,52 @@ local function check_imagemagick()
 end
 
 ---@return nil
+local function check_ocr()
+  local ocr = require("images.ocr")
+  local bin = ocr.bin()
+  if not bin then
+    vim.health.info("`tesseract` not found — `:Image ocr` stays off; nothing else is affected", {
+      "winget install UB-Mannheim.TesseractOCR  (Windows)",
+      "apt install tesseract-ocr  /  brew install tesseract",
+      "installed somewhere unusual? set `ocr.bin` to its path",
+    })
+    return
+  end
+
+  -- The path is worth printing rather than a bare "found": on Windows this is
+  -- routinely the well-known-directory probe rather than PATH (see
+  -- images.ocr), and "found" alone would hide that the shell still cannot run
+  -- `tesseract` -- which is exactly the confusion the probe exists to defuse.
+  vim.health.ok(("`%s` found — `:Image ocr` available"):format(bin))
+
+  local langs = ocr.languages()
+  if #langs == 0 then
+    vim.health.warn("tesseract reports no language data — `:Image ocr` will fail on every image", {
+      "the language packages install separately from the binary",
+      "apt install tesseract-ocr-deu  /  brew install tesseract-lang",
+    })
+    return
+  end
+
+  local configured = require("images.config").get().ocr.lang
+  vim.health.info(("language data installed: %s"):format(table.concat(langs, ", ")))
+
+  -- `ocr.lang` may name several at once ("deu+eng"), so each part is checked
+  -- on its own -- a single missing half fails the whole call in tesseract.
+  local missing = {}
+  for _, part in ipairs(vim.split(configured or "eng", "+", { plain = true, trimempty = true })) do
+    if not vim.tbl_contains(langs, part) then missing[#missing + 1] = part end
+  end
+  if #missing > 0 then
+    vim.health.warn(("`ocr.lang` = %q, but %s is not installed"):format(configured, table.concat(missing, ", ")), {
+      "install the missing language data, or set `ocr.lang` to one of the above",
+    })
+  else
+    vim.health.ok(("`ocr.lang` = %q — installed"):format(configured))
+  end
+end
+
+---@return nil
 local function check_deps()
   if pcall(require, "lib.nvim.bindings.usercmd.composer") then
     vim.health.ok("`lib.nvim` found")
@@ -136,6 +182,7 @@ function M.check()
   check_clipboard()
   check_screenshot()
   check_imagemagick()
+  check_ocr()
   check_deps()
   check_lib_deps()
 end

@@ -54,6 +54,7 @@ dependency.
 :Image pickers cwd         browse every image under cwd, live preview with snacks.picker
 :Image zen                 the image under the cursor, full-screen, in a real window
 :Image compare cwd         pick two images, view side by side at their true relative size
+:Image ocr                 read the text out of the image under the cursor, into a buffer
 ```
 
 ## Why not snacks.image or image.nvim
@@ -341,6 +342,11 @@ require("images").setup({
     alt_link_template = "![%s](%s)",
     ask_filename = false,        -- true prompts for a name, prefilled with the template
   },
+  ocr = {
+    lang = "eng",                -- tesseract -l; several at once as "deu+eng"
+    args = {},                   -- extra tesseract arguments, e.g. { "--psm", "6" }
+    bin = nil,                   -- nil = PATH, then the usual Windows install dirs
+  },
   keymaps = {
     show = "<leader>im",  -- every entry accepts false to disable it
     gallery = "<leader>ig",
@@ -438,7 +444,11 @@ entries into its own menu. See
 
 ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative
 scaling, SVG display, and is required outright for `:Image redact`;
-`chafa` is the terminal-image fallback. `:Image export` needs ImageMagick
+`chafa` is the terminal-image fallback; `tesseract` is required outright for
+`:Image ocr` (see
+[docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md#ocr--read-the-text-out-of-an-image),
+including why a Windows install is often present but not on PATH).
+`:Image export` needs ImageMagick
 too, *unless* [`pdfport.nvim`](https://github.com/StefanBartl/pdfport.nvim)
 is installed — then the export routes through pdfport's `create()` API
 instead (asynchronous, lossless via `img2pdf` if available, otherwise

@@ -105,6 +105,7 @@ local specs = {
   "sanitize_filename_spec.lua",
   "paste_target_spec.lua",
   "convert_spec.lua",
+  "ocr_spec.lua",
   "remote_spec.lua",
   "screenshot_spec.lua",
   "hover_float_spec.lua",

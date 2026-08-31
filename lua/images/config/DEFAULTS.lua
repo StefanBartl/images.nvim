@@ -123,6 +123,28 @@ return {
     ask_filename = false,
   },
 
+  -- `:Image ocr`, see images.ocr. Deliberately top-level rather than under
+  -- `display`: reading text out of a file is not a display concern, and
+  -- `display.redact`'s counter-example only sits there because its one option
+  -- is measured in terminal cells.
+  ocr = {
+    -- Passed to tesseract's `-l`. "eng" because that is what the installer
+    -- ships; further languages are a separate download ("deu", "fra", ...),
+    -- and several at once are written the way tesseract wants them,
+    -- "deu+eng". `:checkhealth images` lists what is actually installed.
+    lang = "eng",
+    -- Extra tesseract arguments, appended verbatim -- e.g. { "--psm", "6" }
+    -- for a screenshot that is one uniform block of text rather than a page
+    -- layout. Empty by default: tesseract's automatic page segmentation is
+    -- right far more often than a fixed guess.
+    args = {},
+    -- Absolute path to the tesseract binary. nil = look on PATH, then in the
+    -- usual Windows install directories -- the UB-Mannheim installer does not
+    -- add itself to PATH, see images.ocr. Set this when it lives somewhere
+    -- else entirely.
+    bin = nil,
+  },
+
   -- One-off "which CLI tools does this plugin want, and why" popup on the
   -- first setup() after installation (via lib.nvim.deps). false disables it
   -- for this plugin, right here in the setup() spec -- no vim.g needed. See

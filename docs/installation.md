@@ -18,6 +18,12 @@ for the full reasoning:
   scaling, SVG display, and required outright for `:Image redact` and the
   ASCII fallback.
 - **`chafa`** — the terminal-image fallback renderer.
+- **`tesseract`** — required outright for `:Image ocr`, which reads the text
+  out of an image. The language data installs separately per language
+  (`tesseract-ocr-deu` and friends); `:checkhealth images` lists what you
+  have. On Windows the UB-Mannheim installer leaves "Add to PATH" unticked —
+  images.nvim probes `C:/Program Files/Tesseract-OCR/` anyway, or set
+  `ocr.bin`.
 - [`pdfport.nvim`](https://github.com/StefanBartl/pdfport.nvim) — makes
   `:Image export` asynchronous and lossless; without it, export falls back to
   a synchronous `magick`-only path.

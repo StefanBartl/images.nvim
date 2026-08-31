@@ -17,6 +17,22 @@
       }
     },
     {
+      "bin": "tesseract",
+      "required": false,
+      "why": "Enables `:Image ocr` — reading the text out of an image (a screenshot of an error message, a scanned page) into a buffer, where it can be searched, copied or translated. Language data beyond English is a separate package per language (tesseract-ocr-deu and friends); `:checkhealth images` lists what is installed. On Windows the UB-Mannheim installer does not add itself to PATH — images.nvim probes the usual install directory anyway, or set `ocr.bin`.",
+      "pkg": {
+        "apt": "tesseract-ocr",
+        "dnf": "tesseract",
+        "pacman": "tesseract",
+        "zypper": "tesseract-ocr",
+        "apk": "tesseract-ocr",
+        "brew": "tesseract",
+        "winget": "UB-Mannheim.TesseractOCR",
+        "scoop": "tesseract",
+        "choco": "tesseract"
+      }
+    },
+    {
       "bin": "chafa",
       "required": false,
       "why": "Renders images inline in terminals without a native image protocol (Kitty graphics / iTerm2), as a fallback for the ASCII/terminal preview.",

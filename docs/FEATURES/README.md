@@ -10,7 +10,7 @@ grouped by what they're for, not by source file:
   path, hover, the ASCII fallback, remote images, the zen window, terminal
   capability detection.
 - **CAPTURE.md** — getting images onto disk and linked from a document:
-  paste, screenshot, replace, export, redact.
+  paste, screenshot, replace, export, redact, OCR.
 - **BROWSING.md** — finding and comparing images across a buffer or a
   directory tree: list, gallery, next/prev, pickers, compare, orphans.
 - **INTEGRATIONS.md** — how images.nvim fits with lib.nvim, markdown.nvim,

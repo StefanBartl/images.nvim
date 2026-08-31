@@ -111,6 +111,56 @@ configurable safety margin (default one cell) added around it before
 burning in. Over-redacting is the safe failure mode; under-redacting is
 not.
 
+## OCR — read the text out of an image
+
+Runs an image through `tesseract` and opens the recognised text in a
+scratch split below, as `markdown`. A screenshot of an error message
+becomes something you can search, yank, correct and translate.
+
+The buffer is named after the source image and reused, so running OCR on
+the same screenshot twice replaces the previous result instead of stacking
+windows; two different images get two buffers.
+
+- **Module:** `images/ocr.lua` (`M.run`, `M.bin`, `M.languages`,
+  `M.to_lines`), `images/init.lua` (`M.ocr`)
+- **Usercmds:** `:Image ocr [path] [--lang=<code>]`
+  ([usercmds](../BINDINGS.md#user-commands))
+- **Config:** `opts.ocr.lang` (default `"eng"`), `opts.ocr.args`,
+  `opts.ocr.bin`
+- **Needs:** `tesseract`, plus the language data for whatever `ocr.lang`
+  names — those install separately from the binary.
+  `:checkhealth images` lists what is actually there.
+
+SVG input is converted to PNG through the existing cached
+`images/convert.lua` path first, since tesseract reads raster formats
+only. Everything else goes to tesseract untouched.
+
+### Why the result is a split, not a popup
+
+`:Image info` uses a read-only viewer and `:Image zen` a float, because
+both are for looking at something. Recognised text is raw material: you
+fix a misread character, select a paragraph, yank a stack trace, write it
+out next to a ticket. A popup that closes on `q` is wrong for all of that.
+
+### Why there is no `language.nvim` bridge
+
+The point of OCR here was always "extract, then translate or spell-check".
+That crossing needs no code: every public entry point of
+`language.translate` is buffer-bound, so once the text is in a buffer,
+selecting it and running `:Translate` *is* the integration — through keys
+that already exist. `images/ocr.lua` therefore does OCR and stops where a
+buffer begins.
+
+### On Windows, "installed" and "on PATH" are different things
+
+The UB-Mannheim installer named in `docs/install.json` leaves its "Add to
+PATH" checkbox unticked, so a fresh install routinely fails to be found
+and looks exactly like no install at all. `images/ocr.lua` therefore falls
+back to probing `C:/Program Files/Tesseract-OCR/` (and the x86 variant)
+when PATH comes up empty. `ocr.bin` overrides both — an explicit path
+always wins over a guess. `:checkhealth images` prints which of the three
+routes actually found the binary.
+
 ## Orphan cleanup
 
 Scans `paste.dir` for image files that no link in the buffer points to

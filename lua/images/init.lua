@@ -403,6 +403,49 @@ function M.export(path)
   return true
 end
 
+--- Read the text out of an image — or out of the one under the cursor — and
+--- open it in a scratch split.
+---
+--- A split, not `kit.viewer` (which `M.info` uses) and not a `make_scratch`
+--- float (which `M.zen` uses): both of those are for *looking at* something.
+--- Recognised text is raw material — you correct a misread character, select a
+--- paragraph and hit `:Translate`, yank a stack trace, `:w` it next to the
+--- case. A read-only popup that closes on `q` is wrong for every one of those.
+---
+--- The buffer is named after the source image and reused, so running this
+--- twice on the same screenshot replaces the previous result instead of
+--- stacking a second window; two different images get two buffers.
+--- `filetype=markdown` is what makes `language.nvim`'s spell checking and
+--- `:Translate` treat the contents as prose without any further wiring.
+---@param path string|nil nil = the image under the cursor
+---@param opts { lang?: string, args?: string[] }|nil  nil = the configured language (`ocr.lang`)
+---@return boolean ok  true = OCR was started (the result arrives asynchronously);
+---false = never started at all (no image found)
+function M.ocr(path, opts)
+  local file = require("images.resolve").path_or_cursor(path)
+  if not file then
+    notify().warn("no image under the cursor or at the given path")
+    return false
+  end
+
+  local ocr = require("images.ocr")
+  ocr.run(file, opts, function(text, err)
+    if not text then
+      notify().error(err or "OCR failed")
+      return
+    end
+
+    local name = vim.fn.fnamemodify(file, ":t")
+    require("lib.nvim.window.open_named_scratch")("images://ocr/" .. name, ocr.to_lines(text), {
+      filetype = "markdown",
+      split = "below",
+      modifiable = true,
+    })
+  end)
+
+  return true
+end
+
 --- Open an image — or the one under the cursor — in redaction mode: mark boxes
 --- (visual mode + `<CR>`), black them out with `w` and save as a new file; the
 --- original stays unchanged.
