@@ -416,11 +416,11 @@ installed.
 
 If what you want is a **hover preview** — a float that appears when the
 cursor rests on a path, for images, PDFs, markdown sections, directories, in
-any filetype — that lives in
-[markdown.nvim](https://github.com/StefanBartl/markdown.nvim)'s
-`markdown.hover`, with images.nvim as its picture provider. See
-[docs/hover.md](https://github.com/StefanBartl/markdown.nvim/blob/main/docs/hover.md)
-there.
+any filetype — that is
+[hover.nvim](https://github.com/StefanBartl/hover.nvim), a plugin of its own
+since 2026-09-01, with images.nvim as its picture provider. (It began inside
+markdown.nvim and then lived in lib.nvim; older notes here name it
+`markdown.hover` or `lib.nvim.hover`.)
 
 `lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
 picker used by `:Image list`, and the `kit.compare` component behind

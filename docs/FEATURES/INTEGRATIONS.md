@@ -35,25 +35,28 @@ only through `&path`/rtp/a tail search. Worth having for `:Image show` on
 whatever the cursor happens to be on; not the thing that makes a bare path
 *hover*.
 
-**The hover itself is lib.nvim's**, and images.nvim is one provider inside
-it — `lib.nvim.hover.preview.media` calls `images.info` and
-`images.scale.fit_cells` to draw the picture, the same way it calls
-`pdfport.render_page` for a PDF page. Bare paths (and truncated ones out of
-`:messages`) hover through `lib.nvim.hover.bare_path`, in every filetype.
-The framework deliberately stays there rather than moving here.
+**The hover itself is [hover.nvim](https://github.com/StefanBartl/hover.nvim)**,
+and images.nvim is one provider inside it — `hover.preview.media` calls
+`images.info` and `images.scale.fit_cells` to draw the picture, the same way
+it calls `pdfport.render_page` for a PDF page. Bare paths (and truncated ones
+out of `:messages`) hover through `hover.bare_path`, in every filetype. The
+framework deliberately stays there rather than moving here.
 
-It began in markdown.nvim, which is why older notes here name
-`markdown.hover.*`. Almost none of it turned out to be about markdown, and
-moving it into *this* plugin instead would have been the same mistake wearing
-different clothes: images.nvim draws pictures, and would then have owned
-directory listings, file heads and URL fetching. markdown.nvim still
-contributes its link scanning and `#heading` previews, through the hover's
-registry rather than by owning it.
+It has moved twice, which is why older notes here name `markdown.hover.*` and
+newer-but-still-old ones name `lib.nvim.hover.*`. It began in markdown.nvim
+and almost none of it turned out to be about markdown; it then spent a while
+in lib.nvim and turned out to be the one thing there with its own UI, state
+and history, so on 2026-09-01 it became a repository of its own (lib.nvim
+`5450dd4` deleted the copy). Moving it into *this* plugin instead would have
+been the same mistake wearing different clothes: images.nvim draws pictures,
+and would then have owned directory listings, file heads and URL fetching.
+markdown.nvim still contributes its link scanning and `#heading` previews,
+through the hover's registry rather than by owning it.
 
-The float is lib.nvim's window, not one of ours, so its keys are documented
+The float is hover.nvim's window, not one of ours, so its keys are documented
 there: `q` / `<Esc>` dismiss it (and keep it dismissed while the cursor stays
 on that target), `<M-PageDown>` / `<C-Down>` page a scrollable preview, and
-`:Lib hover toggle` switches the feature off for a session. **Not to be
+`:Hover toggle` switches the feature off for a session. **Not to be
 confused with this plugin's own hover** — `display.hover_mode`,
 `images.hover_float` — which is a separate feature with its own window and
 its own keys; see [DISPLAY.md](DISPLAY.md#hover-overlay--hover-float).
