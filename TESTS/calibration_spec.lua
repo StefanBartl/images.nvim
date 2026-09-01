@@ -2,6 +2,9 @@
 -- a fixture read, a uv handle -- this file must crash and name it. The nil
 -- guards LuaLS asks for below would hide the very failure it exists to report.
 ---@diagnostic disable: need-check-nil
+-- And `calibration.path` is replaced below so no run touches the developer's
+-- real state file -- a deliberate second definition of the module's own field.
+---@diagnostic disable: duplicate-set-field
 -- TESTS/calibration_spec.lua — stored calibration values and their precedence.
 --
 -- The interactive part (`images.calibrate`) is a dialog and stays untested

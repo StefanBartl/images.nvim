@@ -352,9 +352,8 @@ end
 
 --- Save the clipboard image and link it.
 ---@param name string|nil a file name already given — skips any name prompt
----@return nil
----@param name string|nil
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@return nil
 function M.paste(name, force_ask)
   require("images.paste").run(name, force_ask)
 end
@@ -363,8 +362,8 @@ end
 --- route as `M.paste`, only that the image file comes from a screen selection
 --- rather than the clipboard. Returns immediately; the result arrives
 --- asynchronously, see `images.screenshot`.
----@return nil
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@return nil
 function M.screenshot(force_ask)
   require("images.paste").screenshot(force_ask)
 end

@@ -326,10 +326,8 @@ end
 --- so there is nothing left to ask.
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@param direct_name string|nil a name already given as a command argument
----@return nil
----@param capture function
----@param direct_name string|nil
 ---@param force_ask boolean|nil  # prompt even when `paste.ask_filename` is off
+---@return nil
 local function capture_with_optional_name(capture, direct_name, force_ask)
   local buf = vim.api.nvim_get_current_buf()
 
@@ -380,9 +378,8 @@ end
 
 --- Save the clipboard image and insert the link at the cursor.
 ---@param name string|nil a file name already given (`:Image paste {name}`) — skips any name prompt
----@return nil
----@param name string|nil
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@return nil
 function M.run(name, force_ask)
   capture_with_optional_name(clipboard_to_file, name, force_ask)
 end
@@ -395,8 +392,8 @@ M.capture_with_optional_name = capture_with_optional_name
 --- Capture an interactive screen selection straight into a file and process it
 --- like `M.run` — the everyday case in one step instead of three (launch a
 --- screenshot tool by hand, clipboard, `:Image paste`).
----@return nil
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@return nil
 function M.screenshot(force_ask)
   local screenshot = require("images.screenshot")
   if not screenshot.available() then

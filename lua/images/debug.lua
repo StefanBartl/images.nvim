@@ -49,8 +49,12 @@ local armed = false
 ---@return integer
 local function border_of(win)
   local ok, cfg = pcall(vim.api.nvim_win_get_config, win)
-  if not ok or type(cfg.border) ~= "table" then return 0 end
-  for _, seg in ipairs(cfg.border) do
+  if not ok then return 0 end
+  -- Through a local rather than `cfg.border` twice: `border` is a union of the
+  -- preset names and a segment list, and the check only narrows a local.
+  local border = cfg.border
+  if type(border) ~= "table" then return 0 end
+  for _, seg in ipairs(border) do
     local ch = type(seg) == "table" and seg[1] or seg
     if type(ch) == "string" and ch ~= "" then return 1 end
   end
@@ -83,6 +87,9 @@ local function arm()
   local term = require("images.terminal")
   term.__debug_draw = term.__debug_draw or term.draw
 
+  -- A second definition of `terminal.draw` is the whole point here: the
+  -- original is kept on the module above and put back by `disarm`.
+  ---@diagnostic disable-next-line: duplicate-set-field
   term.draw = function(file, row, col, cols, rows)
     local entry = {
       file = vim.fn.fnamemodify(tostring(file), ":t"),

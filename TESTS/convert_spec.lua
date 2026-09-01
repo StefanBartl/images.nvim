@@ -130,7 +130,7 @@ return function(H)
   H.ok(redacted ~= nil and vim.uv.fs_stat(redacted) ~= nil, "…and the file really exists")
   H.contains(redacted or "", ".redacted.png", "…named .redacted.<extension>")
   H.ok(redacted ~= png, "…as its own file, not overwriting the original")
-  H.ok(vim.uv.fs_stat(png) ~= nil, "…the original stays untouched")
+  H.ok(vim.uv.fs_stat(assert(png)) ~= nil, "…the original stays untouched")
 
   -- == Image operations as file operations ==================================
 
@@ -167,7 +167,7 @@ return function(H)
   H.ok(scaled, "resize yields a path: " .. tostring(scale_err))
   H.ok(scaled ~= nil and vim.uv.fs_stat(scaled) ~= nil, "…and the file really exists")
   H.contains(scaled or "", ".scaled.png", "…named .scaled.<extension>")
-  H.ok(vim.uv.fs_stat(png) ~= nil, "…the original stays untouched")
+  H.ok(vim.uv.fs_stat(assert(png)) ~= nil, "…the original stays untouched")
 
   -- The resized file is genuinely smaller in pixels, not merely a copy — the
   -- assertion the exit code alone would not give.
@@ -215,7 +215,7 @@ return function(H)
   else
     H.ok(after_bytes >= before_bytes, "no result means it could not get smaller")
     H.falsy(
-      vim.uv.fs_stat(vim.fn.fnamemodify(png, ":r") .. ".optimised.png"),
+      vim.uv.fs_stat(vim.fn.fnamemodify(assert(png), ":r") .. ".optimised.png"),
       "…and the larger attempt was deleted rather than left behind"
     )
   end
@@ -226,7 +226,7 @@ return function(H)
   end)
   H.falsy(conv, "converting a png to png yields no file")
   H.contains(conv_err or "", "already", "…because that would be an in-place edit")
-  H.ok(vim.uv.fs_stat(png) ~= nil, "…and the source is still there")
+  H.ok(vim.uv.fs_stat(assert(png)) ~= nil, "…and the source is still there")
 
   -- ── to_format: real ──────────────────────────────────────────────────────
   conv, conv_err, fired = await(function(cb)

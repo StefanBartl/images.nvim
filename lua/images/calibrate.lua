@@ -316,7 +316,6 @@ local function set_keymaps(buf)
     end
   end
 
-  local map = vim.keymap.set
   local o = { buffer = buf, nowait = true, silent = true }
 
   ---@param keys string[]
@@ -324,7 +323,7 @@ local function set_keymaps(buf)
   ---@param desc string
   local function bind(keys, fn, desc)
     for _, key in ipairs(keys) do
-      map("n", key, fn, vim.tbl_extend("force", o, { desc = "images.calibrate: " .. desc }))
+      vim.keymap.set("n", key, fn, vim.tbl_extend("force", o, { desc = "images.calibrate: " .. desc }))
     end
   end
 

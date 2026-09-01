@@ -269,7 +269,7 @@ end
 --- as "no geometry at all" and the image comes back at its original size, with
 --- exit code 0. A typo would then produce a `.scaled.` copy that is not
 --- scaled, which is worse than an error.
----@param spec string
+---@param spec string|nil whatever the user typed; anything that is not a geometry is `false`
 ---@return boolean
 function M.valid_geometry(spec)
   if type(spec) ~= "string" or spec == "" then return false end

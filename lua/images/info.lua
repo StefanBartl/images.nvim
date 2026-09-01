@@ -22,7 +22,7 @@ local M = {}
 ---@type table<string, Images.Info>
 local cache = {}
 
----@class Images.Info
+---@class Images.Info : Images.Scale.MaybeDims
 ---@field path string absolute path
 ---@field bytes integer file size
 ---@field mtime integer modification time (Unix)

@@ -20,7 +20,19 @@ local M = {}
 --- disappearing.
 M.MIN_SCALE = 0.35
 
----@class Images.Scale.Dims
+--- Pixel dimensions before anyone has looked: `images.info.collect` fills
+--- `width`/`height` only when ImageMagick is installed, so this -- not
+--- `Images.Scale.Dims` -- is the shape every caller in this plugin actually
+--- holds. The two functions that document a fallback for missing dimensions
+--- take this one.
+---@class Images.Scale.MaybeDims
+---@field width integer|nil pixels, when they could be read
+---@field height integer|nil pixels, when they could be read
+
+--- The same pair, both known -- what `M.cell_box_to_pixels` needs, because it
+--- divides by them. Narrowed once at the place that checked, rather than
+--- re-checked at every use.
+---@class Images.Scale.Dims : Images.Scale.MaybeDims
 ---@field width integer pixels
 ---@field height integer pixels
 
@@ -37,11 +49,29 @@ M.MIN_SCALE = 0.35
 --- — exactly the previous behaviour, each image fills its pane. Per the
 --- guardrail, ImageMagick improves features but
 --- never enables them.
----@param a Images.Scale.Dims|nil
----@param b Images.Scale.Dims|nil
+---@param a Images.Scale.MaybeDims|nil
+---@param b Images.Scale.MaybeDims|nil
 ---@return Images.Scale.Result
 function M.compute(a, b)
-  if not (a and b and a.width > 0 and a.height > 0 and b.width > 0 and b.height > 0) then return { a = 1, b = 1 } end
+  -- `a.width and a.width > 0`, not `a.width > 0`: without ImageMagick the
+  -- fields are nil, and comparing nil to a number is an error rather than a
+  -- fallback. `:Image compare` went through here with exactly that pair.
+  if
+    not (
+      a
+      and b
+      and a.width
+      and a.height
+      and b.width
+      and b.height
+      and a.width > 0
+      and a.height > 0
+      and b.width > 0
+      and b.height > 0
+    )
+  then
+    return { a = 1, b = 1 }
+  end
 
   local diag_a = math.sqrt(a.width ^ 2 + a.height ^ 2)
   local diag_b = math.sqrt(b.width ^ 2 + b.height ^ 2)
@@ -140,10 +170,14 @@ M.CELL_ASPECT = 0.5
 --- intermediate step from pixels to cells.
 ---@param max_cols integer
 ---@param max_rows integer
----@param image_px Images.Scale.Dims|nil
+---@param image_px Images.Scale.MaybeDims|nil
 ---@return integer cols, integer rows
 function M.fit_cells(max_cols, max_rows, image_px)
-  if not (image_px and image_px.width > 0 and image_px.height > 0) then return max_cols, max_rows end
+  -- Same reason as in `M.compute`: nil is the documented case, so it has to be
+  -- checked before the comparison rather than by it.
+  if not (image_px and image_px.width and image_px.height and image_px.width > 0 and image_px.height > 0) then
+    return max_cols, max_rows
+  end
 
   local image_aspect = image_px.width / image_px.height
   local cols = math.floor(max_rows * image_aspect / M.CELL_ASPECT)

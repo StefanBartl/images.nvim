@@ -248,7 +248,9 @@ end
 --- flush.
 ---@return nil
 local function flush_pending_redraw()
-  pcall(vim.cmd, "redraw")
+  pcall(function()
+    vim.cmd("redraw")
+  end)
 end
 
 --- Draw an image at a terminal position.
@@ -336,7 +338,9 @@ end
 function M.clear()
   if not showing then return end
   showing = false
-  pcall(vim.cmd, "mode")
+  pcall(function()
+    vim.cmd("mode")
+  end)
 end
 
 return M

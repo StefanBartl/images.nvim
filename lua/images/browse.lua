@@ -127,7 +127,7 @@ local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
----@return table|nil snacks.picker, if installed
+---@return table|nil # snacks.picker, if installed
 local function snacks_picker()
   local ok, picker = pcall(require, "snacks.picker")
   return (ok and type(picker) == "table") and picker or nil

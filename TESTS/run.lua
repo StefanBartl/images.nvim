@@ -126,6 +126,7 @@ do
   local ok, calibration = pcall(require, "images.calibration")
   if ok then
     local sandbox = vim.fn.tempname() .. "-images-calibration.json"
+    ---@diagnostic disable-next-line: duplicate-set-field
     calibration.path = function()
       return sandbox
     end

@@ -3,6 +3,21 @@
 
 local M = {}
 
+--- An info line with the advice `vim.health.info` has no parameter for.
+---
+--- `warn` and `error` take advice as varargs and render it under the message;
+--- `info` takes the message and nothing else, so a second argument is dropped
+--- on the floor -- the three tesseract install hints below never reached a
+--- `:checkhealth`. They are rendered into the message here instead, in the
+--- shape `vim.health` gives a warning's advice, so both lines read alike.
+---@param msg string
+---@param advice string[]|nil rendered under the message, one line each
+---@return nil
+local function h_info(msg, advice)
+  if advice and #advice > 0 then msg = msg .. "\n- ADVICE:\n  - " .. table.concat(advice, "\n  - ") end
+  vim.health.info(msg)
+end
+
 ---@return nil
 local function check_output()
   if vim.api.nvim_ui_send then
@@ -109,7 +124,7 @@ local function check_ocr()
   local ocr = require("images.ocr")
   local bin = ocr.bin()
   if not bin then
-    vim.health.info("`tesseract` not found — `:Image ocr` stays off; nothing else is affected", {
+    h_info("`tesseract` not found — `:Image ocr` stays off; nothing else is affected", {
       "winget install UB-Mannheim.TesseractOCR  (Windows)",
       "apt install tesseract-ocr  /  brew install tesseract",
       "installed somewhere unusual? set `ocr.bin` to its path",

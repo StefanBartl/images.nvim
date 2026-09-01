@@ -1,3 +1,8 @@
+-- Test doubles: the cases below replace a module function for the length of
+-- one case and put the original back straight after. LuaLS reads each of those
+-- assignments as a second definition of a field that already has one -- which
+-- is what a double is, not a mistake.
+---@diagnostic disable: duplicate-set-field
 -- TESTS/terminal_draw_spec.lua — the ordering of repaint and image output.
 --
 -- The image output itself needs a terminal with a graphics protocol and stays

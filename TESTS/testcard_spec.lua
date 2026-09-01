@@ -110,6 +110,10 @@ return function(H)
     pos = pos + 12 + len
   end
   H.ok(idat_pos ~= nil, "IDAT found")
+  -- ...and stop here if it was not. Everything below indexes into the chunk,
+  -- where a missing IDAT would surface five lines on as arithmetic on a nil
+  -- value rather than as the check that failed.
+  local idat_pos, idat_len = assert(idat_pos), assert(idat_len)
 
   local idat = png:sub(idat_pos, idat_pos + idat_len - 1)
   H.eq(idat:byte(1), 0x78, "zlib header CMF = 0x78")

@@ -1,3 +1,8 @@
+-- Test doubles: the cases below replace a module function for the length of
+-- one case and put the original back straight after. LuaLS reads each of those
+-- assignments as a second definition of a field that already has one -- which
+-- is what a double is, not a mistake.
+---@diagnostic disable: duplicate-set-field
 -- TESTS/anchor_spec.lua — the canonical "draw an image in a window" place.
 --
 -- `resolve_window` is testable with real windows and buffers, without a

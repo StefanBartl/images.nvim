@@ -184,8 +184,13 @@ function M.open(path)
   require("images.guard").check()
   M.close()
 
+  -- Narrowed once, here: `image_px` outlives this function and is handed to
+  -- `cell_box_to_pixels`, which divides by both values.
+  ---@type Images.Scale.Dims
+  local dims = { width = px.width, height = px.height }
+
   local max_cols, max_rows = require("images.zen").dimensions(cfg().display.zen)
-  local cols, rows = require("images.scale").fit_cells(max_cols, max_rows, px)
+  local cols, rows = require("images.scale").fit_cells(max_cols, max_rows, dims)
 
   local lines = {}
   local blank = (" "):rep(cols)
@@ -206,7 +211,7 @@ function M.open(path)
     return false
   end
 
-  winid, bufnr, file, image_px, draw_cols, draw_rows = win, buf, target, px, cols, rows
+  winid, bufnr, file, image_px, draw_cols, draw_rows = win, buf, target, dims, cols, rows
   boxes = {}
 
   local map = require("lib.nvim.bindings.keymap")
