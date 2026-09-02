@@ -195,9 +195,12 @@ return function(H)
   -- ── crop: `fit` runs in the same process as the crop ─────────────────────
   -- Two `magick` calls would be two process starts, measured at ~71 ms each
   -- on this machine against a total of ~250 ms. Worth one argument.
-  local fitted = select(1, await(function(cb)
-    convert.crop(assert(png), "8x8+0+0", root .. "/crops/fitted.png", { fit = "4x4!" }, cb)
-  end))
+  local fitted = select(
+    1,
+    await(function(cb)
+      convert.crop(assert(png), "8x8+0+0", root .. "/crops/fitted.png", { fit = "4x4!" }, cb)
+    end)
+  )
   H.ok(fitted, "crop with a fit yields a path")
   local fdims = fitted and require("images.info").collect(fitted) or nil
   H.ok(fdims ~= nil and fdims.width == 4 and fdims.height == 4, "…cropped, then resized, in one run")

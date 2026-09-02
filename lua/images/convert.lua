@@ -326,15 +326,9 @@ function M.crop(path, spec, out, opts, on_done)
     if on_done then on_done(out_path, err) end
   end
 
-  if not M.valid_crop(spec) then
-    return done(nil, ("not a rectangle: %q -- try 800x600+10+20"):format(tostring(spec)))
-  end
-  if opts.fit ~= nil and not M.valid_geometry(opts.fit) then
-    return done(nil, ("not a size: %q"):format(tostring(opts.fit)))
-  end
-  if type(out) ~= "string" or out == "" then
-    return done(nil, "no destination given")
-  end
+  if not M.valid_crop(spec) then return done(nil, ("not a rectangle: %q -- try 800x600+10+20"):format(tostring(spec))) end
+  if opts.fit ~= nil and not M.valid_geometry(opts.fit) then return done(nil, ("not a size: %q"):format(tostring(opts.fit))) end
+  if type(out) ~= "string" or out == "" then return done(nil, "no destination given") end
 
   local ok, err = precheck(path)
   if not ok then return done(nil, err) end
