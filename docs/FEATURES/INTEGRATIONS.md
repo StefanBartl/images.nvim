@@ -37,10 +37,17 @@ whatever the cursor happens to be on; not the thing that makes a bare path
 
 **The hover itself is [hover.nvim](https://github.com/StefanBartl/hover.nvim)**,
 and images.nvim is one provider inside it — `hover.preview.media` calls
-`images.info` and `images.scale.fit_cells` to draw the picture, the same way
-it calls `pdfport.render_page` for a PDF page. Bare paths (and truncated ones
-out of `:messages`) hover through `hover.bare_path`, in every filetype. The
-framework deliberately stays there rather than moving here.
+`images.info` for the metadata, `images.scale.fit_cells` for the geometry (the
+same function `images.zen` and `images.redact` size their windows with) and
+`images.anchor.draw`, deferred by a tick, to put the picture into a window it
+does not own. `display.draw_inset` is read too, because a float sized to the
+picture is then drawn into a box that many cells smaller on each side. On
+close it calls `images.terminal.clear()`. `images.browse.draw_in_window` is
+the fallback for an images.nvim without `images.anchor`.
+
+Bare paths (and truncated ones out of `:messages`) hover through
+`hover.bare_path`, in every filetype. The framework deliberately stays there
+rather than moving here.
 
 It has moved twice, which is why older notes here name `markdown.hover.*` and
 newer-but-still-old ones name `lib.nvim.hover.*`. It began in markdown.nvim
@@ -55,8 +62,11 @@ through the hover's registry rather than by owning it.
 
 The float is hover.nvim's window, not one of ours, so its keys are documented
 there: `q` / `<Esc>` dismiss it (and keep it dismissed while the cursor stays
-on that target), `<M-PageDown>` / `<C-Down>` page a scrollable preview, and
-`:Hover toggle` switches the feature off for a session. **Not to be
+on that target), `<M-PageDown>` / `<C-Down>` page a scrollable preview,
+`gf` opens what the float is showing — routed through open.nvim when it is
+installed — and `:Hover toggle` switches the feature off for a session. `gf`
+is the one to know about: it is a Vim built-in, borrowed only while a float
+is open and handed straight back afterwards. **Not to be
 confused with this plugin's own hover** — `display.hover_mode`,
 `images.hover_float` — which is a separate feature with its own window and
 its own keys; see [DISPLAY.md](DISPLAY.md#hover-overlay--hover-float).
