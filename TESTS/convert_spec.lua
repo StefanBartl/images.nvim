@@ -143,6 +143,65 @@ return function(H)
   end
   H.falsy(convert.valid_geometry(nil), "nil is not a size")
 
+  -- ── valid_crop: pure, and deliberately stricter than valid_geometry ──────
+  -- `magick -crop 800x600` without an offset is a *tiling* operation and
+  -- yields many images; a caller asking for "this rectangle" never means that,
+  -- and letting it through would write a file with a surprising number in its
+  -- name rather than fail.
+  for _, good in ipairs({ "800x600+0+0", "1x1+0+0", "960x540+480+270", "10x10-5-5" }) do
+    H.ok(convert.valid_crop(good), ("%q is a rectangle"):format(good))
+  end
+  for _, bad in ipairs({ "", "800x600", "50%", "+10+20", "800x600+10", "800x600+10+20+30", "axb+0+0" }) do
+    H.falsy(convert.valid_crop(bad), ("%q is not a rectangle"):format(bad))
+  end
+  H.falsy(convert.valid_crop(nil), "nil is not a rectangle")
+
+  -- ── crop: bad input never reaches magick ─────────────────────────────────
+  local cropped, crop_err = await(function(cb)
+    convert.crop(assert(png), "not-a-rect", root .. "/c1.png", nil, cb)
+  end)
+  H.falsy(cropped, "a bad rectangle yields no file")
+  H.contains(crop_err or "", "not a rectangle", "…and says so before magick is ever run")
+
+  cropped, crop_err = await(function(cb)
+    convert.crop(assert(png), "5x5+0+0", root .. "/c2.png", { fit = "not-a-size" }, cb)
+  end)
+  H.falsy(cropped, "a bad fit geometry yields no file either")
+  H.contains(crop_err or "", "not a size", "…named as the size it is not")
+
+  cropped, crop_err = await(function(cb)
+    convert.crop(assert(png), "5x5+0+0", "", nil, cb)
+  end)
+  H.falsy(cropped, "no destination yields no file")
+  H.contains(crop_err or "", "destination", "…and says which half is missing")
+
+  -- ── crop: real, into a destination the caller names ──────────────────────
+  -- The point of the caller naming it: a crop is a draw path, not an export,
+  -- so the file belongs in the caller's own cache rather than beside a
+  -- customer's attachment.
+  local dest = root .. "/crops/detail.png"
+  cropped, crop_err, fired = await(function(cb)
+    convert.crop(assert(png), "5x5+0+0", dest, nil, cb)
+  end)
+  H.ok(fired, "crop calls back")
+  H.ok(cropped, "crop yields a path: " .. tostring(crop_err))
+  H.ok(cropped == dest, "…exactly the destination that was asked for")
+  H.ok(cropped ~= nil and vim.uv.fs_stat(cropped) ~= nil, "…and the file really exists")
+  H.ok(vim.uv.fs_stat(assert(png)) ~= nil, "…the original stays untouched")
+
+  local dims = require("images.info").collect(assert(cropped))
+  H.ok(dims ~= nil and dims.width == 5 and dims.height == 5, "…and it is the rectangle asked for")
+
+  -- ── crop: `fit` runs in the same process as the crop ─────────────────────
+  -- Two `magick` calls would be two process starts, measured at ~71 ms each
+  -- on this machine against a total of ~250 ms. Worth one argument.
+  local fitted = select(1, await(function(cb)
+    convert.crop(assert(png), "8x8+0+0", root .. "/crops/fitted.png", { fit = "4x4!" }, cb)
+  end))
+  H.ok(fitted, "crop with a fit yields a path")
+  local fdims = fitted and require("images.info").collect(fitted) or nil
+  H.ok(fdims ~= nil and fdims.width == 4 and fdims.height == 4, "…cropped, then resized, in one run")
+
   -- ── target_formats ───────────────────────────────────────────────────────
   local formats = convert.target_formats()
   H.ok(vim.tbl_contains(formats, "png"), "png is a target format")

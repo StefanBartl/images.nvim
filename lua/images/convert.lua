@@ -1,6 +1,6 @@
 ---@module 'images.convert'
 ---@brief Everything that reads an image file and writes another one, through
---- ImageMagick: SVG->PNG, image->PDF, redacted copy, resize, optimise,
+--- ImageMagick: SVG->PNG, image->PDF, redacted copy, crop, resize, optimise,
 --- format change.
 ---@description
 --- One module, because every one of these shares the same `magick`
@@ -278,6 +278,77 @@ function M.valid_geometry(spec)
     or spec:match("^%d+x$") ~= nil -- 800x   (width, height follows)
     or spec:match("^x%d+$") ~= nil -- x600   (height, width follows)
     or spec:match("^%d+$") ~= nil -- 800    (fits inside 800x800, magick's own reading)
+end
+
+--- Whether `spec` is a crop geometry ImageMagick will act on.
+---
+--- Separate from `M.valid_geometry`, which answers for `-resize`: the two
+--- accept different shapes, and a resize geometry handed to `-crop` is not a
+--- smaller mistake than an unparseable one. Only the explicit
+--- `WIDTHxHEIGHT+X+Y` form is accepted -- magick also reads `WxH` alone (a
+--- tiling operation that yields *many* images) and bare offsets, and neither
+--- is what a caller asking for "this rectangle" means.
+---@param spec string|nil
+---@return boolean
+function M.valid_crop(spec)
+  if type(spec) ~= "string" or spec == "" then return false end
+  return spec:match("^%d+x%d+[+-]%d+[+-]%d+$") ~= nil
+end
+
+--- Write the rectangle `spec` of `path` to `out`.
+---
+--- **The caller names the destination, and that is the difference from
+--- `M.resize`/`M.optimise`/`M.to_format`.** Those three are user-facing
+--- exports and write next to the source on purpose. A crop is asked for by a
+--- *draw path* -- something that wants a detail on screen now and will throw
+--- it away later -- so the file belongs wherever that caller sweeps, the same
+--- stance `M.to_png` takes with its SVG cache. Writing `photo.cropped.png`
+--- next to a customer's attachment on every keypress would be litter.
+---
+--- `+repage` is not optional: without it the crop keeps the source's canvas
+--- offset, and everything downstream (a draw, a further resize) places the
+--- result against a virtual canvas the size of the original rather than
+--- against its own pixels.
+---
+--- `opts.fit` is an optional `-resize` geometry applied *after* the crop, in
+--- the same process. That is the whole reason it exists here rather than as a
+--- second call: two `magick` invocations cost two process starts, measured at
+--- ~71 ms each on Windows, for an operation whose total is ~250 ms.
+---@param path string absolute path to an image file
+---@param spec string crop geometry `WIDTHxHEIGHT+X+Y`, validated first
+---@param out string absolute destination path
+---@param opts { fit?: string }|nil `fit` is a `-resize` geometry applied after the crop
+---@param on_done fun(out_path: string|nil, err: string|nil)|nil
+---@return nil
+function M.crop(path, spec, out, opts, on_done)
+  opts = opts or {}
+  local function done(out_path, err)
+    if on_done then on_done(out_path, err) end
+  end
+
+  if not M.valid_crop(spec) then
+    return done(nil, ("not a rectangle: %q -- try 800x600+10+20"):format(tostring(spec)))
+  end
+  if opts.fit ~= nil and not M.valid_geometry(opts.fit) then
+    return done(nil, ("not a size: %q"):format(tostring(opts.fit)))
+  end
+  if type(out) ~= "string" or out == "" then
+    return done(nil, "no destination given")
+  end
+
+  local ok, err = precheck(path)
+  if not ok then return done(nil, err) end
+
+  vim.fn.mkdir(vim.fs.dirname(out), "p")
+
+  local args = { "magick", path, "-crop", spec, "+repage" }
+  if opts.fit then
+    args[#args + 1] = "-resize"
+    args[#args + 1] = opts.fit
+  end
+  args[#args + 1] = out
+
+  run_magick(args, out, "crop", on_done)
 end
 
 --- Formats `M.to_format` accepts as a target.
