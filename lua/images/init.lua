@@ -124,8 +124,18 @@ function M.show(path)
     if display.hover_mode == "float" then
       if not require("images.hover_float").open(file) then return false end
     else
-      local ok, err =
-        require("images.terminal").draw(file, row_below_cursor(display.max_rows), 1, display.max_cols, display.max_rows)
+      -- The box the picture wants inside `max_cols` x `max_rows`, not the box
+      -- itself. Handed the whole box, a terminal scales to the WIDTH and lets
+      -- the height follow the aspect ratio -- which for anything taller than it
+      -- is wide overshoots `max_rows`, the very thing that value is there to
+      -- cap, and past the last row scrolls the screen (see `images.anchor`,
+      -- where the same fitting is done for a windowed draw, and
+      -- `images.terminal`'s module docs for what a scroll costs). Fitting first
+      -- also makes `row_below_cursor` exact: it reserves the rows the picture
+      -- will actually occupy rather than the most it might.
+      local cols, rows =
+        require("images.scale").fit_cells(display.max_cols, display.max_rows, require("images.pixels").read(file))
+      local ok, err = require("images.terminal").draw(file, row_below_cursor(rows), 1, cols, rows)
       if not ok then
         notify().error(err or "could not display the image")
         return false

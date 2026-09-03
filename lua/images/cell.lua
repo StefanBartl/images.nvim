@@ -28,9 +28,10 @@
 --- actually in effect.
 ---
 --- The value is written into `images.scale.CELL_ASPECT` rather than passed to
---- every caller: `fit_cells` has four of them (`ascii`, `redact`, `zen` and
---- markdown.nvim's hover canvas), and an extra signature slot all four would
---- have to carry would hold the same value in every single case. It also keeps
+--- every caller: `fit_cells` has six of them (`anchor` — every windowed draw —
+--- `init`'s overlay, `ascii`, `redact`, `zen` and markdown.nvim's hover
+--- canvas), and an extra signature slot all six would have to carry would hold
+--- the same value in every single case. It also keeps
 --- `images.scale` the pure, terminal-free computation module its own docs say
 --- it should be.
 

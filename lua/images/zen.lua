@@ -67,10 +67,14 @@ end
 --- maximum box stands — unchanged behaviour.
 ---
 --- Why do this here rather than let `preserveAspectRatio=1` handle it alone:
---- the terminal only scales WITHIN the cell box it was sent and leaves the
---- remainder empty — so a window wider or taller than the (scaled) image shows
---- visible empty space rather than an error. A window cut to fit never has to
---- leave anything empty in the first place.
+--- a window wider or taller than the (scaled) image shows visible empty space,
+--- and a window cut to fit never has to leave anything empty in the first
+--- place. The stronger reason came later — a terminal handed a box the picture
+--- cannot fill scales to the WIDTH and lets the height run past the box, which
+--- past the last row scrolls the screen. `images.anchor` now fits the draw box
+--- the same way for every caller, so this is belt and braces rather than the
+--- only line of defence; shaping the window is still worth it, because an
+--- empty strip inside a frame is a frame in the wrong shape.
 ---@param file string
 ---@param zen_cfg ImagesNvim.ZenConfig|nil
 ---@return integer width

@@ -168,6 +168,16 @@ M.CELL_ASPECT = 0.5
 --- (expressed in cells via `M.CELL_ASPECT`) within the maximum size — the same
 --- "fit to the longer axis" idea as any aspect-ratio fit, just with the
 --- intermediate step from pixels to cells.
+---
+--- **Every draw goes through here, and that is not a presentation choice.**
+--- OSC 1337's `preserveAspectRatio=1` only scales down to the box on the axis
+--- that binds first; hand a terminal a box wider than the picture's ratio can
+--- use and the height follows the width straight past the box — past the last
+--- row, that scrolls the screen and takes Neovim's grid with it. Fitting first
+--- makes both axes right, so which one the terminal honours stops mattering.
+--- Without dimensions the box is returned unchanged, which is the older,
+--- terminal-dependent behaviour and the best that can be done for a file that
+--- does not say how big it is.
 ---@param max_cols integer
 ---@param max_rows integer
 ---@param image_px Images.Scale.MaybeDims|nil

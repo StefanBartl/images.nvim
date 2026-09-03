@@ -2,8 +2,16 @@
 ---@brief Determine an image file's metadata.
 ---@description
 --- Format and dimensions come from ImageMagick, when it is present. Without
---- ImageMagick, size and modification time remain — the feature does not
---- become useless, which is why `magick` is deliberately optional.
+--- ImageMagick, the dimensions still come — `images.pixels` reads them out of
+--- the file's own header — and so do size and modification time; only the
+--- format name goes missing. The feature does not become useless, which is why
+--- `magick` is deliberately optional.
+---
+--- ImageMagick goes first where both can answer: it opens the picture rather
+--- than reading the first thirty bytes of it, so on a malformed file it is the
+--- better judge. `images.pixels` is not a second opinion but the same number by
+--- a cheaper route — see its own docs for why the draw path needs that route to
+--- exist at all.
 
 local M = {}
 
@@ -74,6 +82,15 @@ function M.collect(path)
       info.format = fmt
       info.width = tonumber(w)
       info.height = tonumber(h)
+    end
+  end
+
+  -- Whatever ImageMagick could not say -- because it is not installed, or
+  -- because `identify` failed on this file -- the header may still say.
+  if not (info.width and info.height) then
+    local px = require("images.pixels").read(path)
+    if px then
+      info.width, info.height = px.width, px.height
     end
   end
 

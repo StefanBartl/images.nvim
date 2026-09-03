@@ -163,6 +163,121 @@ return function(H)
     vim.api.nvim_buf_delete(scratch, { force = true })
   end)
 
+  -- ── draw(): the box handed to the terminal has the PICTURE's aspect ratio ─
+  -- The regression test for a portrait page scrolling the screen. `draw_now`
+  -- used to hand over the whole window box and leave the fitting to
+  -- `preserveAspectRatio=1`; WezTerm scales such a box to its WIDTH, so a
+  -- 993x1404 page in an 82x25 window came out 57 rows tall, ran past the last
+  -- row, and scrolled Neovim's grid with it. What has to hold is that the
+  -- REQUEST already fits on both axes -- then it no longer matters which one a
+  -- terminal honours.
+  H.tmpdir(function(dir)
+    -- A screen the size of the one the fault was seen on. Headless defaults to
+    -- 80x24, which would silently clamp the 82x25 window below to something
+    -- else and turn every column count here into a number about the default
+    -- rather than about the arithmetic.
+    local real_cols, real_lines = vim.o.columns, vim.o.lines
+    vim.o.columns, vim.o.lines = 175, 40
+
+    ---@param n integer
+    ---@return string
+    local function be32(n)
+      return string.char(math.floor(n / 16777216) % 256, math.floor(n / 65536) % 256, math.floor(n / 256) % 256, n % 256)
+    end
+
+    -- A real PNG header, byte for byte, at the given size.
+    ---@param path string
+    ---@param w integer
+    ---@param h integer
+    local function png_of(path, w, h)
+      local signature = string.char(137) .. "PNG" .. string.char(13, 10, 26, 10)
+      local ihdr = be32(13) .. "IHDR" .. be32(w) .. be32(h) .. string.char(8, 6, 0, 0, 0)
+      H.write(path, signature .. ihdr)
+    end
+
+    -- 993x1404: the page that produced the fault. 640x480: the shape
+    -- everything before it was tested with.
+    local portrait, landscape = dir .. "/page.png", dir .. "/shot.png"
+    png_of(portrait, 993, 1404)
+    png_of(landscape, 640, 480)
+
+    -- No readable header at all: the answer must be the previous behaviour,
+    -- not a box of one cell.
+    local opaque = dir .. "/opaque.png"
+    H.write(opaque, string.char(137) .. "PNG-- not decodable, but not empty")
+
+    local scratch = vim.api.nvim_create_buf(false, true)
+    local win = vim.api.nvim_open_win(scratch, false, {
+      relative = "editor",
+      row = 4,
+      col = 8,
+      width = 82,
+      height = 25,
+      style = "minimal",
+      border = "none",
+      focusable = false,
+      noautocmd = true,
+    })
+
+    ---@param file string
+    ---@return { row: integer, col: integer, cols: integer, rows: integer }
+    local function box_for(file)
+      local captured
+      local real_draw = require("images.terminal").draw
+      require("images.terminal").draw = function(_file, row, col, cols, rows)
+        captured = { row = row, col = col, cols = cols, rows = rows }
+        return true
+      end
+      anchor.draw(win, "full", file, { inset = 0 })
+      require("images.terminal").draw = real_draw
+      return captured
+    end
+
+    local win_cols = vim.api.nvim_win_get_width(win)
+    local win_rows = vim.api.nvim_win_get_height(win)
+
+    -- The exact column count only means something against a stated cell aspect
+    -- (`images.cell` writes the configured one into `images.scale` at setup, and
+    -- earlier specs in this run may have set one). Pin it, so 35 is a fact
+    -- about the arithmetic rather than about whatever ran before.
+    local scale = require("images.scale")
+    local real_aspect = scale.CELL_ASPECT
+    scale.CELL_ASPECT = 0.5
+
+    local page = box_for(portrait)
+    H.ok(page.cols <= win_cols, "a portrait page is no wider than the window")
+    H.ok(page.rows <= win_rows, "…and no taller, which is the half that used to fail")
+    H.eq(page.rows, win_rows, "…it fills the short axis")
+    H.eq(page.cols, 35, "…and takes only the width its aspect ratio needs")
+    H.eq(page.col, 9 + math.floor((win_cols - page.cols) / 2), "…centred in the window")
+
+    -- This window is short and wide, so the HEIGHT binds for a landscape
+    -- picture too; what differs between the two is how much width each aspect
+    -- ratio claims.
+    local shot = box_for(landscape)
+    H.eq(shot.rows, win_rows, "a landscape picture also fills the short axis")
+    H.eq(shot.cols, 66, "…and claims more width than the page, as its aspect ratio says")
+    H.ok(shot.cols < win_cols, "…without filling a window wider than it can use")
+
+    -- Wide enough for the WIDTH to bind instead: fit_cells' other branch, and
+    -- the case that was always correct because the terminal fitted the same way.
+    local panorama = dir .. "/wide.png"
+    png_of(panorama, 3000, 500)
+    local wide = box_for(panorama)
+    H.eq(wide.cols, win_cols, "a panorama fills the width")
+    H.eq(wide.rows, 6, "…and takes only the rows its aspect ratio needs")
+
+    local unknown = box_for(opaque)
+    H.eq(unknown.cols, win_cols, "an unreadable header leaves the box as it was")
+    H.eq(unknown.rows, win_rows, "…on both axes")
+
+    scale.CELL_ASPECT = real_aspect
+
+    vim.api.nvim_win_close(win, true)
+    vim.api.nvim_buf_delete(scratch, { force = true })
+    vim.o.columns, vim.o.lines = real_cols, real_lines
+  end)
+
   -- ── draw(): display.terminal_padding adds a fixed cell offset ────────────
   -- Compensation for terminals whose OSC 1337 placement does not account for
   -- their own window_padding (see anchor.lua's terminal_padding()). The default

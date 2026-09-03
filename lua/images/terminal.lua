@@ -26,10 +26,19 @@
 --- * An image reaching past the last row scrolls the whole screen — Neovim's
 ---   grid included. `ESC[u` restores the cursor position afterwards but not the
 ---   scroll: the status line stays pushed up until `M.clear` repaints
----   everything via `:mode`. `clamp_to_screen` prevents it.
+---   everything via `:mode`. `clamp_to_screen` keeps the box *asked for* on
+---   screen, and for a long time that read as the whole defence. It is not:
+---   what overflows is the picture the terminal derives from the box, and a
+---   box wider than the picture's aspect ratio can use is scaled to its WIDTH
+---   with the height left to follow (measured in WezTerm: a 993x1404 page in
+---   an 82x25 request came out 57 rows tall). So the box has to arrive already
+---   shaped like the picture — see `images.scale.fit_cells`, and
+---   `images.anchor`, which is where every windowed draw does that now.
 --- * `width`/`height` are given in **cells**, not pixels. Together with
 ---   `preserveAspectRatio=1` the terminal scales on its own, and the pixel size
----   of a cell never has to be known anywhere.
+---   of a cell never has to be known anywhere — but it will only ever scale
+---   DOWN to the box on the axis that binds first, so which axis that is has to
+---   be settled before the sequence goes out (previous bullet).
 ---
 --- The protocol has no image IDs: what has been drawn cannot be removed
 --- individually, only the whole screen can be repainted. Hence this module

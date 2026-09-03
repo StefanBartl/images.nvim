@@ -116,6 +116,7 @@ local specs = {
   "calibration_spec.lua",
   "picker_integration_spec.lua",
   "pdf_spec.lua",
+  "pixels_spec.lua",
 }
 
 -- No spec may read (or write) the developer's real calibration state.

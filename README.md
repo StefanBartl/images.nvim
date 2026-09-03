@@ -90,14 +90,21 @@ reliably. Four details that matter, all of them learned the hard way:
   its draw by one tick — a flush before sending cannot cover the repaint that
   opening the window itself causes. `show`/hover need neither: they draw over
   existing text without creating a window.
-- `preserveAspectRatio=1` only scales the image DOWN to fit the sent cell
-  box — it never grows the box to match, so a window wider or taller than
-  the (scaled) image just shows empty space in that direction. `:Image zen`
-  sizes its window to the image's own aspect ratio up front instead
-  (`images.scale.fit_cells`, the same fit `images.redact` already used),
-  bounded by `display.zen.width`/`height`. Falls back to the old fixed box
-  when the pixel size can't be read (no ImageMagick, or an unreadable
-  format) — no regression, just no fit.
+- **The box sent is shaped like the picture, not like the window.**
+  `preserveAspectRatio=1` scales the image down to the sent cell box on the
+  axis that binds *first* — and only that one. Send a box wider than the
+  picture's ratio can use and the terminal fits the width, letting the height
+  follow: measured in WezTerm, a 993x1404 PDF page in an 82x25 preview window
+  came out 57 rows tall, ran off the bottom of a 40-row screen, and scrolled
+  Neovim's whole grid up with it. So every draw fits the box to the picture
+  first (`images.scale.fit_cells`), which makes both axes right and the
+  placement this plugin's decision rather than the terminal's. The dimensions
+  come from the file's own header (`images.pixels` — PNG, JPEG, GIF, BMP,
+  WebP), so this holds without ImageMagick; a file that states no pixel size
+  (SVG, an unknown container) falls back to the plain window box, which is the
+  older, terminal-dependent behaviour. `:Image zen` and `:Image redact` also
+  shape their *window* that way up front, so a frame never has an empty strip
+  in it.
 
 Before the first draw the terminal is checked against the small set that
 implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
