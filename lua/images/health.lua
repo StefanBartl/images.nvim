@@ -165,6 +165,41 @@ local function check_ocr()
   end
 end
 
+---Whether a PDF entry can be drawn as a page (`images.pdf`, consumed by
+---`images.integrations.picker`). Three separate states with three separate
+---fixes -- switched off, pdfport.nvim missing, poppler missing -- so they are
+---reported separately rather than as one "unavailable".
+---@return nil
+local function check_pdf()
+  local cfg = require("images.config").get()
+  if (cfg.pdf or {}).enabled == false then
+    vim.health.info("PDF pages: switched off in setup() — `pdf = { enabled = false }`")
+    return
+  end
+
+  local ok_pdfport, pdfport = pcall(require, "pdfport")
+  if not ok_pdfport or type(pdfport.render_page) ~= "function" then
+    vim.health.info("`pdfport.nvim` not present — a PDF entry keeps a host's own preview", {
+      "https://github.com/StefanBartl/pdfport.nvim draws its first page instead",
+    })
+    return
+  end
+
+  if not require("lib.nvim.cross.executable").exists("pdftoppm") then
+    vim.health.warn("`pdftoppm` not found — pdfport.nvim is installed but cannot rasterize", {
+      "apt install poppler-utils  /  brew install poppler  /  scoop install poppler",
+    })
+    return
+  end
+
+  vim.health.ok(
+    ("`pdfport.nvim` + `pdftoppm` found — a PDF previews as page %d at %d dpi"):format(
+      require("images.pdf").page(),
+      require("images.pdf").dpi()
+    )
+  )
+end
+
 ---@return nil
 local function check_deps()
   if pcall(require, "lib.nvim.bindings.usercmd.composer") then
@@ -201,6 +236,7 @@ function M.check()
   check_screenshot()
   check_imagemagick()
   check_ocr()
+  check_pdf()
   check_deps()
   check_lib_deps()
 end

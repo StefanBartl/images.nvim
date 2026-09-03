@@ -10,12 +10,21 @@
 ---@field keymaps ImagesNvim.KeymapConfig
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu? ImagesNvim.MenuConfig enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
+---@field pdf? ImagesNvim.PdfConfig PDF pages drawn as pictures, via pdfport.nvim (see images.pdf)
 
 ---Off switch for `images.integrations.menu`. images.nvim has no nvzone/menu
 ---dependency of its own; this only controls whether M.items()/M.submenu()
 ---return any entries.
 ---@class ImagesNvim.MenuConfig : ImagesNvim.MenuOpts
 ---@field enable? boolean default true
+
+---PDF pages drawn as pictures (`images.pdf`). images.nvim has no pdfport.nvim
+---dependency of its own; without pdfport or poppler's `pdftoppm` a PDF is not
+---claimed at all, whatever this says.
+---@class ImagesNvim.PdfConfig : ImagesNvim.PdfOpts
+---@field enabled boolean default true
+---@field page integer 1-based page to rasterize; default 1
+---@field dpi integer rasterization resolution; default 120
 
 ---@class ImagesNvim.DisplayConfig : ImagesNvim.DisplayOpts
 ---@field max_cols integer maximum image width in terminal cells
@@ -98,9 +107,15 @@
 ---@field keymaps?    ImagesNvim.KeymapOpts
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu?       ImagesNvim.MenuOpts enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
+---@field pdf?        ImagesNvim.PdfOpts PDF pages drawn as pictures, via pdfport.nvim (see images.pdf)
 
 ---@class ImagesNvim.MenuOpts
 ---@field enable? boolean default true
+
+---@class ImagesNvim.PdfOpts
+---@field enabled? boolean default true
+---@field page? integer 1-based page to rasterize; default 1
+---@field dpi? integer rasterization resolution; default 120
 
 ---@class ImagesNvim.DisplayOpts
 ---@field max_cols?           integer maximum image width in terminal cells

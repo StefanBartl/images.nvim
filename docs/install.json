@@ -33,6 +33,22 @@
       }
     },
     {
+      "bin": "pdftoppm",
+      "required": false,
+      "why": "Enables a PDF entry to be previewed as its first page rather than as bytes, wherever a host asks images.nvim to draw one (pickers.nvim's preview window). Ships with poppler, and is reached through pdfport.nvim -- both have to be present, `:checkhealth images` says which is missing.",
+      "pkg": {
+        "apt": "poppler-utils",
+        "dnf": "poppler-utils",
+        "pacman": "poppler",
+        "zypper": "poppler-tools",
+        "apk": "poppler-utils",
+        "brew": "poppler",
+        "winget": "oschwartz10612.Poppler",
+        "scoop": "poppler",
+        "choco": "poppler"
+      }
+    },
+    {
       "bin": "chafa",
       "required": false,
       "why": "Renders images inline in terminals without a native image protocol (Kitty graphics / iTerm2), as a fallback for the ASCII/terminal preview.",

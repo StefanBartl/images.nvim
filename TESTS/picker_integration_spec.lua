@@ -36,6 +36,34 @@ return function(H)
   H.falsy(ok, "a non-image entry is rejected")
   H.contains(err or "", "not an image", "the error names the reason")
 
+  -- ── is_pdf / is_previewable: the second half of "is this one of yours" ───
+  -- pdfport.nvim is not on the test runtimepath and pdftoppm is not a build
+  -- dependency, so `is_pdf` is expected to answer NO here -- which is the
+  -- interesting direction anyway: a machine that cannot rasterize must leave
+  -- the PDF to the host rather than claim it and draw nothing.
+  H.eq(type(picker.is_pdf("/tmp/report.pdf")), "boolean", "is_pdf() answers with a boolean")
+  H.falsy(picker.is_pdf("/tmp/shot.png"), "a png is not a PDF")
+  H.falsy(picker.is_pdf(nil), "nil is not a PDF")
+
+  H.ok(picker.is_previewable("/tmp/shot.png"), "an image is previewable")
+  H.falsy(picker.is_previewable("/tmp/notes.md"), "markdown is not previewable")
+  H.eq(
+    picker.is_previewable("/tmp/report.pdf"),
+    picker.is_pdf("/tmp/report.pdf"),
+    "a PDF is previewable exactly when it can be rasterized"
+  )
+
+  -- ── extensions(): still the image list, PDFs deliberately not in it ──────
+  H.falsy(vim.tbl_contains(picker.extensions(), "pdf"), "pdf is not among the extensions")
+
+  -- ── preview(): a PDF without a rasterizer says so, rather than "not an
+  --    image" -- the two send a host looking in different places ────────────
+  if not picker.is_pdf("/tmp/report.pdf") then
+    local pok, perr = picker.preview(vim.api.nvim_get_current_win(), "/tmp/report.pdf")
+    H.falsy(pok, "a PDF is refused without a rasterizer")
+    H.contains(perr or "", "pdftoppm", "the error names what is missing")
+  end
+
   -- ── clear(): safe with nothing on screen ─────────────────────────────────
   picker.clear()
 end

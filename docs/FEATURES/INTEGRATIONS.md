@@ -98,7 +98,7 @@ preview.
 - **Usercmds:** `:Image pickers`
 - **Dependency:** snacks.nvim, soft — the list still works without it
 
-## pickers.nvim image previews
+## pickers.nvim image and PDF previews
 
 The inverse direction of `:Image pickers`. There, images.nvim owns the
 picker and every item in it is an image. Here,
@@ -113,13 +113,54 @@ and nothing else:
 ```lua
 local picker = require("images.integrations.picker")
 
-picker.available()          -- may a host take the preview over at all?
-picker.is_image(path)       -- is this entry an image, by `opts.extensions`?
-picker.preview(winid, file) -- draw it into that window
-picker.extensions()         -- the extension list, for a host that wants to
-                            -- LIST images (`fd -e png -e jpg …`)
-picker.clear()              -- repaint the drawn image away
+picker.available()             -- may a host take the preview over at all?
+picker.is_previewable(path)    -- is this entry one of ours?
+picker.preview(winid, file)    -- draw it into that window
+picker.is_image(path)          -- the narrower question, by `opts.extensions`
+picker.is_pdf(path)            -- a PDF this machine can rasterize
+picker.extensions()            -- the extension list, for a host that wants to
+                               -- LIST images (`fd -e png -e jpg …`)
+picker.clear()                 -- repaint the drawn image away
 ```
+
+### A PDF is one of ours too
+
+`is_previewable()` answers yes for a `.pdf` whenever
+[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) and poppler's
+`pdftoppm` are both installed; `preview()` then rasterizes the first page
+through `images.pdf` and draws *that*. From the draw down there is no PDF any
+more, only a PNG like every other, and a host writes no PDF code of its own.
+
+Two things follow from a page not existing yet when the entry is selected,
+and a host that wants a polished preview handles both (pickers.nvim does):
+
+- `preview()` returns `true` **before** the page exists. The first sight of a
+  given page costs a `pdftoppm` run — 257 ms for a 373 KB document here — and
+  the window is empty until it lands. Ask `is_pdf()` and put a line in your own
+  buffer; the page is drawn *over* the window, so it covers whatever is there.
+- A page that fails to rasterize reports through `opts.on_done` and nothing
+  else. No notification: a selection moving over a broken PDF would otherwise
+  say so once per keypress, and the host has its own text preview to fall back
+  to.
+
+Pages are cached in `stdpath("cache")/images.nvim/pdf`, keyed by path, mtime,
+page and dpi — so the second sight of a page is synchronous, an edited document
+rasterizes again, and the cache survives the session (the same arrangement the
+SVG cache in `images.convert` uses, for the same reasons). Two requests for the
+same page while one is still out produce one `pdftoppm`, not two.
+
+```lua
+require("images").setup({
+  pdf = {
+    enabled = true,  -- false: a PDF entry stays the host's to preview
+    page = 1,        -- there is no paging in a preview window
+    dpi = 120,       -- ~1000x1400 px for A4; raise it for a large preview
+  },
+})
+```
+
+`:checkhealth images` separates the three states that look alike from the
+outside — switched off, pdfport.nvim missing, `pdftoppm` missing.
 
 `available()` is the only place in this plugin where a failed capability
 check means *no*. Everywhere else detection is a heuristic and a false
@@ -140,11 +181,13 @@ Each draw therefore arms a one-shot `WinClosed` for that preview window; a
 host calls `clear()` itself when the selection moves from an image to a
 non-image entry, where the window stays open.
 
-- **Module:** `images/integrations/picker.lua`
-- **Config:** none here — pickers.nvim's own `images = { enabled = … }`
-  switches it off from that side
-- **Dependency:** none. pickers.nvim calls images.nvim, never the reverse;
-  with pickers.nvim absent this module simply has no callers
+- **Module:** `images/integrations/picker.lua`, `images/pdf.lua`
+- **Config:** `pdf = { enabled, page, dpi }` for the PDF half; nothing for the
+  image half — pickers.nvim's own `images = { enabled = … }` switches the whole
+  integration off from that side
+- **Dependency:** none towards pickers.nvim — it calls images.nvim, never the
+  reverse, and with it absent this module simply has no callers. pdfport.nvim
+  and `pdftoppm` are soft, and only for PDF entries
 
 ## filetree.nvim and open.nvim
 
@@ -154,17 +197,28 @@ feature, and `open.nvim` routes `:Open image` here.
 - **Module:** `images/init.lua` (`draw`) — the entry point both call
 - **Dependency:** none here; the relationship runs from those plugins to this one
 
-## pdfport.nvim for export
+## pdfport.nvim, in both directions
 
-`:Image export` routes through `pdfport.nvim`'s `create()` API when that
-plugin is installed (asynchronous, lossless via `img2pdf` if available,
-otherwise `magick` through pdfport's own fallback chain). Soft dependency,
-`pcall`'d — without pdfport.nvim, the previous synchronous
+The two plugins meet twice, and the traffic runs opposite ways.
+
+**Making a PDF.** `:Image export` routes through `pdfport.nvim`'s `create()`
+API when that plugin is installed (asynchronous, lossless via `img2pdf` if
+available, otherwise `magick` through pdfport's own fallback chain). Soft
+dependency, `pcall`'d — without pdfport.nvim, the previous synchronous
 ImageMagick-only export path is unchanged.
 
-- **Module:** `images/convert.lua`
+**Reading one.** `images.pdf` asks `pdfport.render_page()` for a page as a PNG
+and caches it, which is what lets a PDF entry be previewed as a picture (see
+"pickers.nvim image and PDF previews" above). images.nvim never reads a PDF
+itself and does not want to: pdfport owns PDF-to-PNG, images.nvim owns
+PNG-to-screen, and this module is the whole of the seam.
+
+- **Module:** `images/convert.lua` (export), `images/pdf.lua` (pages)
 - **Usercmds:** `:Image export`
-- **Dependency:** pdfport.nvim, soft and `pcall`'d — falls back to the synchronous ImageMagick path
+- **Dependency:** pdfport.nvim, soft and `pcall`'d in both directions — export
+  falls back to the synchronous ImageMagick path, and a page is simply not
+  offered. The page half additionally needs poppler's `pdftoppm`, which is what
+  pdfport shells out to
 
 ## language.nvim after OCR — an integration with no code in it
 

@@ -391,6 +391,11 @@ under the same key).
         args = {},
         bin = nil,
       },
+      pdf = {
+        enabled = true,
+        page = 1,
+        dpi = 120,
+      },
       keymaps = {
         show = "<leader>im",
         gallery = "<leader>ig",
@@ -697,11 +702,23 @@ lib.nvim        Provides the `:Image` command grammar, the picker behind
 pickers.nvim    The inverse of `:Image pickers`: pickers.nvim owns the
                 picker, and images.nvim draws the entries that happen to be
                 images into its preview window. It consumes
-                `images.integrations.picker` — `available()`, `is_image()`,
-                `preview(winid, file)`, plus `extensions()` and `clear()`.
+                `images.integrations.picker` — `available()`,
+                `is_previewable()`, `preview(winid, file)`, plus `is_image()`,
+                `is_pdf()`, `extensions()` and `clear()`.
                 One-directional: nothing here needs pickers.nvim. Wired on
                 snacks and telescope; fzf-lua previews images through its own
                 `previewers.builtin.extensions` instead.
+
+pdfport.nvim    Both directions. `:Image export` makes a PDF through its
+                `create()` API; `images.pdf` reads one back through
+                `render_page()`, so a `.pdf` entry in a host's picker previews
+                as its first page instead of as bytes. The page half also
+                needs poppler's `pdftoppm`, which is what pdfport shells out
+                to; without either piece a PDF is simply not claimed and the
+                host keeps its own preview. `pdf = { enabled = false }` says
+                the same on a machine that has both. Pages are cached in
+                `stdpath("cache")/images.nvim/pdf`, keyed by path, mtime, page
+                and dpi.
 
 filetree.nvim   Can use images.nvim as the backend of its preview feature.
 open.nvim       Can route image targets here.

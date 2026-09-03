@@ -350,6 +350,14 @@ require("images").setup({
     args = {},                   -- extra tesseract arguments, e.g. { "--psm", "6" }
     bin = nil,                   -- nil = PATH, then the usual Windows install dirs
   },
+  pdf = {
+    -- A PDF entry drawn as its first page, wherever a host asks this plugin to
+    -- draw one (pickers.nvim's preview window). Needs pdfport.nvim + pdftoppm;
+    -- without them a PDF is simply not claimed. See "Integrations".
+    enabled = true,
+    page = 1,    -- there is no paging in a preview window
+    dpi = 120,   -- ~1000x1400 px for A4; raise it for a large preview window
+  },
   keymaps = {
     show = "<leader>im",  -- every entry accepts false to disable it
     gallery = "<leader>ig",
@@ -437,10 +445,18 @@ entries as pictures in *its* pickers — the inverse of `:Image pickers`, where
 images.nvim owns the picker. Its file pickers already list `.png`/`.jpg`; with
 images.nvim installed they now draw them instead of previewing bytes, on
 snacks and telescope. It goes through `images.integrations.picker`
-(`available()` / `is_image()` / `preview(winid, file)`), a surface any picker
-plugin can consume; the dependency runs one way only and nothing here needs
-pickers.nvim. See
-[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#pickersnvim-image-previews).
+(`available()` / `is_previewable()` / `preview(winid, file)`), a surface any
+picker plugin can consume; the dependency runs one way only and nothing here
+needs pickers.nvim.
+
+A `.pdf` entry is the same feature: with
+[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) and poppler's
+`pdftoppm` installed, `is_previewable()` claims it too and the first page is
+rasterized (`images.pdf`, cached on disk) and drawn like any other picture —
+so a host writes no PDF code of its own. Without either piece the entry simply
+stays the host's to preview. `pdf = { enabled = false }` says the same on a
+machine that has both. See
+[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#pickersnvim-image-and-pdf-previews).
 
 `filetree.nvim` uses this plugin as the first backend of its preview feature,
 and `open.nvim` routes `:Open image` here.
@@ -470,7 +486,9 @@ is installed — then the export routes through pdfport's `create()` API
 instead (asynchronous, lossless via `img2pdf` if available, otherwise
 `magick` through pdfport's own fallback chain). Soft dependency, `pcall`'d;
 without pdfport.nvim the previous synchronous `magick`-only path is
-unchanged. Declared, with the reasoning per
+unchanged. `pdftoppm` (poppler) is the reverse direction of that same pairing:
+with it and pdfport.nvim present, a `.pdf` entry in a host's picker previews as
+its first page instead of as bytes. Declared, with the reasoning per
 tool, in [`docs/install.json`](docs/install.json) — parsed by
 [lib.nvim](https://github.com/StefanBartl/lib.nvim)'s
 [`deps` module](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/deps/README.md),

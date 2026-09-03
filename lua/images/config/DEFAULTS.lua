@@ -151,6 +151,27 @@ return {
   -- README "Optional external tools".
   deps_popup = true,
 
+  -- A PDF page drawn as a picture, wherever this plugin draws pictures for a
+  -- host (today: images.integrations.picker, a foreign picker's preview
+  -- window). The page is rasterized by pdfport.nvim through poppler's
+  -- `pdftoppm` and cached in stdpath("cache")/images.nvim/pdf; see images.pdf.
+  --
+  -- With either piece missing, a PDF is simply not one of ours: the host keeps
+  -- its own preview rather than getting an empty window. `enabled = false`
+  -- says the same thing on a machine that has both.
+  pdf = {
+    enabled = true,
+    -- Which page. There is no paging in a preview window -- the first page is
+    -- what says "this is that document", which is the whole question a
+    -- preview answers.
+    page = 1,
+    -- Rasterization resolution. 120 puts an A4 page at ~1000x1400 px, which
+    -- is more than a preview window (a few hundred pixels across) can show,
+    -- and about a third of the bytes of the 216 hover.nvim rasterizes a
+    -- full-screen float at. Raise it if you read pages in a large preview.
+    dpi = 120,
+  },
+
   -- Right-click context menu (nvzone/menu, soft dependency; entries from
   -- images.integrations.menu). Automatically inactive without nvzone/menu
   -- installed -- this only controls whether M.items()/M.submenu() return any
