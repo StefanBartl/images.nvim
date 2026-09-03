@@ -113,16 +113,19 @@ return function(H)
   -- ...and stop here if it was not. Everything below indexes into the chunk,
   -- where a missing IDAT would surface five lines on as arithmetic on a nil
   -- value rather than as the check that failed.
-  local idat_pos, idat_len = assert(idat_pos), assert(idat_len)
+  -- Under new names rather than shadowing: the point of the line is to narrow
+  -- `integer|nil` to `integer` for what follows, and a second local of the same
+  -- name says that to LuaLS while reading to luacheck as an accident.
+  local idat_at, idat_size = assert(idat_pos), assert(idat_len)
 
-  local idat = png:sub(idat_pos, idat_pos + idat_len - 1)
+  local idat = png:sub(idat_at, idat_at + idat_size - 1)
   H.eq(idat:byte(1), 0x78, "zlib header CMF = 0x78")
 
   -- Walk the stored blocks: header (1 byte), LEN, NLEN, data. LEN and NLEN
   -- must complement each other to 0xFFFF, or every decoder rejects the stream.
   -- Start at 3: the two zlib header bytes (CMF/FLG) come before that.
   local p, payload, final = 3, 0, 0
-  while p < idat_len do
+  while p < idat_size do
     final = idat:byte(p)
     local blen = idat:byte(p + 1) + idat:byte(p + 2) * 256
     local nlen = idat:byte(p + 3) + idat:byte(p + 4) * 256
@@ -133,5 +136,5 @@ return function(H)
   end
   H.eq(final, 1, "the last block is marked final")
   H.eq(payload, 32 * (1 + 64 * 3), "decompressed size = height * (1 + width * 3)")
-  H.eq(p + 4, idat_len + 1, "exactly 4 bytes of Adler-32 follow the last block")
+  H.eq(p + 4, idat_size + 1, "exactly 4 bytes of Adler-32 follow the last block")
 end

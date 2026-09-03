@@ -7,3 +7,8 @@
 # ~40 MB of downloaded artifacts nobody asked for — in several cases larger
 # than the plugin's own code.
 docs/map/
+
+# Dependency checkouts for reproducing the CI jobs locally (the workflow puts
+# lib.nvim and documentation.nvim here). Someone else's repository, cloned into
+# this one -- never ours to commit.
+.deps/
