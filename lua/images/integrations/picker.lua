@@ -164,6 +164,7 @@ end
 ---@field inset integer|nil margin in cells all round; nil = `display.draw_inset`
 ---@field defer boolean|nil `vim.schedule` before drawing; default `true`, which is what a picker preview needs — the host has usually just reset or refilled that window in the same tick (see `images.anchor`)
 ---@field on_done fun(ok: boolean, err: string|nil)|nil runs exactly once, after the deferred draw has settled
+---@field on_ready fun()|nil runs once, immediately before the draw is scheduled — see `M.preview`
 ---@field page integer|nil PDF entries only: which page; default `pdf.page`
 ---@field dpi integer|nil PDF entries only: rasterization resolution; default `pdf.dpi`
 
@@ -214,13 +215,27 @@ end
 --- the rasterization runs behind it, so the window is briefly empty the first
 --- time a given page is asked for (afterwards it is cached on disk and the
 --- draw is immediate — see `images.pdf`). A host that wants to fill that
---- moment can ask `is_pdf` and put a line in its own buffer; the image is
---- drawn over the window and not into it, so whatever it writes there is
---- covered when the page arrives. A page that fails to rasterize reports
---- through `opts.on_done` and *nothing else*: no notification, because a
---- selection moving over a broken PDF would otherwise say so once per
---- keypress, and because the host has a working answer of its own to fall
---- back to.
+--- moment can ask `is_pdf` and put a line in its own buffer, and take it down
+--- again in `opts.on_ready`, which runs once the page exists and immediately
+--- before the draw is scheduled.
+---
+--- **Taking it down is not optional, and the timing is the reason
+--- `on_ready` exists at all.** A drawn image covers the box it was given, and
+--- that box is shaped like the picture rather than like the window (see
+--- `images.anchor`) — so for a portrait page in a wide preview window,
+--- everything the host wrote outside a narrow centred strip stays visible
+--- beside the picture. `on_done` is too late to fix that: it runs *after* the
+--- draw, and editing the buffer then makes Neovim repaint the very cells the
+--- image occupies. `on_ready` runs a tick earlier, and `images.terminal.draw`
+--- flushes pending repaints before the payload goes out, so the host's edit
+--- lands first and the picture lands on top of it.
+---
+--- A page that fails to rasterize reports through `opts.on_done` and *nothing
+--- else*: no notification, because a selection moving over a broken PDF would
+--- otherwise say so once per keypress, and because the host has a working
+--- answer of its own to fall back to. `on_ready` does not run in that case,
+--- nor for a draw that was refused or superseded — a host's placeholder is
+--- then still the truth on screen until the host replaces it.
 ---@param winid integer the host's preview window
 ---@param file string absolute path to an image or PDF file
 ---@param opts Images.Picker.PreviewOpts|nil
@@ -238,7 +253,10 @@ function M.preview(winid, file, opts)
   -- entry the selection has just left.
   local ticket = bump()
 
-  if M.is_image(file) then return draw(winid, file, opts) end
+  if M.is_image(file) then
+    if opts.on_ready then opts.on_ready() end
+    return draw(winid, file, opts)
+  end
 
   if M.is_pdf(file) then
     require("images.pdf").page_png(file, { page = opts.page, dpi = opts.dpi }, function(png, err)
@@ -250,6 +268,7 @@ function M.preview(winid, file, opts)
         if opts.on_done then opts.on_done(false, "superseded by a newer preview") end
         return
       end
+      if opts.on_ready then opts.on_ready() end
       draw(winid, png, opts)
     end)
     return true

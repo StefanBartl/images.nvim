@@ -64,6 +64,35 @@ return function(H)
     H.contains(perr or "", "pdftoppm", "the error names what is missing")
   end
 
+  -- ── on_ready: fires before the draw, and only for a draw that happens ────
+  -- What a host hangs its placeholder removal on. The image covers the box it
+  -- was given and no more, so anything left in the window beside it stays
+  -- visible -- and `on_done` is too late to remove it, because by then a
+  -- buffer edit repaints over the picture.
+  local ready = 0
+  local ok_img = picker.preview(vim.api.nvim_get_current_win(), "/tmp/shot.png", {
+    on_ready = function()
+      ready = ready + 1
+    end,
+  })
+  if ok_img then H.eq(ready, 1, "on_ready runs for an accepted draw") end
+
+  ready = 0
+  picker.preview(999999, "/tmp/shot.png", {
+    on_ready = function()
+      ready = ready + 1
+    end,
+  })
+  H.eq(ready, 0, "on_ready does not run for a window that is gone")
+
+  ready = 0
+  picker.preview(vim.api.nvim_get_current_win(), "/tmp/notes.md", {
+    on_ready = function()
+      ready = ready + 1
+    end,
+  })
+  H.eq(ready, 0, "on_ready does not run for an entry that is not ours")
+
   -- ── clear(): safe with nothing on screen ─────────────────────────────────
   picker.clear()
 end

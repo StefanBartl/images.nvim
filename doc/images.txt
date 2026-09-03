@@ -703,8 +703,11 @@ pickers.nvim    The inverse of `:Image pickers`: pickers.nvim owns the
                 picker, and images.nvim draws the entries that happen to be
                 images into its preview window. It consumes
                 `images.integrations.picker` — `available()`,
-                `is_previewable()`, `preview(winid, file)`, plus `is_image()`,
-                `is_pdf()`, `extensions()` and `clear()`.
+                `is_previewable()`, `preview(winid, file, opts)`, plus
+                `is_image()`, `is_pdf()`, `extensions()` and `clear()`.
+                `opts.on_ready` is when a PDF placeholder has to come down --
+                the picture covers its own box and no more, and `opts.on_done`
+                is already too late to edit the buffer.
                 One-directional: nothing here needs pickers.nvim. Wired on
                 snacks and telescope; fzf-lua previews images through its own
                 `previewers.builtin.extensions` instead.

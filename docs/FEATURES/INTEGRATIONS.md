@@ -123,6 +123,10 @@ picker.extensions()            -- the extension list, for a host that wants to
 picker.clear()                 -- repaint the drawn image away
 ```
 
+`preview()` takes an options table as its third argument; the two that matter
+for a PDF are `on_ready` (the page exists, the draw is about to happen) and
+`on_done` (it settled, or it failed) — see below.
+
 ### A PDF is one of ours too
 
 `is_previewable()` answers yes for a `.pdf` whenever
@@ -131,17 +135,28 @@ picker.clear()                 -- repaint the drawn image away
 through `images.pdf` and draws *that*. From the draw down there is no PDF any
 more, only a PNG like every other, and a host writes no PDF code of its own.
 
-Two things follow from a page not existing yet when the entry is selected,
-and a host that wants a polished preview handles both (pickers.nvim does):
+Three things follow from a page not existing yet when the entry is selected,
+and a host that wants a polished preview handles all three (pickers.nvim does):
 
 - `preview()` returns `true` **before** the page exists. The first sight of a
   given page costs a `pdftoppm` run — 257 ms for a 373 KB document here — and
   the window is empty until it lands. Ask `is_pdf()` and put a line in your own
-  buffer; the page is drawn *over* the window, so it covers whatever is there.
+  buffer to say what the wait is for.
+- **Take that line down again in `opts.on_ready`**, which runs once the page
+  exists and immediately before the draw is scheduled. A drawn image covers the
+  box it was given, and that box is shaped like the *picture*, not like the
+  window — so a portrait page in a wide preview window leaves most of that
+  window uncovered and anything written there stays visible beside the page.
+  `on_done` is too late: it runs after the draw, and editing the buffer then
+  makes Neovim repaint the very cells the image occupies. `on_ready` runs a tick
+  earlier, and the draw flushes pending repaints before its payload goes out, so
+  the host's edit lands first and the picture lands on top.
 - A page that fails to rasterize reports through `opts.on_done` and nothing
   else. No notification: a selection moving over a broken PDF would otherwise
   say so once per keypress, and the host has its own text preview to fall back
-  to.
+  to. `on_ready` does not run in that case, nor for a draw that was refused or
+  superseded — the host's placeholder is then still the truth on screen until
+  the host replaces it.
 
 Pages are cached in `stdpath("cache")/images.nvim/pdf`, keyed by path, mtime,
 page and dpi — so the second sight of a page is synchronous, an edited document
