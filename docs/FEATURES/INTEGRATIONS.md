@@ -98,6 +98,54 @@ preview.
 - **Usercmds:** `:Image pickers`
 - **Dependency:** snacks.nvim, soft — the list still works without it
 
+## pickers.nvim image previews
+
+The inverse direction of `:Image pickers`. There, images.nvim owns the
+picker and every item in it is an image. Here,
+[pickers.nvim](https://github.com/StefanBartl/pickers.nvim) owns the picker
+and lists whatever it lists — and for the entries that happen to be images,
+it asks images.nvim to draw the picture into its own preview window instead
+of previewing a binary file as text.
+
+The surface it asks through is `images.integrations.picker`, three functions
+and nothing else:
+
+```lua
+local picker = require("images.integrations.picker")
+
+picker.available()          -- may a host take the preview over at all?
+picker.is_image(path)       -- is this entry an image, by `opts.extensions`?
+picker.preview(winid, file) -- draw it into that window
+picker.extensions()         -- the extension list, for a host that wants to
+                            -- LIST images (`fd -e png -e jpg …`)
+picker.clear()              -- repaint the drawn image away
+```
+
+`available()` is the only place in this plugin where a failed capability
+check means *no*. Everywhere else detection is a heuristic and a false
+negative must not break a working setup, so `:Image show` warns and draws
+anyway. A foreign preview window inverts that: taking it over and drawing
+nothing leaves an empty window where the host's own text preview would have
+worked. `display.assume_supported = true` remains the escape hatch on a
+terminal that draws but is not recognized.
+
+`preview()` goes through `images.draw()`, so a host inherits the capability
+guard and the error notifications rather than reimplementing them. It answers
+`false` — synchronously, before anything is painted — when the window is gone
+or the path is not an image, which is a host's cue to show its own preview
+instead.
+
+Since OSC 1337 has no image ids, a drawn image can only be repainted away.
+Each draw therefore arms a one-shot `WinClosed` for that preview window; a
+host calls `clear()` itself when the selection moves from an image to a
+non-image entry, where the window stays open.
+
+- **Module:** `images/integrations/picker.lua`
+- **Config:** none here — pickers.nvim's own `images = { enabled = … }`
+  switches it off from that side
+- **Dependency:** none. pickers.nvim calls images.nvim, never the reverse;
+  with pickers.nvim absent this module simply has no callers
+
 ## filetree.nvim and open.nvim
 
 `filetree.nvim` uses images.nvim as the first backend of its own preview

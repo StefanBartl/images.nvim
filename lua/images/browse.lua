@@ -6,13 +6,20 @@
 --- scopes resolve that root — `cfile` (the current file's directory), `cwd`,
 --- and `path <dir>` (explicit).
 ---
---- No dependency on pickers.nvim: its engine abstraction (telescope/fzf-lua/
---- snacks behind one interface) has no way to put a plugin's own live preview
---- across all three engines — only snacks allows a custom `preview` function
---- per picker. Since that live preview is the entire point of this feature,
---- this module binds directly to `snacks.picker` (a soft dependency, the same
---- pattern as the guarded which-key probe elsewhere here) and falls back to a plain selection
---- without preview when snacks is absent.
+--- No dependency on pickers.nvim, though the reason has changed shape since
+--- this was written. It used to be that no engine-neutral abstraction could
+--- carry a plugin's own live preview across telescope/fzf-lua/snacks; that is
+--- no longer true — pickers.nvim draws image entries in its own pickers by
+--- consuming `images.integrations.picker` (snacks and telescope; see
+--- docs/FEATURES/INTEGRATIONS.md). What it does not carry is this module's own
+--- extra: `<Tab>` multi-select whose confirm turns several images into a
+--- gallery instead of one display, which lives in the snacks `confirm` handler
+--- below. So the direct binding to `snacks.picker` stays (a soft dependency,
+--- the same pattern as the guarded which-key probe elsewhere here), falling
+--- back to a plain selection without preview when snacks is absent — and the
+--- two features sit side by side rather than one replacing the other:
+--- `:Image pickers` is the image browser, pickers.nvim previews images on the
+--- way past.
 
 local M = {}
 

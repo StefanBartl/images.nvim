@@ -694,6 +694,15 @@ lib.nvim        Provides the `:Image` command grammar, the picker behind
                 `:Image compare` — a reusable "pick two, view them side by
                 side" component, not images.nvim-specific.
 
+pickers.nvim    The inverse of `:Image pickers`: pickers.nvim owns the
+                picker, and images.nvim draws the entries that happen to be
+                images into its preview window. It consumes
+                `images.integrations.picker` — `available()`, `is_image()`,
+                `preview(winid, file)`, plus `extensions()` and `clear()`.
+                One-directional: nothing here needs pickers.nvim. Wired on
+                snacks and telescope; fzf-lua previews images through its own
+                `previewers.builtin.extensions` instead.
+
 filetree.nvim   Can use images.nvim as the backend of its preview feature.
 open.nvim       Can route image targets here.
 

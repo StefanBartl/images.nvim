@@ -1,0 +1,163 @@
+---@module 'images.integrations.picker'
+---@brief The draw surface a foreign picker previews images against (a soft,
+--- opt-in integration).
+---@description
+--- `images.browse` (`:Image pickers`) is images.nvim's own picker: it already
+--- knows every one of its items is an image and binds straight to
+--- snacks.picker. This module is the inverse case — a *host's* picker lists
+--- whatever it lists (files, git status, a smart search), and for the entries
+--- that happen to be images it wants the real picture in its own preview
+--- window instead of the binary bytes. Such a host needs exactly three things,
+--- and this module is those three things:
+--- >
+---   available()             -- may I take the preview over at all?
+---   is_image(path)          -- is this entry one of yours?
+---   preview(winid, file)    -- then draw it into that window
+--- <
+--- pickers.nvim consumes precisely this surface (its own
+--- `pickers.integrations.images` is the counterpart), which is the same
+--- division of labour `images.integrations.menu` already has with nvzone/menu:
+--- the host composes, images.nvim supplies. Nothing here is images.nvim-
+--- specific to a host — a foreign picker never has to know about
+--- `images.anchor`, `images.terminal` or the OSC 1337 pitfalls behind them.
+---
+--- **Why `available()` is conservative where the rest of the plugin is not.**
+--- Everywhere else a failed capability check warns and draws anyway (see
+--- `images.guard`): detection is a heuristic over environment variables,
+--- because OSC 1337 has no capability query, and a false negative must not
+--- break a working setup. A foreign preview window is the one place where that
+--- reasoning inverts. Taking it over and drawing nothing leaves the host with
+--- an empty window instead of the working text preview it would have shown by
+--- itself — the fallback is *better* than the attempt here, which is never
+--- true for `:Image show`. So `available()` answers strictly, and a user on an
+--- unrecognised terminal gets their preview back via the documented escape
+--- hatch, `display.assume_supported = true`.
+---
+--- `preview()` itself does not re-check: a host that asked and got a "no" and
+--- draws anyway has made a decision, and this module is not the place to
+--- overrule it. It goes through `images.draw`, the public draw entry point, so
+--- it warns through `images.guard` and reports a failed draw through `notify`
+--- exactly as every other draw path does — a host gets images.nvim's own error
+--- messages without having to relay them itself.
+---
+--- **The overlay outlives the window that asked for it.** OSC 1337 has no
+--- image ids; what has been drawn cannot be removed individually, only
+--- repainted away (`images.terminal.clear`). A picker that closes takes its
+--- preview window with it but not the image drawn over it, so every draw here
+--- arms a one-shot `WinClosed` for that window. Hosts should still call
+--- `M.clear()` when the selection moves from an image to a non-image entry:
+--- the window stays open in that case, and the picture would otherwise sit on
+--- top of the text preview that follows it.
+
+local M = {}
+
+---@return ImagesNvim.Config
+local function cfg()
+  return require("images.config").get()
+end
+
+--- Whether this terminal can show images at all — the question a host asks
+--- before it replaces its own previewer with this one. See the module docs for
+--- why the answer is strict here and lenient everywhere else.
+---@return boolean
+function M.available()
+  local terminal = require("images.terminal")
+  if not terminal.available() then return false end
+  return terminal.capability(cfg().display.assume_supported).ok
+end
+
+--- Whether a path names an image, judged by the configured `extensions` alone
+--- (no file read, no mime lookup) — cheap enough for a host to call once per
+--- entry while the selection moves.
+---@param path string|nil
+---@return boolean
+function M.is_image(path)
+  if type(path) ~= "string" or path == "" then return false end
+  return require("images.resolve").is_image(path)
+end
+
+--- The configured image extensions, without the leading dot. For a host that
+--- wants to *list* images rather than recognise them — an `fd -e png -e jpg …`
+--- built from the same list the preview will accept.
+---@return string[] a copy; the caller may modify it freely
+function M.extensions()
+  return vim.deepcopy(cfg().extensions)
+end
+
+--- Remove the drawn image again (a no-op when nothing is showing).
+---@return nil
+function M.clear()
+  require("images.terminal").clear()
+end
+
+--- Clear the overlay once `winid` is gone. Re-armed on every draw with a
+--- cleared group, so the pending cleanup always refers to the window that was
+--- drawn into last, not to a stack of windows that have long since closed.
+---@param winid integer
+---@return nil
+local function arm_clear(winid)
+  local autocmd = require("lib.nvim.bindings.autocmd")
+  autocmd.create("WinClosed", function()
+    M.clear()
+  end, {
+    group = autocmd.group("images.integrations.picker", true),
+    pattern = tostring(winid),
+    once = true,
+    desc = "images.integrations.picker: clear the overlay when the preview window closes",
+  })
+end
+
+---@class Images.Picker.PreviewOpts
+---@field position string|nil where inside the window, see `images.scale.POSITIONS`; default `"full"`
+---@field scale number|nil 0 < scale <= 1; ignored for `position = "full"`
+---@field inset integer|nil margin in cells all round; nil = `display.draw_inset`
+---@field defer boolean|nil `vim.schedule` before drawing; default `true`, which is what a picker preview needs — the host has usually just reset or refilled that window in the same tick (see `images.anchor`)
+---@field on_done fun(ok: boolean, err: string|nil)|nil runs exactly once, after the deferred draw has settled
+
+--- Draw `file` into a host's preview window.
+---
+--- The return value answers "was the draw accepted", not "is the image on
+--- screen": with the default `defer = true` the draw happens in the next tick,
+--- and its outcome arrives through `opts.on_done`. That is what a host wants
+--- to branch on anyway — `false` means *this entry is not mine, keep your own
+--- preview*, and comes back synchronously, before the host has painted
+--- anything.
+---
+--- The two rejections that produce it are the two a host cannot check for
+--- itself without knowing images.nvim's configuration: a window that is gone
+--- (a selection can move faster than a preview draws) and a path that is not
+--- an image by *this* configuration's `extensions`.
+---@param winid integer the host's preview window
+---@param file string absolute path to an image file
+---@param opts Images.Picker.PreviewOpts|nil
+---@return boolean ok
+---@return string|nil err
+function M.preview(winid, file, opts)
+  opts = opts or {}
+
+  if type(winid) ~= "number" or not vim.api.nvim_win_is_valid(winid) then
+    return false, "not a valid window: " .. tostring(winid)
+  end
+  if not M.is_image(file) then return false, "not an image: " .. tostring(file) end
+
+  -- `images.draw` rather than `images.anchor.draw`: the public entry point
+  -- carries the capability guard and the error notification, which a foreign
+  -- host would otherwise have to reimplement. Its "resolve the path, or fall
+  -- back to the image under the cursor" behaviour cannot bite here -- `file`
+  -- has just been established to be a non-empty image path.
+  local ok, err = require("images").draw(winid, opts.position or "full", file, {
+    scale = opts.scale,
+    inset = opts.inset,
+    defer = opts.defer ~= false,
+    on_done = opts.on_done,
+  })
+
+  -- Only once something is actually on its way to the screen: a cleanup armed
+  -- for a draw that never happened would repaint on the next window close for
+  -- no reason.
+  if ok then arm_clear(winid) end
+
+  return ok, err
+end
+
+return M

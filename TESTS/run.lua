@@ -114,6 +114,7 @@ local specs = {
   "anchor_spec.lua",
   "testcard_spec.lua",
   "calibration_spec.lua",
+  "picker_integration_spec.lua",
 }
 
 -- No spec may read (or write) the developer's real calibration state.

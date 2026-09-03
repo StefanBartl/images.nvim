@@ -432,6 +432,16 @@ image thumbnail per entry (a custom preview function, not snacks.image's own
 Kitty-only one — see "Why not snacks.image or image.nvim" above); without it,
 `:Image pickers` falls back to a plain list with no preview.
 
+[pickers.nvim](https://github.com/StefanBartl/pickers.nvim) previews image
+entries as pictures in *its* pickers — the inverse of `:Image pickers`, where
+images.nvim owns the picker. Its file pickers already list `.png`/`.jpg`; with
+images.nvim installed they now draw them instead of previewing bytes, on
+snacks and telescope. It goes through `images.integrations.picker`
+(`available()` / `is_image()` / `preview(winid, file)`), a surface any picker
+plugin can consume; the dependency runs one way only and nothing here needs
+pickers.nvim. See
+[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#pickersnvim-image-previews).
+
 `filetree.nvim` uses this plugin as the first backend of its preview feature,
 and `open.nvim` routes `:Open image` here.
 
