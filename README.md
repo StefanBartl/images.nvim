@@ -515,8 +515,13 @@ which this plugin already depends on:
 
 ## Documentation
 
+Start at [docs/README.md](docs/README.md), which says what is where and which
+question each page answers.
+
 - `:h images` — vimdoc reference
+- [docs/FEATURES/README.md](docs/FEATURES/README.md) — four pages grouped by what a feature is for: display, capture, browsing, integrations
 - [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
+- [docs/WORKFLOW.md](docs/WORKFLOW.md) — how the commands combine day to day, rather than what each one does
 - generated module map — not committed (derived output, stale the moment anything changes); open any file in this repo and run `:DocMap` to build it into `docs/map/`, via [documentation.nvim](https://github.com/StefanBartl/documentation.nvim)
 
 ## Development
