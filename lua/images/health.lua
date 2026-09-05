@@ -179,7 +179,7 @@ local function check_pdf()
 
   local ok_pdfport, pdfport = pcall(require, "pdfport")
   if not ok_pdfport or type(pdfport.render_page) ~= "function" then
-    vim.health.info("`pdfport.nvim` not present — a PDF entry keeps a host's own preview", {
+    h_info("`pdfport.nvim` not present — a PDF entry keeps a host's own preview", {
       "https://github.com/StefanBartl/pdfport.nvim draws its first page instead",
     })
     return
