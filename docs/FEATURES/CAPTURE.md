@@ -16,15 +16,12 @@ either way.
 - **Module:** `images/paste.lua` (`M.run`, `find_existing_resource_dir`,
   `sanitize_filename`)
 - **Usercmds:** `:Image paste [name]` ([usercmds](../BINDINGS.md#user-commands))
-- **Naming from a keymap (2026-08-24):** any count on `keymaps.paste` /
-  `keymaps.screenshot` forces the filename prompt. `M.paste(name)` always
-  accepted a name and `capture_with_optional_name` already prompted when
-  `paste.ask_filename` was on — but with it off, a bare lhs had no way to
-  supply one, so `:Image paste {name}` was the only route. The count's
-  *value* is ignored on purpose: there is no meaningful "paste this 3 times",
-  so it reads purely as a flag. Closes the flag/option audit's entry, which
-  had called a name argument here "desirable but impractical as a bare-lhs
-  keymap" — impractical as an argument, yes; as a prompt trigger, not.
+- **Naming from a keymap:** any count on `keymaps.paste` /
+  `keymaps.screenshot` forces the filename prompt. A bare lhs carries no text,
+  so with `paste.ask_filename = false` a keymap would otherwise have no way to
+  supply a name at all and `:Image paste {name}` would be the only route. The
+  count's *value* is ignored on purpose: there is no meaningful "paste this 3
+  times", so it reads purely as a flag.
 - **Keymaps:** `<leader>iv` ([keymaps](../BINDINGS.md#keymaps))
 - **Config:** `opts.paste.dir` (default `"assets"`),
   `opts.paste.existing_dir_names` (default `{"Resources", "Ressourcen"}`),
@@ -98,10 +95,9 @@ touched.
   `write_redacted`), `images/convert.lua` (`M.redact`)
 - **Usercmds:** `:Image redact [path]` ([usercmds](../BINDINGS.md#user-commands))
 - **Config:** `opts.display.redact.padding_cells` (default `1`)
-- **Count (2026-08-24):** `u` removes the last box, `3u` removes three —
-  clamped to what is actually there rather than warning once per missing box.
-  Marking a run of boxes in the wrong place no longer means pressing `u`
-  repeatedly and reading a notification each time.
+- **Count:** `u` removes the last box, `3u` removes three — clamped to what is
+  actually there rather than warning once per missing box, so a run of boxes
+  marked in the wrong place comes off in one press.
 
 ### Why boxes are padded generously
 

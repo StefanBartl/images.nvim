@@ -79,8 +79,8 @@ function M.register(cfg)
 
       {
         path = { "list" },
-        -- A range restricts the choice to the selection rather than the whole
-        -- Buffer zu durchsuchen.
+        -- A range restricts the choice to the selection rather than searching
+        -- the whole buffer.
         desc = "List the images in the buffer (or in the selection) and show one",
         run = function(ctx)
           local images = require("images")

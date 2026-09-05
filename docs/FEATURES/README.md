@@ -3,8 +3,11 @@
 images.nvim shows images inside Neovim's terminal using the iTerm2 (OSC
 1337) protocol instead of the Kitty graphics protocol every other image
 plugin relies on — the deliberate choice that makes it work on WezTerm and
-native Windows, where Kitty-only plugins draw nothing. Features below are
-grouped by what they're for, not by source file:
+native Windows, where Kitty-only plugins draw nothing. What that choice costs —
+and why this plugin's four apparent limitations are one cause rather than four —
+is in [architecture.md](../architecture.md).
+
+Features are grouped by what they're for, not by source file:
 
 - **[DISPLAY.md](DISPLAY.md)** — actually putting pixels on screen: the
   single-image path, hover, the ASCII fallback, remote images, the zen window,

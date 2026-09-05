@@ -107,25 +107,27 @@ and lists whatever it lists — and for the entries that happen to be images,
 it asks images.nvim to draw the picture into its own preview window instead
 of previewing a binary file as text.
 
-The surface it asks through is `images.integrations.picker`, three functions
-and nothing else:
+The surface it asks through is `images.integrations.picker`, and it is the
+whole of the seam — three functions carry the traffic, the rest are questions
+a host may want to ask first:
 
 ```lua
 local picker = require("images.integrations.picker")
 
-picker.available()             -- may a host take the preview over at all?
-picker.is_previewable(path)    -- is this entry one of ours?
-picker.preview(winid, file)    -- draw it into that window
-picker.is_image(path)          -- the narrower question, by `opts.extensions`
-picker.is_pdf(path)            -- a PDF this machine can rasterize
-picker.extensions()            -- the extension list, for a host that wants to
-                               -- LIST images (`fd -e png -e jpg …`)
-picker.clear()                 -- repaint the drawn image away
+picker.available()                   -- may a host take the preview over at all?
+picker.is_previewable(path)          -- is this entry one of ours?
+picker.preview(winid, file, opts?)   -- draw it into that window
+
+picker.is_image(path)                -- the narrower question, by `opts.extensions`
+picker.is_pdf(path)                  -- a PDF this machine can rasterize
+picker.extensions()                  -- the extension list, for a host that wants
+                                     -- to LIST images (`fd -e png -e jpg …`)
+picker.clear()                       -- repaint the drawn image away
 ```
 
-`preview()` takes an options table as its third argument; the two that matter
-for a PDF are `on_ready` (the page exists, the draw is about to happen) and
-`on_done` (it settled, or it failed) — see below.
+`preview(winid, file, opts)` returns `ok, err` and takes its options table
+third; the two that matter for a PDF are `on_ready` (the page exists, the draw
+is about to happen) and `on_done` (it settled, or it failed) — see below.
 
 ### A PDF is one of ours too
 
@@ -258,10 +260,12 @@ up, instead of all of them.
 
 ## lib.nvim.deps: missing-tool reporting
 
-ImageMagick, `tesseract` and `chafa` are declared as optional dependencies,
-with the reasoning per tool, in `docs/install.json`, parsed by lib.nvim's
-`deps` module. The first time `setup()` runs after installing images.nvim, a
-popup shows what's missing and why, once ever.
+The external tools this plugin can use are declared, with the reasoning per
+tool, in [`docs/install.json`](../install.json), parsed by lib.nvim's `deps`
+module. The first time `setup()` runs after installing images.nvim, a popup
+shows what's missing and why, once ever. What each one actually unlocks is in
+[installation.md](../installation.md#optional-external-tools); `magick`,
+`tesseract` and `pdftoppm` are the three `images/health.lua` probes for.
 
 - **Module:** `lua/images/health.lua` (`check_deps`, `check_lib_deps`)
 - **Usercmds:** `:Lib deps show images.nvim`, `:Lib deps install

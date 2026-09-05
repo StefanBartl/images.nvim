@@ -19,510 +19,139 @@
 
 ---
 
-> Writing documentation with a lot of links and images?
-> [markdown.nvim](https://github.com/StefanBartl/markdown.nvim) resolves the
-> link targets that this plugin renders.
-
-## Table of Contents
-
-- [Why not snacks.image or image.nvim](#why-not-snacksimage-or-imagenvim)
-- [Quickstart](#quickstart)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Integrations](#integrations)
-- [Optional external tools](#optional-external-tools)
-- [Documentation](#documentation)
-- [Development](#development)
+> Pairs well with [markdown.nvim](https://github.com/StefanBartl/markdown.nvim):
+> it resolves the link targets — Markdown links, `<img>` tags, `<figure>`
+> blocks — that this plugin then renders, and prefers images.nvim as its own
+> in-Neovim preview provider in return.
+>
+> And with [hover.nvim](https://github.com/StefanBartl/hover.nvim), which
+> answers "what is this" about whatever the cursor rests on, in any filetype:
+> images.nvim is its picture provider, so a path to a PNG previews as the PNG.
+>
+> [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) meets it from
+> both sides — it turns an image into a PDF for `:Image export`, and a PDF page
+> back into an image so a `.pdf` entry previews as its first page.
 
 images.nvim shows images in the terminal without leaving Neovim: hover a
 markdown link, double-click it, or paste a screenshot straight from the
-clipboard into your document. Built on
-[lib.nvim](https://github.com/StefanBartl/lib.nvim) as a deliberate shared
-dependency.
+clipboard into your document.
+
+It speaks the **iTerm2 inline-image protocol (OSC 1337)** rather than the Kitty
+graphics protocol that `snacks.image` and `image.nvim` rely on — because on
+native Windows Neovim in WezTerm, Kitty sequences coming from Neovim are never
+drawn, which makes those plugins unusable there regardless of configuration.
+That one decision is also where this plugin's four limits come from: no images
+inline in the text flow, whole-cell placement, SVG needing ImageMagick, and
+terminal support that has to be guessed because the protocol has no capability
+query. All four, and the measurements behind them, are in
+[docs/architecture.md](docs/architecture.md).
+
+---
+
+## Table of contents
+
+- [Quickstart](#quickstart)
+- [What you get](#what-you-get)
+- [Documentation](#documentation)
+- [Development](#development)
+- [License](#license)
+
+---
+
+## Quickstart
+
+Requires Neovim **0.10+** (for `vim.base64`) with API level 14 (for
+`nvim_ui_send`), a terminal that speaks OSC 1337 (WezTerm, iTerm2, Konsole),
+and [lib.nvim](https://github.com/StefanBartl/lib.nvim).
+
+```lua
+{
+  "StefanBartl/images.nvim",
+  dependencies = { "StefanBartl/lib.nvim" },
+  cmd = { "Image" },
+  ft = { "markdown", "vimwiki", "norg", "text" },
+  opts = {},
+}
+```
+
+Both triggers, not just `cmd`: the filetypes are what put the hover keymap and
+the double-click handler in place in a Markdown buffer you have not run a
+command in yet.
+
+Open a markdown file and put the cursor on an image link — that is the whole
+first step; no command is needed. Then:
+
+```
+:checkhealth images        terminal, clipboard tool and dependencies
+:Image check               specifically: is OSC 1337 getting through
+```
+
+For packer.nvim, vim-plug and the full prerequisite list, see
+[docs/installation.md](docs/installation.md).
+
+---
+
+## What you get
 
 ```
 :Image                     show the image under the cursor
 :'<,'>Image                gallery of just the selected lines
 :Image gallery             every image in the buffer, side by side
-:'<,'>Image gallery        …restricted to the selected lines
 :Image paste               clipboard screenshot → file next to the document + link
 :Image screenshot          take a screenshot interactively, skipping the clipboard step
 :Image next / prev         walk through the images of the buffer
-:'<,'>Image list           pick from the images in the selection
 :Image orphans             images in paste.dir that nothing links to anymore
 :Image calibrate           measure this terminal's image placement, once, interactively
 :Image pickers cwd         browse every image under cwd, live preview with snacks.picker
 :Image zen                 the image under the cursor, full-screen, in a real window
 :Image compare cwd         pick two images, view side by side at their true relative size
 :Image ocr                 read the text out of the image under the cursor, into a buffer
+:Image redact              black out boxes before sharing a screenshot
 :Image scale 800x          resized copy next to the source, aspect preserved
 :Image optimise            smaller copy: metadata stripped, best compression
 :Image convert png         copy in another format, same stem
 ```
 
-## Why not snacks.image or image.nvim
-
-Both speak only the Kitty graphics protocol. On native Windows Neovim running
-in WezTerm, Kitty APC sequences (`ESC _G`) are never drawn when they come from
-Neovim — the very same sequences work from a raw shell, so the difference is
-introduced by Neovim's output layer. That makes both plugins unusable there,
-regardless of configuration.
-
-images.nvim uses the iTerm2 protocol (OSC 1337) instead, which works
-reliably. Four details that matter, all of them learned the hard way:
-
-- Output goes through `vim.api.nvim_ui_send`, not `io.stdout:write` — the
-  latter only draws once per terminal session.
-- The cursor is saved and positioned first (`ESC[s` / `ESC[<row>;<col>H` /
-  payload / `ESC[u`). Without that the image lands below the statusline and
-  pushes it up.
-- `width` and `height` are given in **cells**, together with
-  `preserveAspectRatio=1`. The terminal does the scaling, so the pixel size of
-  a cell never has to be known — which is exactly where snacks.image breaks on
-  Windows, since its `ioctl(TIOCGWINSZ)` path cannot work there.
-- Drawing is ordered against Neovim's own repaint, in two places.
-  `nvim_ui_send` writes to the terminal immediately, while Neovim only paints
-  once control returns to the main loop. Open a window and draw into it in the
-  same tick, and Neovim paints that window's cells over the image right after
-  it was sent — popup visible, image gone or half gone. So `images.terminal.
-  draw` flushes anything already pending before the payload goes out, **and**
-  every path that opens a window first (`zen`, `hover_float`, `redact`) defers
-  its draw by one tick — a flush before sending cannot cover the repaint that
-  opening the window itself causes. `show`/hover need neither: they draw over
-  existing text without creating a window.
-- **The box sent is shaped like the picture, not like the window.**
-  `preserveAspectRatio=1` scales the image down to the sent cell box on the
-  axis that binds *first* — and only that one. Send a box wider than the
-  picture's ratio can use and the terminal fits the width, letting the height
-  follow: measured in WezTerm, a 993x1404 PDF page in an 82x25 preview window
-  came out 57 rows tall, ran off the bottom of a 40-row screen, and scrolled
-  Neovim's whole grid up with it. So every draw fits the box to the picture
-  first (`images.scale.fit_cells`), which makes both axes right and the
-  placement this plugin's decision rather than the terminal's. The dimensions
-  come from the file's own header (`images.pixels` — PNG, JPEG, GIF, BMP,
-  WebP), so this holds without ImageMagick; a file that states no pixel size
-  (SVG, an unknown container) falls back to the plain window box, which is the
-  older, terminal-dependent behaviour. `:Image zen` and `:Image redact` also
-  shape their *window* that way up front, so a frame never has an empty strip
-  in it.
-
-Before the first draw the terminal is checked against the small set that
-implements OSC 1337 (WezTerm, iTerm2, Konsole), detected from environment
-variables. An unknown terminal produces a warning **once per session** and the
-image is still drawn — the protocol has no capability query, so this is a
-heuristic, and a false negative must not break a working setup. Silence it
-with `display.assume_supported = true`; `:Image check` re-runs the detection.
-
-Inline images in the text flow are not possible on WezTerm: they require
-Unicode placeholders, which only Kitty and Ghostty implement and neither ships
-for Windows. images.nvim draws over the text instead, and clears on the next
-cursor move — this is `display.hover_mode = "overlay"`, the default.
-
-Setting `display.hover_mode = "float"` shows the same hover/`:Image show`
-image in a small, unfocused floating window under the cursor instead — a
-real window Neovim owns and repaints over, rather than an escape-sequence
-overlay drawn on top of the text. Same lifecycle (closes on the next
-`display.clear_events` event, `:Image pin` holds it), same underlying draw
-call, just a different container. Only affects the single-image path — the
-gallery keeps its own layout either way.
-
-SVG is the one format WezTerm cannot decode at all — everything else
-(PNG/JPEG/GIF/WebP/BMP) it handles itself. With ImageMagick installed, an
-`.svg` file is rasterized to a cached PNG before drawing; without it, opening
-one reports a clear error instead of failing silently. Together with
-`:Image export` (unless `pdfport.nvim` is installed, see below), `:Image
-redact` and the ASCII fallback (below), these are deliberately the *only*
-four places ImageMagick is a requirement rather than an improvement — see
-[Configuration](#configuration).
-
-When the terminal check fails, `:Image show`/hover fall back to a colored
-block-character rendering instead of the (silently ineffective) OSC 1337
-sequence — solid `█` cells with a per-cell true-color foreground sampled
-straight from the image, the same technique graphics-protocol-less terminal
-viewers like `chafa`/`viu` use, rather than a brightness character ramp
-(`" .:-=+*#%@"`). This needs ImageMagick to read the pixels (`display.
-ascii_fallback`, `images.ascii`) — a fourth deliberate exception alongside
-SVG/export/redact, see [Configuration](#configuration). Only the
-single-image path (`:Image show`/hover) gets it, same scope boundary as
-remote images below; set `display.ascii_fallback.enabled = false` to turn it
-off and keep the old silent-no-op-with-a-warning behavior instead.
-
-### Placement accuracy
-
-Images are positioned with `CSI row;col H`, which addresses **whole terminal
-cells only** — the iTerm2 protocol has no pixel offset. Terminals whose window
-padding is not a multiple of the cell size therefore place the image a fraction
-of a cell off, and a plugin cannot correct for it: neither the cell size nor the
-padding is knowable from inside Neovim (`:h TermResponse` forwards only DA1,
-OSC, DCS and APC responses, and the cell-size reply is a plain CSI response;
-`nvim_list_uis()` reports cells, not pixels). This is measured, not assumed.
-
-Because of that, images are drawn with **one cell of margin inside their frame**
-by default (`display.draw_inset = 1`), centred rather than flush. A sub-cell
-offset then stays inside the frame instead of visibly spilling over it — robust
-everywhere, without configuration or detection.
-
-The margin only absorbs the sub-cell remainder. A *systematic* offset of whole
-cells belongs in `display.terminal_padding = { row = …, col = … }` (negative
-values move the image up/left); raising the margin to paper over one just wastes
-space and still looks off.
-
-You do not have to work that value out by hand — **`:Image calibrate`** measures
-it with you. It draws a generated test card that exactly fills a framed window;
-`hjkl`/arrows nudge it into place one cell at a time, redrawing immediately, so
-it converges instead of guessing once. The same window also measures
-`display.cell_aspect` (`+`/`-`, in 0.01 steps) — a wrong aspect shows up as a
-letterbox strip along one edge that no amount of position-nudging removes, since
-it is a wrong shape, not an offset. Both are offered for saving together and then
-apply automatically on every start; they are stored per machine under
-`stdpath("data")`, not written into your config, because the right values depend
-on the terminal and font size of the machine you are sitting at. An explicit
-`setup()` option always outranks a stored measurement, checked independently for
-each. If the remaining offset is smaller than one cell, calibration says so
-plainly rather than pretending to fix it — that part is the protocol limit, and
-`display.draw_inset` is what covers it.
-
-If an image lands somewhere it should not, **`:Image debug`** measures rather
-than guesses — `report` for the coordinates actually sent, `columns` to tell
-a constant offset (which `terminal_padding` can absorb) from a scaling one
-(which it cannot), `float` to check whether a window is where Neovim claims.
-The failure modes these were built to distinguish turned up two real bugs.
-
-With a calibrated setup, `display.draw_inset = 0` gives you a flush image.
-`:Image redact` always draws flush regardless, because its cell-to-pixel mapping
-depends on it.
-
-Remote images (`http://…`/`https://…`) are supported by `:Image show <url>`
-and by hovering a markdown link that points at one, but **off by default**:
-set `display.remote.enabled = true` first. This mirrors what email clients
-have done for years ("load remote images") — a document merely being opened
-should not silently make an outbound network request just because it
-contains an image link. Downloads are cached by URL, with a size and time
-limit (`display.remote.max_bytes`/`timeout_ms`). `:Image gallery`, `compare`,
-`pickers` and `zen` do not resolve remote images yet — only the single-image
-path does.
-
-## Quickstart
-
-Requires Neovim 0.10+ (for `vim.base64`) with API level 14 (for
-`nvim_ui_send`), and [lib.nvim](https://github.com/StefanBartl/lib.nvim).
-
-```lua
-{
-  "StefanBartl/images.nvim",
-  ft = { "markdown", "vimwiki", "norg", "text" },
-  dependencies = { "StefanBartl/lib.nvim" },
-  opts = {
-    -- optional, see Configuration
-  },
-},
-```
-
-Run `:checkhealth images` to verify that your terminal, clipboard tool and
-dependencies are in place. For packer.nvim, vim-plug and the full prerequisite
-list, see [docs/installation.md](docs/installation.md).
-
-## Usage
-
-| Command | What it does |
-| --- | --- |
-| `:Image` | Show the image under the cursor |
-| `:Image show [path]` | Show a specific file, or the one under the cursor; `path` may be a URL if `display.remote.enabled` |
-| `:Image list` | Pick from every image link in the buffer |
-| `:'<,'>Image list` | …restricted to the selected lines |
-| `:Image gallery [cols]` | Show every image of the buffer side by side in a grid |
-| `:'<,'>Image gallery [cols]` | …restricted to the selected lines |
-| `:Image next` / `prev` | Jump to the next/previous image and show it |
-| `:Image info [path]` | Format, dimensions and file size |
-| `:Image paste [name]` | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly instead of asking/templating |
-| `:Image screenshot` | Take a screenshot interactively and insert the link — skips the clipboard step |
-| `:Image replace [path]` | Overwrite an existing image with the clipboard, keep the link |
-| `:Image export [path]` | Export an image as PDF, next to the source file — via `pdfport.nvim` if installed, else requires ImageMagick |
-| `:Image redact [path]` | Open a censor mode: mark boxes (Visual mode + `<CR>`), `w` blacks them out into a new file — requires ImageMagick |
-| `:Image orphans` | Find images in `paste.dir` that no link points to, offer to delete |
-| `:Image calibrate` | Measure this terminal's image placement and cell aspect ratio interactively (test card, nudged into place), save the result -- see [Placement accuracy](#placement-accuracy) |
-| `:Image pickers [cfile\|cwd\|path] [dir]` | Browse images under cfile/cwd/an explicit dir; live preview with snacks.picker, falls back to a plain list. `<Tab>` multi-selects (snacks), confirming shows them as a gallery instead of one image |
-| `:Image zen [path]` | Show one image full-screen, in a real editable window — survives a snacks hover popup open alongside it |
-| `:Image draw <position> [path]` | Draw an image at a named position ("full", "center", "top-left", …) in the current window — the reliable, positioned single-shot primitive behind zen/hover/redact, also available as `images.draw()` for other plugins |
-| `:Image compare [cfile\|cwd\|path] [dir]` | Pick two images from a scan, view side by side; with ImageMagick, scaled proportionally so a small icon doesn't look the same size as a large photo |
-| `:Image pin` | Keep the image on screen instead of clearing on cursor move |
-| `:Image check` | Report whether this terminal can display images |
-| `:Image debug <mode> [path]` | Measure image placement when something lands in the wrong spot: `report` logs the coordinates sent per draw, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is |
-| `:Image clear` | Remove displayed images (and a `:Image zen` window, if open) |
-
-In markdown buffers, `<leader>im` shows the image under the cursor, `<leader>ig`
-opens the gallery, `<leader>in`/`<leader>ip` walk through the images,
+In markdown buffers, `<leader>im` shows the image under the cursor,
+`<leader>ig` opens the gallery, `<leader>in`/`<leader>ip` walk through them,
 `<leader>iv` pastes from the clipboard, `<leader>is` takes a screenshot, and a
-double-click on a link shows the image. With
-[which-key](https://github.com/folke/which-key.nvim) installed, `<leader>i`
-shows up as a named group — detected from whichever of the above keys share a
-common prefix, so a fully remapped set of keys still groups correctly. A
-double-click that does not hit an image link falls through to the normal word
-selection.
+double-click on a link shows the image.
 
-`:Image paste` is the everyday case for documentation: take a screenshot, run
-it, and the PNG is written to `assets/<document>-<timestamp>.png` with
-`![](assets/…)` inserted at the cursor — unless a `Resources` or
-`Ressourcen` folder already exists next to the document, in which case that
-one is reused instead of creating `assets` alongside it (see
-`paste.existing_dir_names` below). No image on the clipboard leaves no
-folder behind either way. `:Image paste {name}` uses `{name}` directly as
-the filename instead. `:Image screenshot` collapses this
-further into one step — it takes the screenshot itself instead of reading
-whatever is already on the clipboard, then continues exactly like `:Image
-paste`. Uses `screencapture -i` on macOS, `grim`+`slurp` or `maim -s` on
-Linux, and the Windows Snipping Tool (`ms-screenclip:`) on Windows — the
-least certain of the three, since there is no documented way to have it write
-directly to a file; this plugin waits for a new image to appear in the
-clipboard instead, with a timeout. `:Image paste` remains the unchanged,
-proven two-step fallback if that doesn't work for you.
+Grouped by what each feature is *for* — putting pixels on screen, getting them
+onto disk, finding them again, and fitting in with the neighbours — in
+[docs/FEATURES/](docs/FEATURES/README.md). Every route with its arguments is in
+[docs/commands.md](docs/commands.md); the full option list is in
+[docs/configuration.md](docs/configuration.md).
 
-`:Image redact` opens a censor mode: a full-screen window (like `:Image
-zen`) with a selection grid over the image. Enter Visual mode (`v`/`<C-v>`),
-move to the opposite corner of what needs blacking out, `<CR>` marks it —
-repeat for as many boxes as needed, `u` removes the last one, `w` burns them
-in (ImageMagick) and writes a new file (`photo.png` → `photo.redacted.png`);
-the source file is never touched. Selection happens entirely in terminal
-cells — a redacted image is drawn without pixel-precise mouse input being
-available in a terminal at all, so the box is sized generously on purpose
-(configurable via `display.redact.padding_cells`, default one cell of
-margin): over-redacting is the safe failure mode, under-redacting is not.
-See [docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md) for the full design
-rationale.
+Nothing beyond lib.nvim is required. ImageMagick, `tesseract` and poppler's
+`pdftoppm` each unlock a specific thing rather than gating the plugin, and
+`:Lib deps show images.nvim` says at any time which are present and what each
+would buy — declared, with the reasoning per tool, in
+[`docs/install.json`](docs/install.json).
 
-`:Image draw <position> [path]` (Lua: `images.draw(target, position, path,
-opts)`) draws reliably at a named spot in a window — `"full"` fills it,
-`"top-left"`/`"center"`/`"bottom-right"`/… anchor a smaller, scaled box (see
-`images.scale`'s `POSITIONS` list for the full nine anchors plus `"full"`).
-`target` is a window handle, a buffer handle (resolved to whichever window
-currently shows it), or nil for the current window — the command always
-targets the current one. This is the one place that actually knows how to
-draw into a window and have it stick: `:Image zen`, the hover float, redact,
-and the picker preview all delegate to it internally, so a window opened in
-the same tick as the draw call (`opts.defer = true`) is handled correctly
-without every caller re-solving the same timing problem (see
-`lua/images/anchor.lua`'s module doc for why that problem exists at all).
-
-## Configuration
-
-```lua
-require("images").setup({
-  command = "Image",
-  extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" }, -- svg needs ImageMagick to draw
-  display = {
-    max_cols = 60,   -- in terminal cells, not pixels
-    max_rows = 25,
-    cell_aspect = 0,  -- pixel width/height of one cell; 0 assumes 0.5. Cannot be
-                      -- detected, but :Image calibrate measures it with you --
-                      -- see "Placement accuracy"
-    draw_inset = 1,   -- cells of margin kept free around a drawn image; 0 draws flush
-    terminal_padding = { row = 0, col = 0 }, -- whole-cell draw offset, see "Placement accuracy"
-    gallery_gap = 1, -- cells between gallery tiles
-    hover_mode = "overlay", -- "float" shows a small window instead of drawing over the text
-    assume_supported = false, -- true silences the "unknown terminal" warning
-    clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
-    browse_exclude = { ".deps", "node_modules" }, -- dirs :Image pickers skips (".git" is always skipped)
-    browse_max_entries = 20000,                   -- upper bound on entries that scan visits
-    zen = { width = 0.9, height = 0.85 },          -- :Image zen window size, as a fraction of the editor
-    remote = {
-      enabled = false,             -- true allows :Image show <url> / hover to download images
-      timeout_ms = 10000,
-      max_bytes = 20 * 1024 * 1024,
-    },
-    screenshot = {
-      -- Windows only: how long / how often :Image screenshot polls the
-      -- clipboard for a new image after launching the Snipping Tool.
-      windows_timeout_ms = 60000,
-      windows_poll_interval_ms = 600,
-    },
-    redact = {
-      padding_cells = 1, -- safety margin around each marked box, in cells
-    },
-    ascii_fallback = {
-      enabled = true, -- block-character rendering when the terminal check fails; needs ImageMagick
-    },
-    gopath_fallback = true, -- resolve a bare path (no link syntax) via gopath.nvim, if installed
-  },
-  paste = {
-    dir = "assets",              -- "" puts the file next to the document
-    existing_dir_names = { "Resources", "Ressourcen" }, -- reused instead of `dir` if already present; {} disables
-    name_template = "%s-%d.png", -- document stem, timestamp
-    link_template = "![](%s)",
-    ask_alt_text = false,        -- true prompts for alt text before inserting the link
-    alt_link_template = "![%s](%s)",
-    ask_filename = false,        -- true prompts for a name, prefilled with the template
-  },
-  ocr = {
-    lang = "eng",                -- tesseract -l; several at once as "deu+eng"
-    args = {},                   -- extra tesseract arguments, e.g. { "--psm", "6" }
-    bin = nil,                   -- nil = PATH, then the usual Windows install dirs
-  },
-  pdf = {
-    -- A PDF entry drawn as its first page, wherever a host asks this plugin to
-    -- draw one (pickers.nvim's preview window). Needs pdfport.nvim + pdftoppm;
-    -- without them a PDF is simply not claimed. See "Integrations".
-    enabled = true,
-    page = 1,    -- there is no paging in a preview window
-    dpi = 120,   -- ~1000x1400 px for A4; raise it for a large preview window
-  },
-  keymaps = {
-    show = "<leader>im",  -- every entry accepts false to disable it
-    gallery = "<leader>ig",
-    next = "<leader>in",
-    prev = "<leader>ip",
-    paste = "<leader>iv",
-    screenshot = "<leader>is",
-    double_click = true,
-    filetypes = { "markdown", "vimwiki", "norg", "text" },
-  },
-})
-```
-
-`paste.ask_alt_text = true` prompts for alt text before inserting the link
-(via lib.nvim's UI kit when available), producing `![alt](path)` instead of
-`![](path)`. Cancelling the prompt still inserts the link, just without alt
-text — the file is already on disk by then, and a lost link would be the
-worse surprise.
-
-`paste.ask_filename = true` prompts for a filename before writing the
-clipboard image, prefilled with what `paste.name_template` would have
-produced. Any path component in the answer is dropped — only the name
-itself is used — and the extension is always forced to `.png`, since that is
-what gets written regardless of what you type. Cancelling here does nothing
-at all: unlike the alt-text prompt, nothing has been read from the clipboard
-yet at this point, so cancel means cancel.
-
-`:Image paste {name}` sanitizes `{name}` the same way and uses it directly,
-skipping the prompt outright — a name given on the command line takes
-priority over `paste.ask_filename`.
-
-A statusline segment:
-
-```lua
-{ require("images").statusline }  -- "" when nothing is shown, else an icon
-```
-
-## Integrations
-
-`markdown.nvim` is used for link resolution when present, falling back to an
-internal resolver otherwise — a soft dependency, never required. With it
-installed, raw HTML counts as a link too: `<img src="…">` is a target like
-any other, and a `<figure>` block resolves as one unit, so the cursor on the
-`<figcaption>` line draws the image the caption belongs to. Without it, only
-`![alt](target)` is recognized. The
-relationship also runs the other way: `markdown.nvim`'s `mi` prefers
-images.nvim as its in-Neovim preview provider (over snacks.nvim/image.nvim,
-both Kitty-only), and its `:Markdown links show` reuses
-`images.browse.draw_in_window()` for a live per-item image preview when
-`snacks.picker` is also installed. `draw_in_window()` is itself a thin,
-name-preserved wrapper around `images.draw()` now — a new consumer should
-reach for `images.draw(target, position, path, opts)` directly instead,
-`draw_in_window` stays only for that existing call site.
-
-[gopath.nvim](https://github.com/StefanBartl/gopath.nvim) is a soft
-dependency for resolving the cursor target: after Markdown links and
-`<figure>` blocks, and before Vim's own `<cfile>`, its resolver is asked what
-path the cursor is on. Ordinary relative and absolute paths resolve without
-it; what it adds are the awkward forms — a truncated `...nvim/init.lua`, a
-`:line:col` suffix, a file findable only through `&path`/rtp. Only paths it
-confirms exist, with an image extension, are accepted.
-`display.gopath_fallback = false` turns it off even when gopath.nvim is
-installed.
-
-If what you want is a **hover preview** — a float that appears when the
-cursor rests on a path, for images, PDFs, markdown sections, directories, in
-any filetype — that is
-[hover.nvim](https://github.com/StefanBartl/hover.nvim), a plugin of its own
-since 2026-09-01, with images.nvim as its picture provider. (It began inside
-markdown.nvim and then lived in lib.nvim; older notes here name it
-`markdown.hover` or `lib.nvim.hover`.)
-
-`lib.nvim` provides the `:Image` command grammar (`usercmd.composer`), the
-picker used by `:Image list`, and the `kit.compare` component behind
-`:Image compare`; without its UI kit the picker falls back to `vim.ui.select`.
-
-[snacks.nvim](https://github.com/folke/snacks.nvim)'s picker is a soft
-dependency for `:Image pickers`: with it installed, browsing shows a live
-image thumbnail per entry (a custom preview function, not snacks.image's own
-Kitty-only one — see "Why not snacks.image or image.nvim" above); without it,
-`:Image pickers` falls back to a plain list with no preview.
-
-[pickers.nvim](https://github.com/StefanBartl/pickers.nvim) previews image
-entries as pictures in *its* pickers — the inverse of `:Image pickers`, where
-images.nvim owns the picker. Its file pickers already list `.png`/`.jpg`; with
-images.nvim installed they now draw them instead of previewing bytes, on
-snacks and telescope. It goes through `images.integrations.picker`
-(`available()` / `is_previewable()` / `preview(winid, file)`), a surface any
-picker plugin can consume; the dependency runs one way only and nothing here
-needs pickers.nvim.
-
-A `.pdf` entry is the same feature: with
-[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) and poppler's
-`pdftoppm` installed, `is_previewable()` claims it too and the first page is
-rasterized (`images.pdf`, cached on disk) and drawn like any other picture —
-so a host writes no PDF code of its own. Without either piece the entry simply
-stays the host's to preview. `pdf = { enabled = false }` says the same on a
-machine that has both. See
-[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#pickersnvim-image-and-pdf-previews).
-
-`filetree.nvim` uses this plugin as the first backend of its preview feature,
-and `open.nvim` routes `:Open image` here.
-
-`images.integrations.menu` contributes a right-click context menu (Show
-image, Gallery, Next/Previous, Paste, Screenshot, Info) in the shape
-[nvzone/menu](https://github.com/nvzone/menu) expects — a natural extension
-of the existing `<2-LeftMouse>` hover, gated the same way (`keymaps.filetypes`,
-plus `menu.enable`). No dependency on `menu` itself; a host composes the
-entries into its own menu. See
-[docs/FEATURES/INTEGRATIONS.md](docs/FEATURES/INTEGRATIONS.md#right-click-context-menu-nvzonemenu).
-
-## Optional external tools
-
-ImageMagick unlocks `:Image info`'s dimensions, `:Image compare`'s relative
-scaling, SVG display, and is required outright for `:Image redact` and the
-three file operations `:Image scale` / `:Image optimise` / `:Image convert`
-(see
-[docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md#scale-optimise-convert--image-operations-as-file-operations));
-`chafa` is the terminal-image fallback; `tesseract` is required outright for
-`:Image ocr` (see
-[docs/FEATURES/CAPTURE.md](docs/FEATURES/CAPTURE.md#ocr--read-the-text-out-of-an-image),
-including why a Windows install is often present but not on PATH).
-`:Image export` needs ImageMagick
-too, *unless* [`pdfport.nvim`](https://github.com/StefanBartl/pdfport.nvim)
-is installed — then the export routes through pdfport's `create()` API
-instead (asynchronous, lossless via `img2pdf` if available, otherwise
-`magick` through pdfport's own fallback chain). Soft dependency, `pcall`'d;
-without pdfport.nvim the previous synchronous `magick`-only path is
-unchanged. `pdftoppm` (poppler) is the reverse direction of that same pairing:
-with it and pdfport.nvim present, a `.pdf` entry in a host's picker previews as
-its first page instead of as bytes. Declared, with the reasoning per
-tool, in [`docs/install.json`](docs/install.json) — parsed by
-[lib.nvim](https://github.com/StefanBartl/lib.nvim)'s
-[`deps` module](https://github.com/StefanBartl/lib.nvim/blob/main/lua/lib/nvim/deps/README.md),
-which this plugin already depends on:
-
-- The first time `setup()` runs after installing images.nvim, a popup shows
-  what's missing and why (once, ever — see `:help lib.nvim-deps-first_run`).
-- `:Lib deps show images.nvim` shows the same report at any time.
-- `:Lib deps install images.nvim` composes and confirms an install command
-  for your OS's package manager.
-- Also folded into `:checkhealth images`.
-- Disable it **right in this plugin's own spec**:
-  `require("images").setup({ deps_popup = false })`.
-  `vim.g.lib_nvim_deps_disable_first_run = true` (every plugin) /
-  `vim.g.lib_nvim_deps_disabled_plugins = { "images.nvim" }` also still
-  work, for turning it off without touching any plugin's config.
+---
 
 ## Documentation
 
-Start at [docs/README.md](docs/README.md), which says what is where and which
-question each page answers.
+Start at the [documentation index](docs/README.md), which says what is where
+and which question each page answers.
 
-- `:h images` — vimdoc reference
-- [docs/FEATURES/README.md](docs/FEATURES/README.md) — four pages grouped by what a feature is for: display, capture, browsing, integrations
-- [docs/BINDINGS.md](docs/BINDINGS.md) — every keymap, user command and autocmd
-- [docs/WORKFLOW.md](docs/WORKFLOW.md) — how the commands combine day to day, rather than what each one does
-- generated module map — not committed (derived output, stale the moment anything changes); open any file in this repo and run `:DocMap` to build it into `docs/map/`, via [documentation.nvim](https://github.com/StefanBartl/documentation.nvim)
+- [Features](docs/FEATURES/README.md) — everything the plugin does, four pages grouped by purpose.
+- [Installation](docs/installation.md) — requirements, the terminal question, and a spec per plugin manager.
+- [Configuration](docs/configuration.md) — every `setup()` option and its default.
+- [Commands](docs/commands.md) — every `:Image` route, with arguments, ranges and examples.
+- [Bindings](docs/BINDINGS.md) — the cheatsheet: keymaps, user commands, autocommands.
+- [Workflow](docs/WORKFLOW.md) — how the commands combine day to day, rather than what each one does.
+- [Troubleshooting](docs/troubleshooting.md) — the symptoms that have a cause rather than a bug behind them.
+- [Architecture](docs/architecture.md) — the OSC 1337 decision, what it takes to draw reliably, and the four costs it buys.
+
+Also `:help images` for the same material as Vim help.
+
+The module map is generated, not committed — it is derived output and stale the
+moment anything changes. Open any file in this repo and run `:DocMap` to build
+it, via [documentation.nvim](https://github.com/StefanBartl/documentation.nvim).
+
+---
 
 ## Development
 
@@ -531,20 +160,15 @@ nvim --headless -u NONE -l TESTS/run.lua        # tests
 nvim --headless -l scripts/gen_map.lua          # regenerate the module map
 nvim --headless -l scripts/gen_map.lua --check  # verify it, write nothing
 luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
+git config core.hooksPath scripts/hooks         # once per clone
 ```
 
 The suite covers the side-effect-free modules only — grid layout, link
 detection, metadata formatting, config merging. Anything that draws needs a
-terminal with a graphics protocol and cannot be checked headless, which is
-why those parts are separated from the rendering in the first place.
+terminal with a graphics protocol and cannot be checked headless, which is why
+those parts are separated from the rendering in the first place.
 `scripts/gen_map.lua` enforces that split as a layer rule, so it stays a
 checked invariant rather than a note in a document.
-
-Install the pre-commit hook once per clone:
-
-```bash
-git config core.hooksPath scripts/hooks
-```
 
 ## License
 

@@ -27,6 +27,7 @@ completion and this table all come from the same spec.
 | `:Image convert <format> [path]` | — | Copy in another format, same stem (`photo.jpg` → `photo.png`); `pdf` takes the same route as `:Image export` (needs ImageMagick) |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image calibrate` | — | Measure this terminal's image placement, store the correction |
+| `:Image debug <mode> [path]` | — | Measure a misplaced draw: `report` logs the coordinates sent, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
 | `:Image zen [path]` | — | Show one image full-screen in a real editable window |
@@ -59,22 +60,22 @@ to disable that single mapping.
 | `<leader>is` | n | Take a screenshot and insert the link; **any count** prompts for a filename | `keymaps.screenshot` |
 | `<2-LeftMouse>` | n | Double-click a markdown link to show the image | `keymaps.double_click` |
 
-### Counts (2026-08-24)
+### Counts
 
-`next`/`prev` multiply the step: `step()` already wraps modulo the image
-count, so `3<leader>in` lands three images on and wraps exactly as one step
-would.
+`next`/`prev` multiply the step: `step()` wraps modulo the image count, so
+`3<leader>in` lands three images on and wraps exactly as one step would.
 
-On `paste`/`screenshot` a count is not a repeat — it asks for a **name**.
-`:Image paste {name}` could always supply one, but a bare lhs carries no
-text, and with `paste.ask_filename = false` a keymap had no way to name the
-file at all. Any count now forces the prompt; with `ask_filename` already on
-this changes nothing. The count's *value* is deliberately ignored — there is
-no sensible "do this 3 times" for pasting one image, so it reads purely as a
-flag.
+On `paste`/`screenshot` a count is not a repeat — it asks for a **name**. A
+bare lhs carries no text, so with `paste.ask_filename = false` a keymap would
+otherwise have no way to name the file at all; any count forces the prompt,
+and with `ask_filename` already on it changes nothing. The count's *value* is
+deliberately ignored: there is no sensible "do this 3 times" for pasting one
+image, so it reads purely as a flag.
 
 In the redact window, `u` removes the last box and `3u` removes three,
 clamped to what is actually there rather than warning once per missing box.
+
+### Two things the double-click does not do
 
 A double-click that does not land on an image link falls through to the normal
 word selection, so the mapping never swallows a plain double-click.
@@ -85,6 +86,15 @@ filetypes and routes anchor → image → URL → file, delegating the image cas
 back to images.nvim; since both register from a `FileType` autocmd, load order
 would otherwise decide the winner, and images.nvim winning would drop the
 other cases. Whoever binds first keeps the key.
+
+### which-key
+
+With [which-key](https://github.com/folke/which-key.nvim) installed, the
+longest common prefix of the configured keys (`<leader>i` by default) is
+registered as a named group — computed from whatever `keymaps` actually
+resolve to, so a fully remapped set still groups correctly. Skipped when fewer
+than two keys share a prefix, or when the prefix would itself equal one of the
+mapped keys, which would show an action and a group under the same key.
 
 ## Autocmds
 

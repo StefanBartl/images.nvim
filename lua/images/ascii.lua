@@ -13,10 +13,10 @@
 --- Hence a small dedicated path straight over `nvim_set_hl`/extmarks instead of
 --- a dependency that does not fit.
 ---
---- Requires ImageMagick — the fourth deliberate exception alongside SVG,
---- `:Image export` and `:Image redact`: reading
---- pixel colours out of an arbitrary raster file needs a real image decoder,
---- which plain Lua does not have.
+--- Requires ImageMagick — one of the deliberate exceptions to the
+--- "ImageMagick improves, never enables" guardrail (docs/architecture.md lists
+--- them all): reading pixel colours out of an arbitrary raster file needs a
+--- real image decoder, which plain Lua does not have.
 ---
 --- Every terminal cell becomes a "█" character with its own foreground colour —
 --- truecolour block graphics as used by graphics-protocol-less image viewers

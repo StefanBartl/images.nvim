@@ -19,8 +19,8 @@
 --- `images.scale.CELL_ASPECT` — not a real cell measurement, see there), and
 --- `images.scale.cell_box_to_pixels` converts to pixel coordinates with a
 --- safety margin. The burn-in goes through `images.convert.redact`
---- (ImageMagick, the third deliberate exception to the "ImageMagick is never
---- required" guardrail, alongside SVG display and `:Image export`).
+--- (ImageMagick, one of the deliberate exceptions to the "ImageMagick
+--- improves, never enables" guardrail -- docs/architecture.md lists them all).
 ---
 --- **Not part of the automated test suite**: the key logic itself (visual mode
 --- capture, window construction) needs a real terminal with OSC 1337 support to

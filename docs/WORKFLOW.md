@@ -1,7 +1,8 @@
 # Workflow — using images.nvim day to day
 
 Every command and option here is documented on its own in
-`docs/FEATURES/` and `docs/BINDINGS.md`. This is the different question:
+[commands.md](commands.md), [configuration.md](configuration.md) and
+[BINDINGS.md](BINDINGS.md). This is the different question:
 once you're actually writing markdown with images in it, which commands
 do you reach for in sequence, and where does the plugin's terminal-first
 design actually bite you if you don't know about it.
@@ -193,18 +194,18 @@ linked by that name, so it is the one moment where being asked is cheaper than
 renaming afterwards. Without a count, `<leader>iv` names it silently, same as
 always.
 
-## A captioned image counts now — as long as markdown.nvim is installed
+## A captioned image counts — as long as markdown.nvim is installed
 
-The line scanner matched only `![alt](target)`, which meant a captioned image —
-an `<img>` inside a `<figure>` block, the usual way to caption in Markdown —
-was invisible to `:Image zen`, `gallery`, `orphans` and the hover float.
+Line scanning routes through markdown.nvim's scanner when that plugin is
+present, and falls back to a plain `![alt](target)` pattern when it is not.
+Only the first reads HTML targets, so a captioned image — an `<img>` inside a
+`<figure>` block, the usual way to caption in Markdown — is visible to
+`:Image zen`, `gallery`, `orphans` and the hover float in the first case and
+invisible in the second.
 
-Line scanning now routes through markdown.nvim's scanner, which reads HTML
-targets, and the existing Markdown pattern stays as the fallback when
-markdown.nvim is not installed. The practical consequence is the one to
-remember: **`orphans` gets more accurate when markdown.nvim is present**, and a
-document full of `<figure>` blocks will report differently depending on whether
-it is.
+The practical consequence is the one to remember: **`orphans` gets more
+accurate when markdown.nvim is present**, and a document full of `<figure>`
+blocks will report differently depending on whether it is.
 
 The cursor on a `<figcaption>` draws the image the caption belongs to, because
 `under_cursor` asks `figure_at()` when the line itself carries no target.

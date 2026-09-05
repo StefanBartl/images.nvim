@@ -83,9 +83,10 @@ return {
     },
     -- Fallback for terminals without OSC 1337 (SSH, tmux without passthrough,
     -- an unrecognised terminal): coloured block graphics via extmarks instead
-    -- of the OSC sequence, see images.ascii. Requires ImageMagick -- the
-    -- fourth deliberate exception alongside SVG/export/redact. Single-image
-    -- path only (`:Image show`/hover), same scope boundary as remote images.
+    -- of the OSC sequence, see images.ascii. Requires ImageMagick -- one of the
+    -- deliberate exceptions to "ImageMagick improves, never enables", listed in
+    -- docs/architecture.md. Single-image path only (`:Image show`/hover), same
+    -- scope boundary as remote images.
     ascii_fallback = {
       enabled = true,
     },
@@ -147,8 +148,9 @@ return {
 
   -- One-off "which CLI tools does this plugin want, and why" popup on the
   -- first setup() after installation (via lib.nvim.deps). false disables it
-  -- for this plugin, right here in the setup() spec -- no vim.g needed. See
-  -- README "Optional external tools".
+  -- for this plugin, right here in the setup() spec -- no vim.g needed. The
+  -- tools themselves are declared in docs/install.json and explained in
+  -- docs/installation.md.
   deps_popup = true,
 
   -- A PDF page drawn as a picture, wherever this plugin draws pictures for a

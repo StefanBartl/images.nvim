@@ -183,6 +183,17 @@ the remaining offset is smaller than one cell. The window says so in its
 footer while it is open, and `display.draw_inset` is what covers that
 remainder — the protocol limit, stated rather than hidden.
 
+## Placement diagnostics
+
+Measures a misplaced draw rather than guessing at it: `report` logs the
+coordinates actually sent per draw, `columns` tells a constant offset (which
+`display.terminal_padding` can absorb) from a scaling one (which it cannot),
+and `float` checks whether a window is where Neovim says it is. The failure
+modes these three were built to tell apart turned up two real bugs.
+
+- **Module:** `images/debug.lua` (`M.report`, `M.columns`, `M.float`)
+- **Usercmds:** `:Image debug <mode> [path]` ([usercmds](../BINDINGS.md#user-commands))
+
 ## Status line segment
 
 Reports whether an image is currently shown, for embedding in a

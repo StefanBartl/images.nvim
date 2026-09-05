@@ -38,9 +38,10 @@ text overlay, for `:Image show`/hover only — see |images-display-config|.
 WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself. SVG is the one format it
 cannot, so it is rasterized to a cached PNG via ImageMagick before drawing.
 Without it, opening an .svg reports a clear error rather than failing
-silently. Together with |:Image| export and |:Image| redact, these are
-deliberately three of only four places ImageMagick is a requirement instead
-of an improvement — the fourth is the ASCII fallback below.
+silently. That is one of the places where ImageMagick is a requirement rather
+than an improvement, alongside |:Image| redact, the file operations
+(|images-fileops|), the ASCII fallback below, and |:Image| export unless
+pdfport.nvim is installed — see |images-magick|.
 
 When the terminal check fails, |:Image| show/hover draw a colored
 block-character grid instead of a silently ineffective OSC 1337 sequence —
@@ -55,7 +56,7 @@ hovering a markdown link, but off by default — see |images-remote-config|.
 
     - Neovim 0.10+ for |vim.base64|
     - API level 14 for |nvim_ui_send()|
-    - A terminal that implements OSC 1337 (WezTerm, iTerm2)
+    - A terminal that implements OSC 1337 (WezTerm, iTerm2, Konsole)
     - lib.nvim  https://github.com/StefanBartl/lib.nvim
 
 For `:Image paste` additionally:
@@ -64,11 +65,26 @@ For `:Image paste` additionally:
     macOS     pngpaste
     Linux     wl-paste (Wayland) or xclip (X11)
 
-ImageMagick (`magick` on PATH) is optional almost everywhere — it improves
-`:Image info` (dimensions) and `:Image compare` (relative scaling) — but
-required for displaying SVG files, the one format WezTerm cannot decode
-itself, and for the ASCII fallback (|images-ascii-config|) on a terminal
-without OSC 1337.
+                                                             *images-magick*
+ImageMagick (`magick` on PATH) appears in two roles. As an IMPROVEMENT it
+adds `:Image info`'s dimensions and `:Image compare`'s relative scaling; its
+absence degrades the result rather than removing the command. As a
+REQUIREMENT it has no fallback at all:
+
+    SVG display             the one format WezTerm cannot decode itself; an
+                            .svg is rasterized to a cached PNG first
+    the ASCII fallback      |images-ascii-config| — reading pixel colours out
+                            of a raster file needs a real decoder
+    `:Image redact`         the boxes are burned in by an image operation
+    |images-fileops|        `:Image scale`/`optimise`/`convert` ARE image
+                            operations, end to end
+    `:Image export`         unless pdfport.nvim is installed, in which case
+                            it routes through that instead
+
+`tesseract` is required for `:Image ocr` (|images-ocr|), and poppler's
+`pdftoppm` — through pdfport.nvim — for previewing a PDF entry as its first
+page. All of them are declared in `docs/install.json`; `:Lib deps show
+images.nvim` reports which are present.
 
 Run `:checkhealth images` to verify all of the above.
 
@@ -78,11 +94,16 @@ Run `:checkhealth images` to verify all of the above.
 >lua
     {
       "StefanBartl/images.nvim",
-      ft = { "markdown", "vimwiki", "norg", "text" },
       dependencies = { "StefanBartl/lib.nvim" },
+      cmd = { "Image" },
+      ft = { "markdown", "vimwiki", "norg", "text" },
       opts = {},
     }
 <
+Both triggers, not just `cmd`: the filetypes are what put the hover keymap
+and the double-click handler in place in a Markdown buffer no command has
+been run in yet.
+
 Calling |images.setup()| is optional when using `opts`.
 
 ==============================================================================
@@ -147,11 +168,10 @@ Calling |images.setup()| is optional when using `opts`.
 :Image export [{path}]  Export {path} — or the image under the cursor — as a
                         PDF next to the source file (`bild.png` ->
                         `bild.pdf`), overwriting an existing PDF of the same
-                        name without asking. Requires ImageMagick; this is
-                        deliberately the second of only four places
-                        ImageMagick is a hard requirement rather than an
-                        improvement, alongside SVG display and the ASCII
-                        fallback (see |images-configuration|).
+                        name without asking. With pdfport.nvim installed it
+                        routes through that instead — asynchronous, and
+                        lossless via `img2pdf` when available. Without it,
+                        ImageMagick is required (see |images-magick|).
 
 :Image redact [{path}]  Open {path} — or the image under the cursor — in a
                         censor mode: a full-screen window (like |:Image|
@@ -168,8 +188,7 @@ Calling |images.setup()| is optional when using `opts`.
                         configurable safety margin before burning
                         (`display.redact.padding_cells`, default 1) —
                         over-redacting is the safe failure mode. Requires
-                        ImageMagick, the third of only four places it is a
-                        hard requirement (see |images-configuration|).
+                        ImageMagick, with no fallback (see |images-magick|).
 
 :Image scale {size} [{path}]                            *images-fileops*
                         Write a resized copy of {path} — or of the image
@@ -182,7 +201,7 @@ Calling |images.setup()| is optional when using `opts`.
 
                         The geometry is validated before `magick` runs.
                         That is not politeness: `magick` treats an
-                        unparseable `-resize` argument as *no* resize and
+                        unparseable `-resize` argument as NO resize and
                         exits 0, so a typo would otherwise produce a
                         `.scaled.` copy at the original size, looking
                         exactly like success.
@@ -291,7 +310,7 @@ Calling |images.setup()| is optional when using `opts`.
 :Image draw {position} [{path}]
                         Draw {path} — or the image under the cursor — at a
                         named position in the current window: "full" fills
-                        it, any of the eight anchors ("top-left", "top",
+                        it, any of the nine anchors ("top-left", "top",
                         "top-right", "center-left", "center",
                         "center-right", "bottom-left", "bottom",
                         "bottom-right") centers a smaller, scaled box there
@@ -299,6 +318,34 @@ Calling |images.setup()| is optional when using `opts`.
                         primitive `:Image zen`/the hover float/redact/the
                         picker preview all build on internally — see
                         |images.draw()|.
+
+:Image calibrate                                        *images-calibrate*
+                        Measure how this terminal actually places an image,
+                        interactively. Draws a generated test card that
+                        exactly fills a framed window; `hjkl`/arrows nudge it
+                        one cell per press, `+`/`-` adjust
+                        `display.cell_aspect` in 0.01 steps, `r` resets, <CR>
+                        accepts, `q` cancels. The result is offered for
+                        saving under `stdpath("data")` — per machine, never
+                        in the synced `setup()` spec — and is merged on every
+                        later start. An explicit `setup()` option always
+                        outranks a stored measurement, checked independently
+                        for `terminal_padding` and `cell_aspect`. A remaining
+                        offset smaller than one cell is reported as the
+                        protocol limit it is; `display.draw_inset` covers it.
+                        Run it once per terminal setup, not per project.
+
+:Image debug {mode} [{path}]
+                        Measure a misplaced draw rather than guessing at it.
+                        {mode} is one of:
+                            report      log the coordinates actually sent,
+                                        per draw
+                            columns     tell a constant offset (which
+                                        `display.terminal_padding` can
+                                        absorb) from a scaling one (which it
+                                        cannot)
+                            float       check whether a window is where
+                                        Neovim says it is
 
 :Image check            Report whether this terminal can display images, and
                         re-run the detection (useful after setting
@@ -349,9 +396,13 @@ under the same key).
     require("images").setup({
       command = "Image",
       extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" },
+      deps_popup = true,
       display = {
         max_cols = 60,
         max_rows = 25,
+        cell_aspect = 0,
+        draw_inset = 1,
+        terminal_padding = { row = 0, col = 0 },
         gallery_gap = 1,
         hover_mode = "overlay",
         assume_supported = false,
@@ -360,6 +411,8 @@ under the same key).
           "BufLeave", "WinScrolled",
         },
         browse_exclude = { ".deps", "node_modules" },
+        browse_max_entries = 20000,
+        gopath_fallback = true,
         zen = { width = 0.9, height = 0.85 },
         remote = {
           enabled = false,
@@ -396,6 +449,9 @@ under the same key).
         page = 1,
         dpi = 120,
       },
+      menu = {
+        enable = true,
+      },
       keymaps = {
         show = "<leader>im",
         gallery = "<leader>ig",
@@ -420,7 +476,7 @@ image — not the gallery, which always uses its own grid layout:
                            Clears on the next `display.clear_events` event.
     "float"                A small, unfocused floating window under the
                            cursor instead. Same clear timing and `:Image
-                           pin` behavior, same underlying |images.terminal|
+                           pin` behavior, same underlying `images.terminal`
                            draw call — only the container differs. Uses the
                            same window-then-draw-at-its-geometry technique
                            as `:Image zen`, just cursor-positioned and
@@ -429,11 +485,53 @@ image — not the gallery, which always uses its own grid layout:
                            behaves like a glance rather than a view to
                            switch into — for that, use `:Image zen` instead.
 
+                                                    *images-placement-config*
+`display.draw_inset`, `display.terminal_padding` and `display.cell_aspect`
+are one topic. OSC 1337 has no pixel offset — an image is positioned with
+`CSI row;col H`, which addresses whole cells only — and neither the cell size
+nor the terminal's window padding can be read from inside Neovim
+(`TermResponse` forwards no plain CSI replies, `nvim_list_uis()` reports
+cells).
+
+    draw_inset          Cells of margin kept free all round; default 1.
+                        Absorbs the SUB-CELL remainder, which no plugin can
+                        correct, by keeping the image centred inside its
+                        frame instead of flush against it. 0 draws flush.
+    terminal_padding    Whole-cell row/column offset; default {0, 0}.
+                        Absorbs a SYSTEMATIC offset. Raising `draw_inset` to
+                        paper over one of these wastes space and still looks
+                        off. Negative values move the image up/left.
+    cell_aspect         Pixel aspect ratio (width/height) of one cell;
+                        default 0, meaning the 0.5 assumption from
+                        `images.scale`. This is a SHAPE, not an offset — a
+                        wrong value shows as a letterbox strip along one edge
+                        that no nudging removes.
+
+`:Image calibrate` measures `terminal_padding` and `cell_aspect` together and
+stores them per machine; see |images-calibrate|. `:Image redact` always draws
+flush regardless of `draw_inset`, because its cell-to-pixel mapping depends
+on it.
+
                                                        *images-browse-config*
 `display.browse_exclude` names directories `:Image pickers`/`:Image compare`
 skip while scanning, in addition to ".git" (always skipped). The scan stops
-after 20000 visited entries as a safety net against an accidental scan of a
-huge tree — the results found up to that point are still used.
+after `display.browse_max_entries` visited entries (default 20000) as a
+safety net against an accidental scan of a huge tree — the results found up
+to that point are still used.
+
+                                                       *images-gopath-config*
+`display.gopath_fallback` (default true) asks gopath.nvim's cursor resolver
+what path the cursor is on, after Markdown links and <figure> blocks and
+before Vim's own <cfile>. Only a result gopath confirms exists on disk, with
+an extension from `extensions`, is accepted. A no-op without gopath.nvim
+installed; false disables it even with it installed.
+
+                                                         *images-deps-config*
+`deps_popup` (default true) controls the one-off "which CLI tools does this
+plugin want, and why" popup on the first `setup()` after installation, via
+lib.nvim's deps module. `menu.enable` (default true) controls whether
+`images.integrations.menu` returns any right-click entries at all; without
+nvzone/menu installed it is inert either way.
 
 `display.zen` sizes the `:Image zen` window as a fraction (0-1) of the
 editor's width/height — that is the MAXIMUM box. The window actually opened
@@ -464,8 +562,8 @@ viewers (chafa, viu) use, not a brightness character ramp. `images.scale.
 fit_cells()` picks the cell box, the same aspect-ratio math `:Image redact`
 uses.
 
-Requires ImageMagick — the fourth deliberate exception to "ImageMagick
-improves, never enables" (see the introduction). Without it, or with
+Requires ImageMagick — one of the deliberate exceptions to "ImageMagick
+improves, never enables" (see |images-magick|). Without it, or with
 `display.ascii_fallback.enabled = false`, behavior is unchanged: the
 capability warning fires once per session and a draw is still attempted
 (the detection is a heuristic, see above).
@@ -751,16 +849,17 @@ The image appears below the statusline ~
     (tmux needs `set -g allow-passthrough on`).
 
 A window opens but stays empty, or shows only its first rows ~
-    Was the `:Image zen` bug: `nvim_ui_send()` writes to the terminal at once,
-    while Neovim's own repaint waits for the main loop. Opening a window and
-    drawing into it in the same tick sent the image and then let Neovim paint
-    that window's cells over it. Fixed in two places, because one alone was
-    not enough: `images.terminal.draw()` flushes anything already pending
-    before sending, and every window-opening path (zen, hover float, redact)
-    defers its draw by one tick — a flush before sending cannot cover the
-    repaint that opening the window itself triggers. If an empty window still
-    appears, the terminal is most likely ignoring the sequence entirely;
-    check `wezterm imgcat` above.
+    `nvim_ui_send()` writes to the terminal at once, while Neovim's own repaint
+    waits for the main loop, so a window opened and drawn into in the same tick
+    gets painted over its own image. Two mechanisms cover that, because one
+    alone is not enough: `images.terminal.draw()` flushes anything already
+    pending before sending, and every window-opening path (zen, hover float,
+    redact) defers its draw by one tick — a flush before sending cannot cover
+    the repaint that opening the window itself triggers. A caller of
+    |images.draw()| that opens its own window passes `opts.defer = true` for
+    the same reason. If an empty window still appears from a built-in path,
+    the terminal is most likely ignoring the sequence entirely; check
+    `wezterm imgcat` above.
 
 The image leaves empty space at one edge of the `:Image zen` window ~
     `preserveAspectRatio=1` scales the image DOWN to fit the sent cell box,
@@ -776,7 +875,7 @@ The image does not disappear ~
     `display.clear_events` is missing for your workflow.
 
 `:Image paste` says there is no image in the clipboard ~
-    A copied *file* is not an image in the clipboard — the clipboard must hold
+    A copied FILE is not an image in the clipboard — the clipboard must hold
     bitmap data, as it does after a screenshot. On Windows the helper runs
     `powershell.exe -STA`; the STA thread is required or the clipboard API
     always returns null.

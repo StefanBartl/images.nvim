@@ -152,7 +152,8 @@ end
 ---
 --- A thin wrapper around `images.anchor.draw` (the canonical implementation);
 --- name and signature stay unchanged because markdown.nvim already consumes
---- this function as public API (see README.md/CROSS-PLUGIN.md).
+--- this function as public API. A new consumer should call `images.draw()`
+--- directly instead -- see docs/FEATURES/INTEGRATIONS.md.
 ---@param file string
 ---@param winid integer
 ---@param factor number|nil 0 < factor <= 1; nil/1 = the full window size.
