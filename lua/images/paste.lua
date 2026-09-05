@@ -51,6 +51,18 @@ end
 ---@return nil
 local function clipboard_to_file(out, callback)
   local cmd ---@type string[]
+  -- Set only for the Linux branch: `wl-paste`/`xclip` write the image to
+  -- stdout, and this callback writes those bytes to `out` itself, rather than
+  -- a shell `>` redirect. `out` is not always a tempname -- `M.replace` hands
+  -- it a path resolved from a Markdown link or the cursor (see
+  -- `images.resolve.to_path`), which can legitimately contain a single quote
+  -- ("John's screenshot.png") or, from a crafted link, worse. Interpolating
+  -- that into a `sh -c "... > '%s'"` string (as this used to) is exactly the
+  -- shell-injection shape `images.resolve.to_path`'s own module docs warn
+  -- about for backtick command substitution -- an argv array to `wl-paste`/
+  -- `xclip` plus a direct file write sidesteps it entirely, no escaping
+  -- needed.
+  local write_stdout = false
   local executable = require("lib.nvim.cross.executable")
 
   if require("lib.nvim.cross.platform.is_windows")() then
@@ -69,16 +81,22 @@ local function clipboard_to_file(out, callback)
     cmd = { "pngpaste", out }
   else
     if executable.exists("wl-paste") then
-      cmd = { "sh", "-c", ("wl-paste --type image/png > '%s'"):format(out) }
+      cmd = { "wl-paste", "--type", "image/png" }
     elseif executable.exists("xclip") then
-      cmd = { "sh", "-c", ("xclip -selection clipboard -t image/png -o > '%s'"):format(out) }
+      cmd = { "xclip", "-selection", "clipboard", "-t", "image/png", "-o" }
     else
       callback(false, "neither `wl-paste` nor `xclip` found")
       return
     end
+    write_stdout = true
   end
 
-  vim.system(cmd, { text = true }, function(result)
+  -- `text = false` for the stdout-writing branch: `text = true` normalises
+  -- `\r\n` to `\n` in the captured output, which would silently corrupt PNG
+  -- bytes containing that sequence. The other branches never read
+  -- `result.stdout`, only `result.stderr` for an error message, where the
+  -- normalisation is harmless.
+  vim.system(cmd, { text = not write_stdout }, function(result)
     vim.schedule(function()
       if result.code == 3 then
         callback(false, "no image in the clipboard")
@@ -87,6 +105,20 @@ local function clipboard_to_file(out, callback)
       if result.code ~= 0 then
         callback(false, ("could not read the clipboard (exit %d): %s"):format(result.code, vim.trim(result.stderr or "")))
         return
+      end
+
+      if write_stdout then
+        if not result.stdout or #result.stdout == 0 then
+          callback(false, "no image in the clipboard")
+          return
+        end
+        local fd = io.open(out, "wb")
+        if not fd then
+          callback(false, "could not write file: " .. out)
+          return
+        end
+        fd:write(result.stdout)
+        fd:close()
       end
 
       local stat = vim.uv.fs_stat(out)
