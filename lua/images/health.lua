@@ -39,7 +39,9 @@ local function check_terminal()
   if cap.ok and cap.terminal then
     vim.health.ok(("`%s` detected — OSC 1337 is supported"):format(cap.terminal))
   elseif cap.ok then
-    vim.health.warn("support is being assumed (`display.assume_supported`)")
+    vim.health.warn("support is being assumed (`display.assume_supported`)", {
+      "Unset `display.assume_supported` if images fail to render — your terminal may not speak OSC 1337.",
+    })
   else
     vim.health.warn(cap.reason or "terminal not recognised", {
       cap.hint or "",
@@ -58,7 +60,9 @@ local function check_clipboard()
     if executable.exists("powershell.exe") then
       vim.health.ok("`powershell.exe` found — `:Image paste` available")
     else
-      vim.health.warn("`powershell.exe` not found — `:Image paste` will not work")
+      vim.health.warn("`powershell.exe` not found — `:Image paste` will not work", {
+        "`powershell.exe` ships with Windows; check that it is on `$PATH`.",
+      })
     end
     return
   end
@@ -77,7 +81,9 @@ local function check_clipboard()
   elseif executable.exists("xclip") then
     vim.health.ok("`xclip` found — `:Image paste` available")
   else
-    vim.health.warn("neither `wl-paste` nor `xclip` found — `:Image paste` will not work")
+    vim.health.warn("neither `wl-paste` nor `xclip` found — `:Image paste` will not work", {
+      "apt install wl-clipboard  (Wayland)  /  apt install xclip  (X11)",
+    })
   end
 end
 
