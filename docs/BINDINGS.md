@@ -105,6 +105,7 @@ mapped keys, which would show an action and a group under the same key.
 | images.clear | `display.clear_events` | Clears the image after it was shown (`once`) |
 | images.zen | `WinResized`, `VimResized` | Redraws the `:Image zen` image so it follows the window's size |
 | images.zen | `WinClosed` | Clears the image when the zen window closes (`once`) |
+| images.hover_float | `WinClosed` | Clears the image and resets state when the hover float closes (`once`) |
 | images.redact | `WinClosed` | Clears the image when the redact window closes (`once`) |
 | images.ascii | `WinClosed` | Clears the ASCII-fallback window state when it closes (`once`) |
 
