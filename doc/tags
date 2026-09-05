@@ -35,6 +35,7 @@ images.gallery_range()	images.txt	/*images.gallery_range()*
 images.hover()	images.txt	/*images.hover()*
 images.info()	images.txt	/*images.info()*
 images.list()	images.txt	/*images.list()*
+images.nvim	images.txt	/*images.nvim*
 images.ocr()	images.txt	/*images.ocr()*
 images.optimise()	images.txt	/*images.optimise()*
 images.orphans()	images.txt	/*images.orphans()*

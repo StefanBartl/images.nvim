@@ -1,4 +1,5 @@
 *images.txt*  Show images inside Neovim via the iTerm2 protocol (OSC 1337)
+                                                                 *images.nvim*
 
 Author:  Stefan Bartl
 Repo:    https://github.com/StefanBartl/images.nvim
