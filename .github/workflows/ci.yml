@@ -31,6 +31,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
       - run: LIB_NVIM_PATH=.deps/lib.nvim nvim --headless -u NONE -l TESTS/run.lua
@@ -53,6 +54,7 @@ jobs:
         with:
           repository: StefanBartl/lib.nvim
           path: .deps/lib.nvim
+          ref: ci-verified
       - uses: actions/checkout@v5
         with:
           repository: StefanBartl/documentation.nvim
