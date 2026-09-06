@@ -3,6 +3,23 @@
 How images.nvim connects to its sibling plugins and to optional external
 tools.
 
+## Table of content
+
+  - [markdown.nvim link resolution](#markdownnvim-link-resolution)
+  - [gopath.nvim plain-path resolution](#gopathnvim-plain-path-resolution)
+  - [lib.nvim command grammar and picker](#libnvim-command-grammar-and-picker)
+  - [snacks.picker previews](#snackspicker-previews)
+  - [pickers.nvim image and PDF previews](#pickersnvim-image-and-pdf-previews)
+    - [A PDF is one of ours too](#a-pdf-is-one-of-ours-too)
+  - [filetree.nvim and open.nvim](#filetreenvim-and-opennvim)
+  - [pdfport.nvim, in both directions](#pdfportnvim-in-both-directions)
+  - [language.nvim after OCR — an integration with no code in it](#languagenvim-after-ocr-an-integration-with-no-code-in-it)
+  - [lib.nvim.deps: missing-tool reporting](#libnvimdeps-missing-tool-reporting)
+  - [Right-click context menu (nvzone/menu)](#right-click-context-menu-nvzonemenu)
+  - [Health check](#health-check)
+
+---
+
 ## markdown.nvim link resolution
 
 Link targets are resolved through `markdown.nvim` when present, falling
@@ -15,6 +32,8 @@ for a live per-item image preview when snacks.picker is also installed.
 
 - **Module:** `images/resolve.lua` (`M.to_path`), `images/browse.lua`
   (`draw_in_window`)
+
+---
 
 ## gopath.nvim plain-path resolution
 
@@ -69,13 +88,15 @@ is the one to know about: it is a Vim built-in, borrowed only while a float
 is open and handed straight back afterwards. **Not to be
 confused with this plugin's own hover** — `display.hover_mode`,
 `images.hover_float` — which is a separate feature with its own window and
-its own keys; see [DISPLAY.md](DISPLAY.md#hover-overlay--hover-float).
+its own keys; see [DISPLAY.md](./DISPLAY.md#hover-overlay--hover-float).
 
 - **Module:** `images/resolve.lua` (`resolve_via_gopath`, internal to
   `under_cursor`)
 - **Config:** `display.gopath_fallback` (default `true`)
 - **Dependency:** gopath.nvim, soft and `pcall`'d — `<cfile>` remains the
   fallback without it, unchanged from before this integration existed
+
+---
 
 ## lib.nvim command grammar and picker
 
@@ -87,6 +108,8 @@ lib.nvim's UI kit, pickers fall back to `vim.ui.select`.
 
 - **Config:** `opts.command` (default `"Image"`)
 
+---
+
 ## snacks.picker previews
 
 A soft dependency for `:Image pickers`: with snacks.nvim installed,
@@ -97,6 +120,8 @@ preview.
 - **Module:** `images/browse.lua` (`draw_in_window`)
 - **Usercmds:** `:Image pickers`
 - **Dependency:** snacks.nvim, soft — the list still works without it
+
+---
 
 ## pickers.nvim image and PDF previews
 
@@ -128,6 +153,8 @@ picker.clear()                       -- repaint the drawn image away
 `preview(winid, file, opts)` returns `ok, err` and takes its options table
 third; the two that matter for a PDF are `on_ready` (the page exists, the draw
 is about to happen) and `on_done` (it settled, or it failed) — see below.
+
+---
 
 ### A PDF is one of ours too
 
@@ -206,6 +233,8 @@ non-image entry, where the window stays open.
   reverse, and with it absent this module simply has no callers. pdfport.nvim
   and `pdftoppm` are soft, and only for PDF entries
 
+---
+
 ## filetree.nvim and open.nvim
 
 `filetree.nvim` uses images.nvim as the first backend of its own preview
@@ -213,6 +242,8 @@ feature, and `open.nvim` routes `:Open image` here.
 
 - **Module:** `images/init.lua` (`draw`) — the entry point both call
 - **Dependency:** none here; the relationship runs from those plugins to this one
+
+---
 
 ## pdfport.nvim, in both directions
 
@@ -237,6 +268,8 @@ PNG-to-screen, and this module is the whole of the seam.
   offered. The page half additionally needs poppler's `pdftoppm`, which is what
   pdfport shells out to
 
+---
+
 ## language.nvim after OCR — an integration with no code in it
 
 `:Image ocr` puts the recognised text into a `markdown` scratch buffer, and
@@ -258,6 +291,8 @@ up, instead of all of them.
 - **Dependency:** none. language.nvim is not required, not `pcall`'d, not
   referenced — the two meet in a buffer, not in an API.
 
+---
+
 ## lib.nvim.deps: missing-tool reporting
 
 The external tools this plugin can use are declared, with the reasoning per
@@ -273,6 +308,8 @@ shows what's missing and why, once ever. What each one actually unlocks is in
 - **Config:** `opts.deps_popup` (default `true`),
   `vim.g.lib_nvim_deps_disable_first_run`,
   `vim.g.lib_nvim_deps_disabled_plugins`
+
+---
 
 ## Right-click context menu (nvzone/menu)
 
@@ -290,6 +327,8 @@ composes the entries into its own menu.
 - **Module:** `images/integrations/menu.lua` (`M.items`, `M.submenu`)
 - **Config:** `opts.menu.enable` (default `true`)
 
+---
+
 ## Health check
 
 `:checkhealth images` verifies terminal capability, clipboard tool,
@@ -297,3 +336,6 @@ screenshot tool availability, ImageMagick, and both this plugin's and
 lib.nvim's declared dependencies in one report.
 
 - **Module:** `images/health.lua` (`M.check`)
+
+---
+
