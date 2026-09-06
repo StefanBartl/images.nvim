@@ -21,9 +21,9 @@ jobs:
       - run: luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
 
   test:
-    # Nur die seiteneffektfreien Module: Rasteraufteilung, Linkerkennung,
-    # Metadaten-Aufbereitung, Konfiguration. Alles, was zeichnet, braucht ein
-    # Terminal mit Grafikprotokoll und ist headless nicht prüfbar.
+    # The side-effect-free modules only: grid layout, link detection, metadata
+    # formatting, config merging. Anything that draws needs a terminal with a
+    # graphics protocol and cannot be checked headless.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

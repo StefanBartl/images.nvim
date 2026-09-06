@@ -32,7 +32,7 @@ local M = {}
 --- Directories probed for `tesseract` when it is not on PATH.
 ---
 --- Not a general habit — every other external tool in this plugin (`magick`,
---- `chafa`, `wl-paste`) is looked up on PATH and nowhere else. tesseract earns
+--- `wl-paste`) is looked up on PATH and nowhere else. tesseract earns
 --- the exception because its Windows installer earns it: the UB-Mannheim build
 --- named in `docs/install.json` leaves "Add to PATH" unticked, so on Windows
 --- "installed" and "reachable" routinely come apart, and the failure looks

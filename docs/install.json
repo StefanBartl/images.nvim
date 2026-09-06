@@ -47,20 +47,6 @@
         "scoop": "poppler",
         "choco": "poppler"
       }
-    },
-    {
-      "bin": "chafa",
-      "required": false,
-      "why": "Renders images inline in terminals without a native image protocol (Kitty graphics / iTerm2), as a fallback for the ASCII/terminal preview.",
-      "pkg": {
-        "apt": "chafa",
-        "dnf": "chafa",
-        "pacman": "chafa",
-        "zypper": "chafa",
-        "apk": "chafa",
-        "brew": "chafa",
-        "scoop": "chafa"
-      }
     }
   ]
 }

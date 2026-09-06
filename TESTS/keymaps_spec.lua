@@ -3,10 +3,11 @@
 -- a resolved ImagesNvim.Config per case would be noise, not coverage.
 -- TESTS/keymaps_spec.lua — which-key grouping of the `<leader>i` prefix.
 --
--- which-key itself is not needed: `images.bindings.which_key` only asks for it
--- via `pcall(require, "which-key")`, and `package.loaded` can be primed with a
--- fake. Tested through the public interface (`keymaps.register`) rather than an
--- exposed internal — the same approach as the rest of this repo's specs.
+-- which-key itself is not needed: the registration goes through
+-- `lib.nvim.bindings.keymap`, which only asks for it via `pcall(require,
+-- "which-key")`, and `package.loaded` can be primed with a fake. Tested
+-- through the public interface (`keymaps.register`) rather than an exposed
+-- internal — the same approach as the rest of this repo's specs.
 
 ---@param H table harness from TESTS/run.lua
 return function(H)
@@ -25,7 +26,6 @@ return function(H)
 
   local function reset()
     package.loaded["which-key"] = nil
-    package.loaded["images.bindings.which_key"] = nil
   end
 
   -- ── A common prefix is registered as a group ─────────────────────────────
@@ -94,7 +94,6 @@ return function(H)
 
   -- ── Without which-key: no error ──────────────────────────────────────────
   package.loaded["which-key"] = nil
-  package.loaded["images.bindings.which_key"] = nil
   local ok = pcall(keymaps.register, {
     keymaps = {
       show = "<leader>im",
