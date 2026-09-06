@@ -167,8 +167,8 @@ Calling |images.setup()| is optional when using `opts`.
                         in-place instead of pasting a new file and link.
 
 :Image export [{path}]  Export {path} — or the image under the cursor — as a
-                        PDF next to the source file (`bild.png` ->
-                        `bild.pdf`), overwriting an existing PDF of the same
+                        PDF next to the source file (`photo.png` ->
+                        `photo.pdf`), overwriting an existing PDF of the same
                         name without asking. With pdfport.nvim installed it
                         routes through that instead — asynchronous, and
                         lossless via `img2pdf` when available. Without it,
@@ -714,9 +714,10 @@ images.replace({path})                                      *images.replace()*
 
 images.export({path})                                        *images.export()*
                 Export {path} — or the image under the cursor when nil — as a
-                PDF next to the source file. Returns `true` on success,
-                `false` (with a notification) if ImageMagick is missing or
-                the export failed.
+                PDF next to the source file. Returns `true` when the export
+                was started; the result (success or failure, including a
+                missing ImageMagick/pdfport.nvim) arrives asynchronously via
+                notify. `false` only when no image was found at all.
 
 images.redact({path})                                        *images.redact()*
                 Open {path} — or the image under the cursor when nil — in

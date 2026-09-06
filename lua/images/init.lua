@@ -387,7 +387,7 @@ function M.replace(path)
 end
 
 --- Export an image as a PDF next to the source file — the opposite direction of
---- pdfport.s "PDF page as an image" (still open there). Runs through pdfport.nvim (losslessly via img2pdf) when
+--- pdfport.nvim's "PDF page as an image" (still open there). Runs through pdfport.nvim (losslessly via img2pdf) when
 --- installed and available; otherwise through `magick` — both paths
 --- asynchronous, see `images.convert.to_pdf`.
 ---@param path string|nil nil = the image under the cursor

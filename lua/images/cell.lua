@@ -73,7 +73,7 @@ function M.default()
   return assumption()
 end
 
---- Write the effective ratio into `images.scale.CELL_ASPECT`, where all four
+--- Write the effective ratio into `images.scale.CELL_ASPECT`, where all six
 --- callers of `fit_cells` already read it.
 ---@return number applied
 function M.apply()
