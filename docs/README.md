@@ -35,3 +35,9 @@ converters, the OCR, the PDF rasterizer — machine-readably, for
 [FEATURES/CAPTURE.md](FEATURES/CAPTURE.md).
 
 **`doc/images.txt`** is the same material as Vim help: `:help images`.
+
+## Working on it
+
+| Page | Answers |
+| --- | --- |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Ground rules, project layout, local commands, and how to add a command |
