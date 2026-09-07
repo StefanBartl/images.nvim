@@ -123,6 +123,9 @@ return function(H)
     local gopath_resolve = require("gopath.resolve")
     local original_resolve_at_cursor = gopath_resolve.resolve_at_cursor
     local called = false
+    -- Spying on gopath's own function for this one assertion, not a
+    -- redefinition -- restored below.
+    ---@diagnostic disable-next-line: duplicate-set-field
     gopath_resolve.resolve_at_cursor = function(...)
       called = true
       return original_resolve_at_cursor(...)
