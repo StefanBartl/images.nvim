@@ -233,6 +233,49 @@ local function check_lib_deps()
   deps_health.report_for("images.nvim")
 end
 
+---@internal
+--- The cell geometry block graphics draw with, and a sample of each so the
+--- terminal can answer for itself.
+---
+--- **The one question here that cannot be answered in code.** Whether a
+--- terminal draws sextants is not discoverable from inside Neovim: there is no
+--- capability query for "does this font, or this terminal's own block-glyph
+--- renderer, cover U+1FB00". WezTerm, Kitty, foot and Windows Terminal draw
+--- the Symbols for Legacy Computing block themselves and always have them; a
+--- terminal that falls through to the font may not. So this prints a row of
+--- each and lets the reader look: solid shapes mean it works, replacement
+--- boxes mean it does not, and `cells = "quadrant"` is the answer that always
+--- draws.
+---@return nil
+local function check_blocks()
+  local ok, blocks = pcall(require, "images.blocks")
+  if not ok then return end
+  vim.health.start("images.nvim: block graphics")
+
+  local geo = blocks.geometry()
+  vim.health.info(
+    ("cell geometry: %s (%dx%d sub-pixels per cell) -- `display.ascii_fallback.cells`"):format(geo.name, geo.cols, geo.rows)
+  )
+
+  ---@param chars string[]|nil
+  ---@return string
+  local function sample(chars)
+    if not chars then return blocks.BLOCK:rep(16) end
+    local out = {}
+    for i = 1, math.min(#chars, 24) do
+      out[#out + 1] = chars[i]
+    end
+    return table.concat(out)
+  end
+
+  vim.health.info("half      " .. sample(nil) .. "   (Unicode 1.1)")
+  vim.health.info("quadrant  " .. sample(blocks.GEOMETRIES.quadrant.chars) .. "   (Unicode 1.1)")
+  vim.health.info("sextant   " .. sample(blocks.GEOMETRIES.sextant.chars) .. "   (Unicode 13)")
+  vim.health.info(
+    "If a row above shows boxes rather than shapes, this terminal cannot draw that geometry -- set `display.ascii_fallback.cells` to one that renders."
+  )
+end
+
 ---@return nil
 function M.check()
   vim.health.start("images.nvim")
@@ -241,6 +284,7 @@ function M.check()
   check_clipboard()
   check_screenshot()
   check_imagemagick()
+  check_blocks()
   check_ocr()
   check_pdf()
   check_deps()

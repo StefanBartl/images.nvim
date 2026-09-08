@@ -95,6 +95,27 @@ return {
       -- half block's group is a *pair* -- measured worst case, 24 frames of
       -- pure noise at 60x24 cells, is 811 groups. See images.blocks.
       levels = 8,
+      -- How finely a cell is divided: "sextant" (2x3), "quadrant" (2x2) or
+      -- "half" (1x2, what this drew before 2026-09-08).
+      --
+      -- **What a finer geometry buys is shape, not colour.** A cell carries
+      -- two colours whatever character is in it -- that is the terminal, not
+      -- the drawing. A half block can only say "top" and "bottom", so a
+      -- diagonal edge inside a cell is lost; a sextant divides the same cell
+      -- into six and the edge survives. Measured on one 113x32 frame,
+      -- counting cells that hold any detail: 1 209 half, 2 108 quadrant,
+      -- 2 328 sextant. Finding two colours among six sub-pixels costs 5.9 ms
+      -- for a whole 24-frame window, so this is very nearly free.
+      --
+      -- Sextants are Unicode 13 (2020), in the "Symbols for Legacy
+      -- Computing" block -- WezTerm, Kitty, foot and Windows Terminal draw
+      -- those themselves rather than looking them up in a font. A terminal
+      -- that does neither shows replacement boxes, and "quadrant" is the
+      -- answer to that: Unicode 1.1, present everywhere, and still twice the
+      -- horizontal resolution of a half block. `:checkhealth images` prints a
+      -- row of each, so the question can be settled by looking rather than by
+      -- guessing.
+      cells = "sextant",
     },
     -- Soft dependency, opt-out: when the cursor sits over a plain filesystem
     -- path rather than a Markdown link (e.g. `docs/assets/screenshot.png`
