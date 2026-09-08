@@ -53,6 +53,7 @@ require("images").setup({
     },
     ascii_fallback = {
       enabled = true,
+      levels = 16,
     },
     gopath_fallback = true,
   },
@@ -170,6 +171,11 @@ to write one.
 | Key | Default | What it does |
 | --- | --- | --- |
 | `enabled` | `true` | Draw coloured block graphics when the terminal check fails, instead of a silently ineffective OSC 1337 sequence. Needs ImageMagick. `false` restores the older silent-no-op-with-a-warning behaviour |
+| `levels` | `16` | Steps per colour channel. **Not a quality knob.** Every distinct colour becomes a highlight group; Neovim stops at 19 602 of them (measured 2026-09-08) and never frees one, so an unquantised cell grid ends a long session's colouring for good. 16 caps the count at `16³ = 4096`, a fifth of the ceiling. Raising it raises that cap cubically |
+
+Both live in `images.blocks`, which is also what draws a frame sequence — the
+sampling (one ImageMagick process for however many images) and the painting
+(highlights only, never the buffer text) are shared with it.
 
 ## paste
 
