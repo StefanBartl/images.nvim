@@ -243,6 +243,58 @@ return function(H)
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 
+  -- ---------- prepare ----------
+
+  -- **The frame-rate contract, and it is invisible headless.**
+  -- `nvim_set_hl` invalidates the whole screen, so a group created from
+  -- inside a paint costs a full redraw. Measured on real footage: 10 to 476
+  -- new pairs per second, never settling. `prepare` moves all of them to the
+  -- sampling, which happens once per window and a second ahead of need -- so
+  -- what this asserts is that a paint after `prepare` creates *nothing*.
+  do
+    for _, name in ipairs({ "half", "sextant" }) do
+      with_cells(name, function()
+        local cols, rows = 12, 4
+        local geo = blocks.GEOMETRIES[name]
+        local frames = 3
+        math.randomseed(20260908)
+        local parts = {}
+        for _ = 1, frames * blocks.frame_bytes(cols, rows, geo) / 3 do
+          parts[#parts + 1] = string.char(math.random(0, 255), math.random(0, 255), math.random(0, 255))
+        end
+        local raw = table.concat(parts)
+
+        local created = blocks.prepare(raw, cols, rows)
+        ok(created > 0, "prepare: creates the groups the payload needs (" .. name .. ")")
+
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, blocks.canvas_lines(cols, rows))
+        vim.bo[buf].modifiable = false
+        local ns = vim.api.nvim_create_namespace("prep_" .. name)
+
+        local before = blocks.groups_created()
+        for frame = 1, frames do
+          ok(blocks.paint(buf, ns, raw, frame, cols, rows), "prepare: frame " .. frame .. " paints (" .. name .. ")")
+        end
+        eq(
+          blocks.groups_created(),
+          before,
+          "prepare: painting creates no group afterwards, so no frame forces a redraw (" .. name .. ")"
+        )
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end)
+    end
+
+    -- Running it twice must not double-count: the cache is the point.
+    with_cells("sextant", function()
+      local cols, rows = 8, 3
+      local geo = blocks.GEOMETRIES.sextant
+      local raw = string.char(10, 200, 90):rep(blocks.frame_bytes(cols, rows, geo) / 3)
+      blocks.prepare(raw, cols, rows)
+      eq(blocks.prepare(raw, cols, rows), 0, "prepare: a payload already prepared adds nothing")
+    end)
+  end
+
   -- ---------- the bound ----------
 
   do

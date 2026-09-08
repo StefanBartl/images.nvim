@@ -197,7 +197,27 @@ Measured on one 113x32-cell frame, counting cells that hold any detail at all:
 
 Finding two colours among six sub-pixels means clustering them, which sounds
 expensive and is not: **5.9 ms for a whole 24-frame window** in LuaJIT, against
-a paint that costs 8 ms per frame either way. `octant` (2x4, Unicode 16) is
+a paint that costs 8 ms per frame either way.
+
+### Why the groups are created before anything is painted
+
+`nvim_set_hl` marks the **whole screen** invalid — Neovim cannot know which
+windows a redefined group appears in, so it redraws everything. Creating groups
+lazily from inside a paint therefore costs one full screen redraw per new
+colour pair, and a frame of real footage introduces plenty: measured over eight
+seconds at 113x32 cells, **10 to 476 new pairs per second**, never settling,
+because every rolled window brings new material.
+
+Headless that is invisible — nothing redraws, and the paint measures 8 ms. In a
+terminal it was reported as **1-2 frames per second**, which is what dozens of
+full redraws per frame look like.
+
+So `blocks.prepare(raw, cols, rows)` walks a whole payload and creates every
+group it will need, and callers run it once per decoded window — at the
+sampling, which already happens a second ahead of when the frames are needed.
+The invalidations then collapse into the one redraw that window was going to
+cause anyway, and no painted frame creates a group at all. The spec asserts
+exactly that: after `prepare`, painting every frame adds zero groups. `octant` (2x4, Unicode 16) is
 deliberately not offered — it measured only marginally better than sextants
 (2 421 detailed cells) and a terminal without it draws 256 replacement boxes.
 
