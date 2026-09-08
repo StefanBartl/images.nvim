@@ -495,6 +495,78 @@ local function paint_half(buf, ns, raw, base, cols, rows, levels)
 end
 
 ---@internal
+--- The two colours one cell reduces to, and which sub-pixels took the brighter
+--- of them.
+---
+--- **Shared, because `prepare` and `paint_cells` must agree exactly.** They
+--- compute the same pairs for the same payload -- one to create the highlight
+--- groups ahead of time, the other to look them up -- and a copy of this
+--- arithmetic in each is a way for a paint to miss the cache and create a
+--- group mid-frame, which is the full-screen redraw `prepare` exists to avoid.
+---
+--- Split at the midpoint of the cell's own luminance range: the cheap form of
+--- what chafa does, and on a six-pixel cell the difference is not visible. A
+--- flat cell collapses into one cluster, both colours come out the same, and
+--- the pattern stops mattering -- correct, and needing no special case.
+---@param raw string
+---@param origin integer byte offset of the cell's first sub-pixel
+---@param sx integer
+---@param sy integer
+---@param span integer bytes in one sub-pixel row of the whole canvas
+---@param levels integer
+---@return string fg, string bg, integer pattern
+local function cell_colours(raw, origin, sx, sy, span, levels)
+  local byte, format, floor = string.byte, string.format, math.floor
+
+  local lmin, lmax = 1e9, -1e9
+  for j = 0, sy - 1 do
+    local o = origin + j * span
+    for i = 0, sx - 1 do
+      local p = o + i * BPP + 1
+      local r, g, b = byte(raw, p, p + 2)
+      local lum = r * 77 + g * 150 + b * 29
+      if lum < lmin then lmin = lum end
+      if lum > lmax then lmax = lum end
+    end
+  end
+
+  local mid = (lmin + lmax) * 0.5
+  local hr, hg, hb, hn = 0, 0, 0, 0
+  local lr, lg, lb, ln = 0, 0, 0, 0
+  local pattern = 0
+  for j = 0, sy - 1 do
+    local o = origin + j * span
+    for i = 0, sx - 1 do
+      local p = o + i * BPP + 1
+      local r, g, b = byte(raw, p, p + 2)
+      if r * 77 + g * 150 + b * 29 >= mid then
+        hr, hg, hb, hn = hr + r, hg + g, hb + b, hn + 1
+        pattern = pattern + 2 ^ (j * sx + i)
+      else
+        lr, lg, lb, ln = lr + r, lg + g, lb + b, ln + 1
+      end
+    end
+  end
+  if hn == 0 then
+    hr, hg, hb, hn = lr, lg, lb, ln
+  end
+  if ln == 0 then
+    lr, lg, lb, ln = hr, hg, hb, hn
+  end
+
+  -- Floored before quantising: `quantise` indexes a step table and a
+  -- fractional channel would land between two of them.
+  return format(
+    "%02x%02x%02x",
+    quantise(floor(hr / hn), levels),
+    quantise(floor(hg / hn), levels),
+    quantise(floor(hb / hn), levels)
+  ),
+    format("%02x%02x%02x", quantise(floor(lr / ln), levels), quantise(floor(lg / ln), levels), quantise(floor(lb / ln), levels)),
+    pattern
+end
+
+---@internal
 --- Paint one frame with a geometry finer than a half block.
 ---
 --- **The two colours are found, not given.** A cell can hold two, and a
@@ -526,7 +598,7 @@ end
 ---@param geo Images.Blocks.Geometry
 ---@return boolean ok
 local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
-  local byte, format, concat, floor = string.byte, string.format, table.concat, math.floor
+  local concat = table.concat
   local sx, sy, chars = geo.cols, geo.rows, geo.chars
   local span = cols * sx * BPP -- one sub-pixel row of the whole canvas
 
@@ -542,63 +614,8 @@ local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
 
     for col = 0, cols - 1 do
       local origin = base + (row * sy) * span + col * sx * BPP
+      local fg, bg, pattern = cell_colours(raw, origin, sx, sy, span, levels)
 
-      -- Pass one: the luminance range of this cell.
-      local lmin, lmax = 1e9, -1e9
-      for j = 0, sy - 1 do
-        local o = origin + j * span
-        for i = 0, sx - 1 do
-          local p = o + i * BPP + 1
-          local r, g, b = byte(raw, p, p + 2)
-          local lum = r * 77 + g * 150 + b * 29
-          if lum < lmin then lmin = lum end
-          if lum > lmax then lmax = lum end
-        end
-      end
-
-      -- Pass two: split there, average each side, and record the pattern.
-      local mid = (lmin + lmax) * 0.5
-      local hr, hg, hb, hn = 0, 0, 0, 0
-      local lr, lg, lb, ln = 0, 0, 0, 0
-      local pattern = 0
-      for j = 0, sy - 1 do
-        local o = origin + j * span
-        for i = 0, sx - 1 do
-          local p = o + i * BPP + 1
-          local r, g, b = byte(raw, p, p + 2)
-          if r * 77 + g * 150 + b * 29 >= mid then
-            hr, hg, hb, hn = hr + r, hg + g, hb + b, hn + 1
-            pattern = pattern + 2 ^ (j * sx + i)
-          else
-            lr, lg, lb, ln = lr + r, lg + g, lb + b, ln + 1
-          end
-        end
-      end
-      if hn == 0 then
-        hr, hg, hb, hn = lr, lg, lb, ln
-      end
-      if ln == 0 then
-        lr, lg, lb, ln = hr, hg, hb, hn
-      end
-
-      -- Floored before quantising: `quantise` indexes a step table and a
-      -- fractional channel would land between two of them.
-      local fg = format(
-        "%02x%02x%02x",
-        quantise(floor(hr / hn), levels),
-        quantise(floor(hg / hn), levels),
-        quantise(floor(hb / hn), levels)
-      )
-      local bg = format(
-        "%02x%02x%02x",
-        quantise(floor(lr / ln), levels),
-        quantise(floor(lg / ln), levels),
-        quantise(floor(lb / ln), levels)
-      )
-
-      -- `sx * sy` bits, so the pattern cannot exceed the table -- the `or`
-      -- is there because a hand-written geometry with a short table would
-      -- otherwise concatenate nil and take the whole redraw down.
       local char = chars[pattern + 1] or "█"
       pieces[#pieces + 1] = char
       at = at + #char
@@ -639,6 +656,77 @@ local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
     end
   end
   return true
+end
+
+--- Create every highlight group a payload will need, before a single frame is
+--- painted.
+---
+--- **This is a frame-rate fix, and the mechanism is not obvious.**
+--- `nvim_set_hl` marks the whole screen invalid — Neovim has no way to know
+--- which windows a redefined group appears in, so it redraws everything.
+--- Creating groups lazily, from inside the paint, therefore costs one full
+--- screen redraw per *new colour pair*, and a painted frame introduces plenty:
+--- measured over eight seconds of real footage at 113x32 cells, between 10 and
+--- 476 new groups per second, never settling, because every rolled window
+--- brings new material. Headless that is invisible (nothing redraws) and the
+--- paint measures 8 ms; in a terminal a reader reported **1-2 frames per
+--- second**, which is what dozens of full redraws per frame look like.
+---
+--- Called once per decoded window, the same place and cadence the sampling
+--- already runs at, the invalidations collapse into the one redraw that window
+--- was going to cause anyway — and the paint itself then only ever looks
+--- groups up.
+---
+--- Cheap enough to be unconditional: it is the clustering pass again, measured
+--- at 5.9 ms for a 24-frame window, against a second of lead time the caller
+--- already has.
+---@param raw string the whole payload, every frame
+---@param cols integer
+---@param rows integer
+---@param levels integer|nil
+---@param geo Images.Blocks.Geometry|nil
+---@return integer created  # groups this call added, for tests and health
+function M.prepare(raw, cols, rows, levels, geo)
+  levels = levels or M.DEFAULT_LEVELS
+  geo = geo or M.geometry()
+  local before = created
+  local stride = M.frame_bytes(cols, rows, geo)
+  local frames = math.floor(#raw / stride)
+  local byte, format, floor = string.byte, string.format, math.floor
+  local sx, sy = geo.cols, geo.rows
+  local span = cols * sx * BPP
+
+  for frame = 0, frames - 1 do
+    local base = frame * stride
+    for row = 0, rows - 1 do
+      for col = 0, cols - 1 do
+        local origin = base + (row * sy) * span + col * sx * BPP
+        if geo.chars then
+          local fg, bg = cell_colours(raw, origin, sx, sy, span, levels)
+          hl_group(fg, bg)
+        else
+          local u = origin + 1
+          local l = origin + span + 1
+          hl_group(
+            format(
+              "%02x%02x%02x",
+              quantise(byte(raw, u), levels),
+              quantise(byte(raw, u + 1), levels),
+              quantise(byte(raw, u + 2), levels)
+            ),
+            format(
+              "%02x%02x%02x",
+              quantise(byte(raw, l), levels),
+              quantise(byte(raw, l + 1), levels),
+              quantise(byte(raw, l + 2), levels)
+            )
+          )
+        end
+      end
+    end
+  end
+  local _ = floor
+  return created - before
 end
 
 --- Paint frame `index` (1-based) of `raw` into `buf`, in namespace `ns`.
