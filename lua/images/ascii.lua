@@ -75,7 +75,10 @@ function M.open(path, display)
 
   local info = require("images.info").collect(path)
   local image_px = (info and info.width and info.height) and { width = info.width, height = info.height } or nil
-  local cols, rows = require("images.scale").fit_cells(display.max_cols, display.max_rows, image_px)
+  -- `blocks.fit_cells`, not `images.scale.fit_cells`: a half block holds two
+  -- pixels, which makes them square, and the other function corrects for a
+  -- cell being twice as tall as it is wide. Using it here halves the picture.
+  local cols, rows = blocks.fit_cells(display.max_cols, display.max_rows, image_px)
 
   local raw, err = blocks.sample({ path }, cols, rows)
   if not raw then return false, err end

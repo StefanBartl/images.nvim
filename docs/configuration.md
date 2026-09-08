@@ -53,7 +53,7 @@ require("images").setup({
     },
     ascii_fallback = {
       enabled = true,
-      levels = 16,
+      levels = 8,
     },
     gopath_fallback = true,
   },
@@ -171,11 +171,17 @@ to write one.
 | Key | Default | What it does |
 | --- | --- | --- |
 | `enabled` | `true` | Draw coloured block graphics when the terminal check fails, instead of a silently ineffective OSC 1337 sequence. Needs ImageMagick. `false` restores the older silent-no-op-with-a-warning behaviour |
-| `levels` | `16` | Steps per colour channel. **Not a quality knob.** Every distinct colour becomes a highlight group; Neovim stops at 19 602 of them (measured 2026-09-08) and never frees one, so an unquantised cell grid ends a long session's colouring for good. 16 caps the count at `16³ = 4096`, a fifth of the ceiling. Raising it raises that cap cubically |
+| `levels` | `8` | Steps per colour channel. **Not a quality knob.** Every distinct colour *pair* becomes a highlight group; Neovim stops at 19 602 of them (measured 2026-09-08) and never frees one. Measured worst case — 24 frames of pure noise at 60x24 cells — is 811 groups at this setting, and a hard budget collapses the palette rather than reaching the ceiling |
 
 Both live in `images.blocks`, which is also what draws a frame sequence — the
 sampling (one ImageMagick process for however many images) and the painting
 (highlights only, never the buffer text) are shared with it.
+
+The cell character is `▀`, not `█`: the upper half block puts the foreground
+colour in the top half of the cell and the background colour in the bottom
+half, so one text row carries **two** pixel rows. Same cell count, twice the
+vertical resolution — and it is also what makes the aspect ratio right, since
+two pixels stacked in one cell are square where a single one is not.
 
 ## paste
 

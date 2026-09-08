@@ -23,11 +23,12 @@ return function(H)
     eq(argv[2], "/a.png[0]", "sample_argv: first frame of every input")
     eq(argv[3], "/b.png[0]", "sample_argv: every path is passed to one process")
     local joined = table.concat(argv, " ")
-    ok(joined:find("-resize 40x20!", 1, true) ~= nil, "sample_argv: exact resize, aspect already applied")
+    -- Twice the rows in pixels: one text row is two pixel rows (half block).
+    ok(joined:find("-resize 40x40!", 1, true) ~= nil, "sample_argv: the pixel grid is twice as tall as the cell grid")
     ok(joined:find("-alpha off", 1, true) ~= nil, "sample_argv: no alpha, so 3 bytes per pixel")
     eq(argv[#argv], "RGB:-", "sample_argv: raw bytes on stdout")
 
-    eq(blocks.frame_bytes(40, 20), 40 * 20 * 3, "frame_bytes: three bytes per cell")
+    eq(blocks.frame_bytes(40, 20), 40 * 20 * 2 * 3, "frame_bytes: three bytes per pixel, two pixels per cell")
   end
 
   -- ---------- payload validation ----------
@@ -41,9 +42,9 @@ return function(H)
     -- payload. Silently accepting it paints the previous frame's leftovers.
     raw, err = blocks.read_sampled({ code = 0, stdout = ("x"):rep(10) }, 1, 4, 4)
     eq(raw, nil, "read_sampled: a short payload is an error, not a partial frame")
-    ok(err and err:find("of 48 bytes", 1, true) ~= nil, "read_sampled: says how short")
+    ok(err and err:find("of 96 bytes", 1, true) ~= nil, "read_sampled: says how short")
 
-    local full = ("x"):rep(48)
+    local full = ("x"):rep(96)
     raw, err = blocks.read_sampled({ code = 0, stdout = full }, 1, 4, 4)
     eq(raw, full, "read_sampled: passes a complete payload through")
     eq(err, nil, "read_sampled: no error alongside a payload")
@@ -67,8 +68,8 @@ return function(H)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, blocks.canvas_lines(cols, rows))
 
     -- Two frames: the first all one colour, the second a different one.
-    local frame_a = string.char(255, 0, 0):rep(cols * rows)
-    local frame_b = string.char(0, 0, 255):rep(cols * rows)
+    local frame_a = string.char(255, 0, 0):rep(cols * rows * blocks.ROWS_PER_CELL)
+    local frame_b = string.char(0, 0, 255):rep(cols * rows * blocks.ROWS_PER_CELL)
     local raw = frame_a .. frame_b
 
     local painted, err = blocks.paint(buf, ns, raw, 1, cols, rows)
@@ -109,7 +110,7 @@ return function(H)
     -- for nearly every one of them: 30 frames x 128 cells = 3 840 colours.
     math.randomseed(20260908)
     local parts = {}
-    for _ = 1, 30 * cols * rows do
+    for _ = 1, 30 * cols * rows * blocks.ROWS_PER_CELL do
       parts[#parts + 1] = string.char(math.random(0, 255), math.random(0, 255), math.random(0, 255))
     end
     local raw = table.concat(parts)
@@ -120,10 +121,11 @@ return function(H)
     end
     local created = blocks.groups_created() - before
 
-    -- The guarantee: at `levels` steps per channel there are only `levels^3`
-    -- possible colours, so no number of frames can create more groups than
-    -- that -- regardless of what the pixels were.
-    ok(created <= levels ^ 3, ("paint: %d groups created, bounded by levels^3 = %d"):format(created, levels ^ 3))
+    -- A half block's group is a colour *pair*, so the bound is not `levels^3`
+    -- but the pairs that actually occur. What has to hold is that pure noise
+    -- -- the worst input there is -- stays far below Neovim's own ceiling of
+    -- 19 602, which `GROUP_BUDGET` would catch before it even so.
+    ok(created < 5000, ("paint: %d groups for 30 noise frames, far under the 19602 ceiling"):format(created))
     ok(created > 0, "paint: the bound test actually created groups")
 
     vim.api.nvim_buf_delete(buf, { force = true })
