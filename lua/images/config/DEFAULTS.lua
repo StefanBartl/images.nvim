@@ -90,12 +90,11 @@ return {
     ascii_fallback = {
       enabled = true,
       -- Steps per colour channel. Not a quality knob: every distinct colour
-      -- becomes a highlight group, Neovim stops at 19 602 of them (measured
-      -- 2026-09-08) and they cannot be freed, so an unquantised cell grid
-      -- ends a long session's colouring for good. 16 caps the count at 4 096
-      -- -- a fifth of the ceiling -- and at cell resolution the banding is
-      -- not what anybody notices. See images.blocks.
-      levels = 16,
+      -- pair becomes a highlight group, Neovim stops at 19 602 of them
+      -- (measured 2026-09-08) and they cannot be freed. Eight, because a
+      -- half block's group is a *pair* -- measured worst case, 24 frames of
+      -- pure noise at 60x24 cells, is 811 groups. See images.blocks.
+      levels = 8,
     },
     -- Soft dependency, opt-out: when the cursor sits over a plain filesystem
     -- path rather than a Markdown link (e.g. `docs/assets/screenshot.png`

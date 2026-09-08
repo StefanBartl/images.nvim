@@ -32,22 +32,43 @@
 
 local M = {}
 
---- The cell character. One "█" per cell, coloured by its own highlight group —
---- truecolour block graphics as chafa and viu draw them, rather than a
---- brightness ramp (" .:-=+*#%@").
-M.BLOCK = "█"
+--- The cell character. **"▀", not "█"**: the upper half block carries the
+--- foreground colour in its top half and the background colour in its bottom
+--- half, so one text row shows *two* pixel rows. Same cell count, twice the
+--- vertical resolution, and it is what chafa and viu draw with for exactly
+--- this reason. A full block wastes half of every cell.
+M.BLOCK = "▀"
+
+--- Pixel rows one text row carries. The consequence of the half block, and
+--- the number every size calculation here has to know about.
+M.ROWS_PER_CELL = 2
 
 --- Bytes per cell in the sampled payload: R, G, B with alpha turned off.
 local BPP = 3
 
---- Steps per channel when a caller names none. See the module doc for why this
---- is a ceiling question rather than a quality one.
-M.DEFAULT_LEVELS = 16
+--- Steps per channel when a caller names none.
+---
+--- Eight rather than sixteen, because a half block's highlight group is a
+--- *pair* of colours: the group count is bounded by the pairs that actually
+--- occur, not by `levels³`. Measured on 24 frames of pure noise at 60x24
+--- cells: 811 groups at 8 levels, and 5.4 ms to paint a frame. Real footage
+--- repeats colours far more than noise does, so this is the pessimistic end.
+M.DEFAULT_LEVELS = 8
 
---- Quantised hex -> highlight group, for the session. Bounded by `levels³`,
---- which is what keeps this from being a leak.
+--- Stop creating new groups here. Neovim's own ceiling is 19 602 (measured
+--- 2026-09-08) and groups cannot be freed, so running into it would end the
+--- session's colouring for everything, not just this. Past the budget the
+--- palette collapses to 2 steps per channel — visibly worse, still drawing,
+--- and impossible to walk into by accident since it needs thousands of
+--- distinct colour pairs first.
+local GROUP_BUDGET = 15000
+
+--- Quantised colour pair -> highlight group, for the session.
 ---@type table<string, string>
 local hl_cache = {}
+
+--- How many groups this module has created. Watched against `GROUP_BUDGET`.
+local created = 0
 
 --- Whether ImageMagick is available — this module's only prerequisite.
 ---@return boolean
@@ -67,16 +88,41 @@ local function quantise(value, levels)
   return math.floor(step * 255 / (levels - 1) + 0.5)
 end
 
---- The highlight group for one quantised colour, created on first use.
----@param hex string six hex digits, no leading "#"
+--- The highlight group for one cell: `fg` is its upper pixel, `bg` its lower
+--- one. Created on first use and kept for the session.
+---@param fg string six hex digits, no leading "#"
+---@param bg string six hex digits, no leading "#"
 ---@return string group
-local function hl_group(hex)
-  local group = hl_cache[hex]
-  if not group then
-    group = "ImagesBlock_" .. hex
-    vim.api.nvim_set_hl(0, group, { fg = "#" .. hex })
-    hl_cache[hex] = group
+local function hl_group(fg, bg)
+  local key = fg .. bg
+  local group = hl_cache[key]
+  if group then return group end
+
+  if created >= GROUP_BUDGET then
+    -- The budget is spent. Collapse to a palette so coarse that it cannot
+    -- keep growing, rather than walking into E849 and taking every other
+    -- plugin's highlights down with it.
+    local function coarse(hex)
+      local r = math.floor(tonumber(hex:sub(1, 2), 16) / 128) * 255
+      local g = math.floor(tonumber(hex:sub(3, 4), 16) / 128) * 255
+      local b = math.floor(tonumber(hex:sub(5, 6), 16) / 128) * 255
+      return ("%02x%02x%02x"):format(r, g, b)
+    end
+    fg, bg = coarse(fg), coarse(bg)
+    key = fg .. bg
+    group = hl_cache[key]
+    if group then return group end
   end
+
+  group = "ImagesBlock_" .. key
+  local ok = pcall(vim.api.nvim_set_hl, 0, group, { fg = "#" .. fg, bg = "#" .. bg })
+  if not ok then
+    -- E849 after all (another plugin spent the rest of the ceiling). Draw in
+    -- whatever is already defined rather than erroring out of a redraw.
+    return next(hl_cache) and hl_cache[next(hl_cache)] or "Normal"
+  end
+  hl_cache[key] = group
+  created = created + 1
   return group
 end
 
@@ -84,7 +130,30 @@ end
 --- and tests: the whole point of quantising is that this number stops growing.
 ---@return integer
 function M.groups_created()
-  return vim.tbl_count(hl_cache)
+  return created
+end
+
+--- Cell size for an image inside a `max_cols` x `max_rows` box.
+---
+--- Not `images.scale.fit_cells`: that one assumes a cell holds *one* pixel and
+--- corrects for a cell being about twice as tall as it is wide. A half block
+--- puts two pixels in a cell, which makes those pixels square — so the fit is
+--- a plain aspect fit against a `cols` x `rows * 2` pixel grid. Using the
+--- other one here squashes every picture vertically by half.
+---@param max_cols integer
+---@param max_rows integer
+---@param px { width: integer, height: integer }|nil
+---@return integer cols, integer rows
+function M.fit_cells(max_cols, max_rows, px)
+  if not (px and px.width and px.height and px.width > 0 and px.height > 0) then return max_cols, max_rows end
+  local aspect = px.width / px.height
+  local rows = max_rows
+  local cols = math.floor(rows * M.ROWS_PER_CELL * aspect)
+  if cols > max_cols then
+    cols = max_cols
+    rows = math.floor(cols / aspect / M.ROWS_PER_CELL)
+  end
+  return math.max(1, cols), math.max(1, rows)
 end
 
 --- The `magick` argv that samples `paths` down to `cols`x`rows` cells each.
@@ -97,6 +166,9 @@ end
 ---@param cols integer
 ---@param rows integer
 ---@return string[] argv
+---
+--- `rows` is in **cells**; the pixel grid asked of ImageMagick is twice as
+--- tall, because of the half block.
 function M.sample_argv(paths, cols, rows)
   local argv = { "magick" }
   for _, path in ipairs(paths) do
@@ -105,7 +177,7 @@ function M.sample_argv(paths, cols, rows)
     argv[#argv + 1] = path .. "[0]"
   end
   argv[#argv + 1] = "-resize"
-  argv[#argv + 1] = cols .. "x" .. rows .. "!"
+  argv[#argv + 1] = cols .. "x" .. (rows * M.ROWS_PER_CELL) .. "!"
   -- A fixed 3 bytes per pixel: no alpha case when reading back.
   argv[#argv + 1] = "-alpha"
   argv[#argv + 1] = "off"
@@ -120,7 +192,7 @@ end
 ---@param rows integer
 ---@return integer
 function M.frame_bytes(cols, rows)
-  return cols * rows * BPP
+  return cols * rows * M.ROWS_PER_CELL * BPP
 end
 
 --- Sample every path in `paths` to `cols`x`rows` cells, in **one** ImageMagick
@@ -197,9 +269,12 @@ end
 ---
 --- The buffer's lines must already be `canvas_lines(cols, rows)` — this only
 --- ever touches highlights, which is what makes repainting cheap enough to do
---- on a timer. Adjacent cells of the same quantised colour share one extmark;
---- on flat material that is most of a row, on noisy material it changes
---- nothing, and it never costs more than the naive form.
+--- on a timer. Adjacent cells of the same colour *pair* share one extmark; on
+--- flat material that is most of a row, on noisy material it changes nothing,
+--- and it never costs more than the naive form.
+---
+--- One text row is two pixel rows: the row's upper pixels become the cells'
+--- foreground and the lower ones their background, which is what `▀` draws.
 ---@param buf integer
 ---@param ns integer
 ---@param raw string
@@ -222,29 +297,39 @@ function M.paint(buf, ns, raw, index, cols, rows, levels)
 
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for row = 0, rows - 1 do
-    local run_start, run_hex = 0, nil
+    local upper = base + (row * M.ROWS_PER_CELL) * cols * BPP
+    local lower = upper + cols * BPP
+    local run_start, run_key, run_fg, run_bg = 0, nil, nil, nil
     for col = 0, cols - 1 do
-      local i = base + (row * cols + col) * BPP + 1
-      local hex = format(
+      local u = upper + col * BPP + 1
+      local l = lower + col * BPP + 1
+      local fg = format(
         "%02x%02x%02x",
-        quantise(byte(raw, i), levels),
-        quantise(byte(raw, i + 1), levels),
-        quantise(byte(raw, i + 2), levels)
+        quantise(byte(raw, u), levels),
+        quantise(byte(raw, u + 1), levels),
+        quantise(byte(raw, u + 2), levels)
       )
-      if hex ~= run_hex then
-        if run_hex then
+      local bg = format(
+        "%02x%02x%02x",
+        quantise(byte(raw, l), levels),
+        quantise(byte(raw, l + 1), levels),
+        quantise(byte(raw, l + 2), levels)
+      )
+      local key = fg .. bg
+      if key ~= run_key then
+        if run_key then
           vim.api.nvim_buf_set_extmark(buf, ns, row, run_start * width, {
             end_col = col * width,
-            hl_group = hl_group(run_hex),
+            hl_group = hl_group(run_fg, run_bg),
           })
         end
-        run_hex, run_start = hex, col
+        run_key, run_fg, run_bg, run_start = key, fg, bg, col
       end
     end
-    if run_hex then
+    if run_key then
       vim.api.nvim_buf_set_extmark(buf, ns, row, run_start * width, {
         end_col = cols * width,
-        hl_group = hl_group(run_hex),
+        hl_group = hl_group(run_fg, run_bg),
       })
     end
   end
