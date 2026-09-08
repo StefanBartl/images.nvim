@@ -602,56 +602,76 @@ local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
   local sx, sy, chars = geo.cols, geo.rows, geo.chars
   local span = cols * sx * BPP -- one sub-pixel row of the whole canvas
 
-  local lines = {}
   ---@type table<integer, table[]>
   local marks = {}
 
   for row = 0, rows - 1 do
-    local pieces, offs = {}, { [0] = 0 }
-    local at = 0
+    local pieces = {}
     local run_start, run_key, run_fg, run_bg = 0, nil, nil, nil
     local row_marks = {}
+
+    ---@param stop integer  # exclusive cell column the run ends at
+    local function close_run(stop)
+      row_marks[#row_marks + 1] = {
+        col = run_start,
+        text = concat(pieces, "", run_start + 1, stop),
+        fg = run_fg,
+        bg = run_bg,
+      }
+    end
 
     for col = 0, cols - 1 do
       local origin = base + (row * sy) * span + col * sx * BPP
       local fg, bg, pattern = cell_colours(raw, origin, sx, sy, span, levels)
 
-      local char = chars[pattern + 1] or "█"
-      pieces[#pieces + 1] = char
-      at = at + #char
-      offs[col + 1] = at
+      pieces[col + 1] = chars[pattern + 1] or "█"
 
       -- A run is broken by a colour change *or* by nothing: unlike the half
       -- block, neighbouring cells with the same pair still need their own
-      -- character, but they can share one extmark.
+      -- character, but they can share one extmark — which now carries the
+      -- characters too, so a run is a piece of the picture rather than a
+      -- colour laid over one.
       local key = fg .. bg
       if key ~= run_key then
-        if run_key then
-          row_marks[#row_marks + 1] = { run_start = offs[run_start], stop = offs[col], fg = run_fg, bg = run_bg }
-        end
+        if run_key then close_run(col) end
         run_key, run_fg, run_bg, run_start = key, fg, bg, col
       end
     end
-    if run_key then row_marks[#row_marks + 1] = { run_start = offs[run_start], stop = offs[cols], fg = run_fg, bg = run_bg } end
+    if run_key then close_run(cols) end
 
-    lines[row + 1] = concat(pieces)
     marks[row] = row_marks
   end
 
-  -- Text first, then highlights: `nvim_buf_set_lines` drops the extmarks in
-  -- the lines it replaces, so painting before writing would paint nothing.
-  local modifiable = vim.bo[buf].modifiable
-  vim.bo[buf].modifiable = true
-  local ok = pcall(vim.api.nvim_buf_set_lines, buf, 0, rows, false, lines)
-  vim.bo[buf].modifiable = modifiable
-  if not ok then return false end
-
+  -- **The frame is virtual text, and that is the frame-rate fix.**
+  --
+  -- This used to write the characters into the buffer with
+  -- `nvim_buf_set_lines` and colour them with extmarks — the only geometry
+  -- that touched the text, because a half block is always `▀` while a sextant
+  -- picks a different glyph per cell per frame. Measured by the reader who
+  -- reported it: switching to half blocks (identical extmark count, identical
+  -- redraw, *no* buffer write) was the difference between 1-2 fps and smooth.
+  --
+  -- A buffer write is not a cheap thing done often. It bumps `changedtick`,
+  -- runs every `on_lines` listener, invalidates the extmarks on the lines it
+  -- replaces — which is why the colours then had to be re-added *after* it —
+  -- and marks every window showing the buffer for a full redraw. Twelve times
+  -- a second, against a canvas the size of the editor.
+  --
+  -- An overlay `virt_text` mark draws the same glyphs at the same place and
+  -- changes nothing about the buffer: `changedtick` does not move, no listener
+  -- fires, and the only invalidation is the namespace this clears itself.
+  -- `virt_text_win_col` counts from the first text column, so a run's cell
+  -- index is its screen column whatever the gutter does.
+  --
+  -- The buffer keeps the filler `canvas_lines` wrote once, and the picture is
+  -- drawn over it.
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for row = 0, rows - 1 do
     for _, mark in ipairs(marks[row]) do
-      vim.api.nvim_buf_set_extmark(buf, ns, row, mark.run_start, {
-        end_col = mark.stop,
-        hl_group = hl_group(mark.fg, mark.bg),
+      vim.api.nvim_buf_set_extmark(buf, ns, row, 0, {
+        virt_text = { { mark.text, hl_group(mark.fg, mark.bg) } },
+        virt_text_pos = "overlay",
+        virt_text_win_col = mark.col,
       })
     end
   end

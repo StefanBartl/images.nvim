@@ -353,4 +353,43 @@ return function(H)
       ok(raw:byte(base + 2) < 128, "sample: frame 2 has little blue")
     end)
   end
+
+  -- ── Painting never writes the buffer ──────────────────────────────────────
+  --
+  -- The frame-rate bug this locks down (2026-09-08): every geometry but the
+  -- half block used to write its glyphs with `nvim_buf_set_lines` once per
+  -- frame. A reader measured the consequence by switching to half blocks --
+  -- same extmark count, same redraw, no buffer write -- and went from 1-2 fps
+  -- to smooth. `changedtick` is that difference in a form a test can hold:
+  -- twelve writes a second bump it, twelve overlays do not.
+  for _, cells in ipairs({ "half", "quadrant", "sextant" }) do
+    require("images").setup({ display = { ascii_fallback = { cells = cells } } })
+    local geo = blocks.geometry()
+
+    local cols, rows, frames = 6, 3, 3
+    local raw = string.rep("\170", frames * blocks.frame_bytes(cols, rows, geo))
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, blocks.canvas_lines(cols, rows))
+    vim.bo[buf].modifiable = false
+    local ns = vim.api.nvim_create_namespace("blocks_spec." .. cells)
+
+    local before = vim.api.nvim_buf_get_changedtick(buf)
+    local text = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    for i = 1, frames do
+      ok(blocks.paint(buf, ns, raw, i, cols, rows), cells .. ": paint reports success")
+    end
+
+    eq(vim.api.nvim_buf_get_changedtick(buf), before, cells .. ": painting leaves the buffer untouched")
+    eq(
+      table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n"),
+      table.concat(text, "\n"),
+      cells .. ": and the canvas text is the one canvas_lines wrote"
+    )
+    ok(#vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}) > 0, cells .. ": the picture is extmarks, and there are some")
+
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end
+
+  require("images").setup({})
 end
