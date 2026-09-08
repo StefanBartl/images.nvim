@@ -54,6 +54,7 @@ require("images").setup({
     ascii_fallback = {
       enabled = true,
       levels = 8,
+      cells = "sextant",
     },
     gopath_fallback = true,
   },
@@ -172,16 +173,46 @@ to write one.
 | --- | --- | --- |
 | `enabled` | `true` | Draw coloured block graphics when the terminal check fails, instead of a silently ineffective OSC 1337 sequence. Needs ImageMagick. `false` restores the older silent-no-op-with-a-warning behaviour |
 | `levels` | `8` | Steps per colour channel. **Not a quality knob.** Every distinct colour *pair* becomes a highlight group; Neovim stops at 19 602 of them (measured 2026-09-08) and never frees one. Measured worst case — 24 frames of pure noise at 60x24 cells — is 811 groups at this setting, and a hard budget collapses the palette rather than reaching the ceiling |
+| `cells` | `"sextant"` | How finely a cell is divided: `"sextant"` (2x3), `"quadrant"` (2x2) or `"half"` (1x2, what this drew before 2026-09-08). **This is the sharpness knob** — see below |
 
-Both live in `images.blocks`, which is also what draws a frame sequence — the
-sampling (one ImageMagick process for however many images) and the painting
-(highlights only, never the buffer text) are shared with it.
+All three live in `images.blocks`, which is also what draws a frame sequence —
+the sampling (one ImageMagick process for however many images) and the
+painting are shared with it.
 
-The cell character is `▀`, not `█`: the upper half block puts the foreground
-colour in the top half of the cell and the background colour in the bottom
-half, so one text row carries **two** pixel rows. Same cell count, twice the
-vertical resolution — and it is also what makes the aspect ratio right, since
-two pixels stacked in one cell are square where a single one is not.
+### What a finer cell buys, and what it cannot
+
+A cell carries exactly **two** colours whatever character is in it. That is a
+property of a terminal, not of the drawing, and no geometry changes it. What a
+finer one buys is *shape*: a half block can only say "top" and "bottom", so a
+diagonal edge inside a cell is lost; a sextant divides the same cell into six
+and the edge survives, even though the two colours do not change.
+
+Measured on one 113x32-cell frame, counting cells that hold any detail at all:
+
+| Geometry | Sub-pixels | Picture | Cells with detail |
+| --- | --- | --- | --- |
+| `half` | 1x2 | 113x64 | 1 209 |
+| `quadrant` | 2x2 | 226x64 | 2 108 |
+| `sextant` | 2x3 | 226x96 | 2 328 |
+
+Finding two colours among six sub-pixels means clustering them, which sounds
+expensive and is not: **5.9 ms for a whole 24-frame window** in LuaJIT, against
+a paint that costs 8 ms per frame either way. `octant` (2x4, Unicode 16) is
+deliberately not offered — it measured only marginally better than sextants
+(2 421 detailed cells) and a terminal without it draws 256 replacement boxes.
+
+Sextants are Unicode 13 (2020), from the "Symbols for Legacy Computing" block.
+WezTerm, Kitty, foot and Windows Terminal draw that block themselves rather
+than looking it up in a font, so they always have it; a terminal that falls
+through to the font may not. **`:checkhealth images` prints a row of each
+geometry** — solid shapes mean it renders, replacement boxes mean it does not,
+and `"quadrant"` (Unicode 1.1, present everywhere) is the answer that always
+draws while still doubling the horizontal resolution of a half block.
+
+With `half`, the cell character is `▀` and the buffer text never changes
+between frames — only highlights do. A finer geometry has to choose a
+character per cell, so it rewrites the line as well; measured at the same 8 ms,
+because the cost was never in writing text.
 
 ## paste
 
