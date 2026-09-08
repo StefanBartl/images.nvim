@@ -54,6 +54,7 @@
 
 ---@class ImagesNvim.AsciiFallbackConfig : ImagesNvim.AsciiFallbackOpts
 ---@field enabled boolean draw block graphics instead of the OSC sequence on an unsupported terminal (needs ImageMagick, see images.ascii)
+---@field levels integer steps per colour channel; caps the highlight groups this can ever create at levels^3 (see images.blocks)
 
 ---@class ImagesNvim.RemoteConfig : ImagesNvim.RemoteOpts
 ---@field enabled boolean load http(s) images; default false (privacy, see images.remote)
@@ -145,6 +146,7 @@
 
 ---@class ImagesNvim.AsciiFallbackOpts
 ---@field enabled? boolean draw block graphics instead of the OSC sequence on an unsupported terminal (needs ImageMagick, see images.ascii)
+---@field levels? integer steps per colour channel (default 16); caps the highlight groups this can ever create at levels^3
 
 ---@class ImagesNvim.RemoteOpts
 ---@field enabled?    boolean load http(s) images; default false (privacy, see images.remote)
