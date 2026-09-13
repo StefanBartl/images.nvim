@@ -222,15 +222,16 @@ local function check_deps()
 end
 
 ---@return nil
----Reports images.nvim's own docs/install.json through lib.nvim.deps -- the same
----tools check_imagemagick()/check_clipboard() already cover, but with the
----declared `why` per tool and a pointer to `:Lib deps show`. Does nothing when
----lib.nvim.deps is absent (an older lib.nvim).
+---Points to `:Lib deps show images.nvim`. Not a per-tool report: magick,
+---tesseract and pdftoppm -- the whole of docs/install.json -- are already
+---covered above by check_imagemagick()/check_ocr()/check_pdf(), with
+---section-specific messages a generic loop would only restate in plainer
+---wording. Does nothing when lib.nvim.deps is absent (an older lib.nvim).
 local function check_lib_deps()
   local ok, deps_health = pcall(require, "lib.nvim.deps.health")
   if not ok then return end
   vim.health.start("images.nvim: declared tools (lib.nvim.deps)")
-  deps_health.report_for("images.nvim")
+  deps_health.pointer_for("images.nvim")
 end
 
 ---@internal
