@@ -1,6 +1,6 @@
 # Installation
 
-## Prerequisites
+## Requirements
 
 - **Neovim 0.10+** — `vim.base64` and API level 14 (`nvim_ui_send`) are both
   used unconditionally.

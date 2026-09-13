@@ -1,19 +1,23 @@
 # images.nvim documentation
 
 What is here, and which question each page answers. [The README](../README.md)
-is the short version of all of it.
+is the short version of all of it; `:help images` is the same ground offline.
 
 ## Getting it running
 
 | Page | Answers |
 | --- | --- |
-| [installation.md](installation.md) | What has to be there first — including which terminals can draw at all — a spec per plugin manager, and what each optional external tool unlocks |
-| [configuration.md](configuration.md) | Every `setup()` option, its default, and what it is for. Including the three placement options, which are one topic rather than three |
+| [installation.md](installation.md) | Requirements — including which terminals can draw at all — a spec per plugin manager, and what each optional external tool unlocks |
+| [quickstart.md](quickstart.md) | The first thing to run after installing, and what to check when nothing appears |
+| [health.md](health.md) | What `:checkhealth images` reports, check by check, and the two narrower probes it cannot replace |
 
 ## Using it
 
 | Page | Answers |
 | --- | --- |
+| [what-you-get.md](what-you-get.md) | The default commands and keymaps that carry most of the daily use |
+| [scope.md](scope.md) | What it does and does not do — the four feature groups, and the four limits the OSC 1337 decision buys |
+| [configuration.md](configuration.md) | Every `setup()` option, its default, and what it is for. Including the three placement options, which are one topic rather than three |
 | [commands.md](commands.md) | Every `:Image` route with its arguments, ranges and examples — the usage, not the one-liner |
 | [BINDINGS.md](BINDINGS.md) | Every keymap, user command and autocommand this plugin registers, one line each |
 | [WORKFLOW.md](WORKFLOW.md) | The different question: not what each command does, but how they combine — pasting a screenshot into a document, keeping the folder tidy, and finding the image you half remember |
