@@ -794,10 +794,11 @@ snacks.nvim     Its picker is used by `:Image pickers`/`:Image compare` for a
                 (not snacks.image's own, which is Kitty-only). Optional —
                 without it, both commands fall back to a plain list.
 
-lib.nvim        Provides the `:Image` command grammar, the picker behind
-                `:Image list`, and `lib.nvim.ui.kit.compare` behind
-                `:Image compare` — a reusable "pick two, view them side by
-                side" component, not images.nvim-specific.
+lib.nvim        Provides the `:Image` command grammar and the picker behind
+                `:Image list`.
+ui.nvim         Provides `ui.kit.compare` behind `:Image compare` — a
+                reusable "pick two, view them side by side" component, not
+                images.nvim-specific.
 
 pickers.nvim    The inverse of `:Image pickers`: pickers.nvim owns the
                 picker, and images.nvim draws the entries that happen to be
