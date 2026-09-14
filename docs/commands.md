@@ -59,7 +59,7 @@ count is computed from the terminal width unless you give one.
 ### `:Image list` · `:'<,'>Image list`
 
 Pick from every image link in the buffer (or the selection) and show the one
-you choose. Uses lib.nvim's UI kit picker when available, else
+you choose. Uses ui.nvim's UI kit picker when available, else
 `vim.ui.select`.
 
 ### `:Image next` · `:Image prev`

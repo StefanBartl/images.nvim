@@ -6,7 +6,7 @@ single buffer or a whole directory tree.
 ## List images in the buffer
 
 Picks from every image link found in the buffer (or a visual range) and
-shows the chosen one. Uses lib.nvim's UI kit picker when available, else
+shows the chosen one. Uses ui.nvim's UI kit picker when available, else
 falls back to `vim.ui.select`.
 
 - **Module:** `images/init.lua` (`M.list`), `images/scan.lua`

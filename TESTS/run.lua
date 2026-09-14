@@ -21,8 +21,10 @@ package.path = table.concat({
   package.path,
 }, ";")
 
--- images.nvim depends on lib.nvim at runtime (notify, usercmd.composer, and
--- optionally the UI kit), so the suite needs it on the runtimepath.
+-- images.nvim depends on lib.nvim at runtime (notify, usercmd.composer), so
+-- the suite needs it on the runtimepath. ui.nvim's UI kit is a separate,
+-- optional dependency (pcall'd in images/init.lua's own `kit()`) that no
+-- spec here exercises for real, so it needs no equivalent resolution block.
 --
 -- A sibling checkout wins over the plugin-manager copy on purpose: the
 -- bootstrap clone under stdpath("data")/lazy is frequently older than the

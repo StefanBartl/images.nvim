@@ -102,9 +102,9 @@ its own keys; see [DISPLAY.md](./DISPLAY.md#hover-overlay--hover-float).
 
 `lib.nvim` provides the `:Image` command grammar via
 `usercmd.composer` (dispatch and `<Tab>` completion come from the same
-spec that generates `docs/BINDINGS.md`), the picker used by `:Image
-list`, and the `kit.compare` component behind `:Image compare`. Without
-lib.nvim's UI kit, pickers fall back to `vim.ui.select`.
+spec that generates `docs/BINDINGS.md`). `ui.nvim` provides the picker
+used by `:Image list` and the `kit.compare` component behind `:Image
+compare`. Without ui.nvim's UI kit, pickers fall back to `vim.ui.select`.
 
 - **Config:** `opts.command` (default `"Image"`)
 

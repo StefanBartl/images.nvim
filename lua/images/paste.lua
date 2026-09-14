@@ -6,7 +6,7 @@
 --- subdirectory) and the markdown link is inserted at the cursor.
 ---
 --- With `paste.ask_alt_text = true`, `M.run` asks for alt text before inserting
---- (through lib.nvim's UI kit when present). Default `false`, so the fast case
+--- (through ui.nvim's UI kit when present). Default `false`, so the fast case
 --- — screenshot, one keypress, done — is not interrupted by a prompt most
 --- invocations do not need.
 ---
@@ -31,11 +31,11 @@ local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
---- lib.nvim's optional UI kit. Without it callers fall back to Neovim's own
+--- ui.nvim's optional UI kit. Without it callers fall back to Neovim's own
 --- primitives — the kit is a convenience, not a prerequisite.
 ---@return table|nil
 local function kit()
-  local ok, k = pcall(require, "lib.nvim.ui.kit")
+  local ok, k = pcall(require, "ui.kit")
   return ok and k or nil
 end
 
