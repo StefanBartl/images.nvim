@@ -3,7 +3,7 @@
 ---@description
 --- images.nvim has no dependency on a menu plugin. It *supplies* a list of
 --- entries in the shape nvzone/menu expects, built with the helpers from
---- `lib.nvim.contextmenu`, and a host — typically the user's own RightMouse
+--- `ui.contextmenu`, and a host — typically the user's own RightMouse
 --- dispatcher — composes them into its own menu, e.g.:
 --- >
 ---   local items = require("images.integrations.menu").items()
@@ -16,7 +16,7 @@
 --- that themselves via notify, exactly as the double-click handler already
 --- does. Opt out via `config.menu.enable`.
 
-local contextmenu = require("lib.nvim.contextmenu")
+local contextmenu = require("ui.contextmenu")
 
 local M = {}
 
@@ -37,7 +37,7 @@ end
 --- not configured, so a host can splice it in with `vim.list_extend` without
 --- further checks.
 ---@param bufnr? integer default: current buffer
----@return Lib.ContextMenu.Item[]
+---@return Ui.ContextMenu.Item[]
 function M.items(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
 
@@ -87,7 +87,7 @@ end
 --- show.
 ---@param label? string submenu label (default "  Images")
 ---@param bufnr? integer
----@return Lib.ContextMenu.Item|nil
+---@return Ui.ContextMenu.Item|nil
 function M.submenu(label, bufnr)
   return contextmenu.submenu(label or "  Images", M.items(bufnr))
 end

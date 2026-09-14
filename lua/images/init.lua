@@ -36,11 +36,11 @@ local function cfg()
   return require("images.config").get()
 end
 
---- lib.nvim's optional UI kit. Without it callers fall back to Neovim's own
+--- ui.nvim's optional UI kit. Without it callers fall back to Neovim's own
 --- primitives — the kit is a convenience, not a prerequisite.
 ---@return table|nil
 local function kit()
-  local ok, k = pcall(require, "lib.nvim.ui.kit")
+  local ok, k = pcall(require, "ui.kit")
   return ok and k or nil
 end
 
@@ -247,7 +247,7 @@ function M.gallery_range(first, last, columns)
   return M.gallery(paths, columns)
 end
 
---- List the buffer's images and pick one to display. Uses lib.nvim's UI kit
+--- List the buffer's images and pick one to display. Uses ui.nvim's UI kit
 --- when present, otherwise `vim.ui.select`.
 ---@param first integer|nil 1-based first line (for `:'<,'>Image list`)
 ---@param last integer|nil 1-based last line

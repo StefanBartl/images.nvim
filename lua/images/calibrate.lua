@@ -253,7 +253,7 @@ local function offer_save(row, col, aspect)
     notify().info("Not saved. For your own setup() spec:\ndisplay = { " .. summary:gsub("\n", ", ") .. " }")
   end
 
-  local ok_confirm, confirm = pcall(require, "lib.nvim.ui.kit.confirm")
+  local ok_confirm, confirm = pcall(require, "ui.kit.confirm")
   if ok_confirm and type(confirm.open) == "function" then
     confirm.open({
       question = "Apply this calibration?\n" .. summary,

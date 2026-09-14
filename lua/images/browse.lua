@@ -232,7 +232,7 @@ local function open_select(root, files)
     if choice then require("images").show(choice) end
   end
 
-  local ok, kit = pcall(require, "lib.nvim.ui.kit")
+  local ok, kit = pcall(require, "ui.kit")
   if ok and kit.select then
     kit.select({ items = files, title = "Images: " .. root, format_item = format_item, on_select = on_pick })
     return

@@ -3,7 +3,7 @@
 ---@description
 --- Unlike `images.show` (a short block below the cursor) this fills nearly the
 --- whole editor. Deliberately an ordinary, editable window plus buffer via
---- `lib.nvim.window.make_scratch` — NOT `lib.nvim.ui.kit.viewer`, which is
+--- `lib.nvim.window.make_scratch` — NOT `ui.kit.viewer`, which is
 --- read-only and closes itself on losing focus. That auto-close behaviour is
 --- precisely what is unwanted here: a snacks hover popup opens its own float
 --- beside or over this one, and a window tied to focus loss would vanish the

@@ -1,7 +1,7 @@
 ---@module 'images.compare'
 ---@brief Compare two images from a scan side by side.
 ---@description
---- A thin adapter over `lib.nvim.ui.kit.compare` (see there for the
+--- A thin adapter over `ui.kit.compare` (see there for the
 --- SEARCH->MARKED->COMPARE flow): this module supplies only the image list
 --- (reused from `images.browse`, no second scanner) and the `render` function
 --- that draws an image into a `surface`'s window geometry — exactly the same
@@ -57,7 +57,7 @@ function M.open(scope, arg)
   local pending_scale = {}
 
   ---@param item string absolute path
-  ---@param surface Lib.UI.Kit.Surface
+  ---@param surface Ui.Kit.Surface
   local function render(item, surface)
     local factor = pending_scale[item]
     if not browse.draw_in_window(item, surface.winid, factor) then pcall(surface.set_title, surface, "(cannot be drawn)") end
@@ -77,7 +77,7 @@ function M.open(scope, arg)
     pending_scale[b] = result.b
   end
 
-  require("lib.nvim.ui.kit").compare({
+  require("ui.kit").compare({
     items = files,
     format_item = format_item,
     render = render,
