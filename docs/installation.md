@@ -12,9 +12,12 @@
   explains why that answer is a guess rather than a query.
 - [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) — **required**.
 - [`ui.nvim`](https://github.com/StefanBartl/ui.nvim) — **optional**. Backs
-  the `:Image list`/`:Image compare` pickers when present; falls back to
-  `vim.ui.select` without it (`images/init.lua`'s own `kit()` pcalls the
-  require).
+  `:Image list`'s picker when present; falls back to `vim.ui.select` without it
+  (`images/init.lua`'s own `kit()` pcalls the require). `:Image compare` has no
+  such fallback — its SEARCH->MARKED->COMPARE flow is `ui.kit.compare`, which
+  nothing else in the plugin reimplements — so without ui.nvim it reports that
+  plainly instead of running (`images.compare` pcalls the require too, just
+  with no alternative behind it).
 - **A clipboard image reader**, for `:Image paste` only: `wl-paste` (Wayland)
   or `xclip` (X11) on Linux, `pngpaste` on macOS (`brew install pngpaste`),
   `powershell.exe` on Windows — that one ships with the system.
