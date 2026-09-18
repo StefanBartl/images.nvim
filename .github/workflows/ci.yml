@@ -25,7 +25,7 @@ jobs:
     # formatting, config merging. Anything that draws needs a terminal with a
     # graphics protocol and cannot be checked headless.
     name: test (${{ matrix.os }})
-    runs-on: ${{{{ matrix.os }}}}
+    runs-on: ${{ matrix.os }}
     strategy:
       # One platform failing must not cancel the others: which of the three
       # broke is the whole information content of this job.
