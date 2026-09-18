@@ -41,6 +41,20 @@ function M.open(scope, arg)
     return
   end
 
+  -- Unlike `:Image list` (`images.browse`, snacks first, `ui.kit.select` or
+  -- `vim.ui.select` after) there is no fallback UI for a side-by-side
+  -- SEARCH->MARKED->COMPARE flow -- `ui.kit.compare` is the only thing that
+  -- draws it. docs/installation.md calls ui.nvim optional for this command
+  -- too, so a missing install has to degrade to a clean message rather than
+  -- the uncaught `module 'ui.kit' not found` error this used to raise.
+  local ok_kit, kit = pcall(require, "ui.kit")
+  if not ok_kit or type(kit.compare) ~= "function" then
+    notify().error(
+      "`:Image compare` needs ui.nvim (optional dependency, not installed) — https://github.com/StefanBartl/ui.nvim"
+    )
+    return
+  end
+
   require("images.guard").check()
 
   ---@param item string absolute path
@@ -77,7 +91,7 @@ function M.open(scope, arg)
     pending_scale[b] = result.b
   end
 
-  require("ui.kit").compare({
+  kit.compare({
     items = files,
     format_item = format_item,
     render = render,

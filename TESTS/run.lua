@@ -23,8 +23,16 @@ package.path = table.concat({
 
 -- images.nvim depends on lib.nvim at runtime (notify, usercmd.composer), so
 -- the suite needs it on the runtimepath. ui.nvim's UI kit is a separate,
--- optional dependency (pcall'd in images/init.lua's own `kit()`) that no
--- spec here exercises for real, so it needs no equivalent resolution block.
+-- optional dependency (pcall'd in images/init.lua's own `kit()`); it
+-- deliberately gets NO equivalent resolution block here, unlike lib.nvim and
+-- gopath.nvim above/below. compare_spec.lua's regression coverage for
+-- `:Image compare` (a hard, non-pcall'd `require("ui.kit")` until it was
+-- found and fixed) depends on `ui.kit` staying unreachable in this process —
+-- adding it to the shared runtimepath would silently stop exercising that
+-- path on every run. menu_spec.lua, the one spec that does want a real
+-- ui.nvim (`ui.contextmenu`, a different module), resolves it on its own,
+-- scoped to that one file's `package.path` only, and restores it before
+-- returning — see that spec's own header for why.
 --
 -- A sibling checkout wins over the plugin-manager copy on purpose: the
 -- bootstrap clone under stdpath("data")/lazy is frequently older than the
@@ -117,6 +125,12 @@ local specs = {
   "testcard_spec.lua",
   "calibration_spec.lua",
   "picker_integration_spec.lua",
+  "guard_spec.lua",
+  "compare_spec.lua",
+  "scan_spec.lua",
+  "menu_spec.lua",
+  "ascii_spec.lua",
+  "cell_spec.lua", -- before blocks_spec.lua: see that spec's own header
   "pdf_spec.lua",
   "pixels_spec.lua",
   "blocks_spec.lua",
