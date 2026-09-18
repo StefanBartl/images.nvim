@@ -73,11 +73,28 @@ return function(H)
 
   -- ── roots: cfile ────────────────────────────────────────────────────────────
   H.tmpdir(function(root)
+    local normkey = require("lib.nvim.fs.normkey")
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, root .. "/doc.md")
     vim.api.nvim_set_current_buf(buf)
     local resolved = browse.roots("cfile", nil)
-    H.eq(resolved, require("images.resolve").normalize_path(root), "cfile resolves to the file's directory")
+    -- Both sides go through normkey, for the same reason as the cwd case
+    -- above. `roots("cfile")` reads the *buffer's* name, and Neovim stores a
+    -- buffer name symlink-resolved on Unix; on macOS `/var` is a symlink to
+    -- `/private/var`, so a buffer named `<tempname()>/doc.md` comes back as
+    -- `/private/var/folders/.../doc.md` while `root` is still the raw
+    -- `tempname()` string -- one directory, two spellings, and the plain
+    -- compare read "/var/folders/..." vs "/private/var/folders/...".
+    --
+    -- Canonicalising both sides keeps the assertion about *which directory*
+    -- cfile resolved to, which is the property under test; the spelling the
+    -- OS hands back for it is not, and the plugin has no say in it anyway.
+    -- Nothing here stores the root or looks it up again -- it is the scan
+    -- root and the display prefix of one picker invocation -- so no key has
+    -- to survive between two spellings. The separator contract of
+    -- `resolve.normalize_path` stays asserted verbatim by the `path` case
+    -- above, whose input never goes past the OS.
+    H.eq(normkey(resolved), normkey(root), "cfile resolves to the file's directory")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end)
 
