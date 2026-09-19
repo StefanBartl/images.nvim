@@ -192,6 +192,22 @@ local BPP = 3
 --- repeats colours far more than noise does, so this is the pessimistic end.
 M.DEFAULT_LEVELS = 8
 
+--- A configured `levels`, made safe to hand to `quantise` (ERR-22): that
+--- function divides by `levels - 1`, so anything that is not a number, or is
+--- a number below 2 (0, a negative step count, or 1 itself — the divide
+--- degenerates to 0/0), falls back to `M.DEFAULT_LEVELS` exactly as an
+--- outright `nil` already did. `levels == levels` rules out NaN, which is
+--- `type() == "number"` but fails every ordered comparison, `quantise`'s
+--- included — same reasoning as `cell.lua`'s `M.aspect`/`anchor.lua`'s
+--- `draw_inset`: an invalid config *value* degrades rather than reaching the
+--- arithmetic as-is.
+---@param levels any
+---@return integer
+local function valid_levels(levels)
+  if type(levels) == "number" and levels == levels and levels >= 2 then return math.floor(levels) end
+  return M.DEFAULT_LEVELS
+end
+
 --- Stop creating new groups here. Neovim's own ceiling is 19 602 (measured
 --- 2026-09-08) and groups cannot be freed, so running into it would end the
 --- session's colouring for everything, not just this. Past the budget the
@@ -707,7 +723,7 @@ end
 ---@param geo Images.Blocks.Geometry|nil
 ---@return integer created  # groups this call added, for tests and health
 function M.prepare(raw, cols, rows, levels, geo)
-  levels = levels or M.DEFAULT_LEVELS
+  levels = valid_levels(levels)
   geo = geo or M.geometry()
   local before = created
   local stride = M.frame_bytes(cols, rows, geo)
@@ -769,7 +785,7 @@ end
 ---@return string|nil err
 function M.paint(buf, ns, raw, index, cols, rows, levels)
   if not vim.api.nvim_buf_is_valid(buf) then return false, "buffer is gone" end
-  levels = levels or M.DEFAULT_LEVELS
+  levels = valid_levels(levels)
   local stride = M.frame_bytes(cols, rows)
   local base = (math.max(1, index) - 1) * stride
   if #raw < base + stride then return false, ("frame %d is past the end of the payload"):format(index) end
