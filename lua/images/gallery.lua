@@ -40,7 +40,13 @@ function M.layout(files, opts)
   columns = math.max(1, math.min(columns, count))
   local rows_needed = math.ceil(count / columns)
 
-  local gap = math.max(0, opts.gap or 1)
+  -- `opts.gap` is `display.gallery_gap` verbatim (see `images.init`'s
+  -- `:Image gallery`): a non-number reaches `math.max` below and throws
+  -- ("bad argument #2 to 'max' (number expected, got ...)"), which
+  -- `opts.gap or 1` does not catch since only `nil`/`false` fall through it —
+  -- an invalid configured value must degrade to the default instead (ERR-22).
+  local configured_gap = (type(opts.gap) == "number" and opts.gap == opts.gap) and opts.gap or 1
+  local gap = math.max(0, configured_gap)
   -- Available area minus the gaps, divided among the tiles.
   local tile_w = math.floor((opts.width - gap * (columns - 1)) / columns)
   local tile_h = math.floor((opts.height - gap * (rows_needed - 1)) / rows_needed)
