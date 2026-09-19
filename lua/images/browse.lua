@@ -107,7 +107,16 @@ M.walk = walk
 ---@return string[] absolute paths, sorted
 function M.scan(root)
   local c = cfg()
-  return walk(root, c.display.browse_exclude, c.extensions)
+  -- `walk` expects a real list for both and does `ipairs` on each without a
+  -- guard of its own (its contract, like `images.scale.fit_cells`'s
+  -- `max_cols`/`max_rows`, is that the caller already validated); a wrong
+  -- shape here — e.g. `extensions = "png"`, a plausible typo for the list —
+  -- would otherwise throw ("bad argument #1 to 'ipairs' (table expected, got
+  -- string)", reproduced) on the very next line instead of degrading to the
+  -- default (ERR-22). The extension list mirrors `config.DEFAULTS.extensions`.
+  local exclude = type(c.display.browse_exclude) == "table" and c.display.browse_exclude or {}
+  local extensions = type(c.extensions) == "table" and c.extensions or { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" }
+  return walk(root, exclude, extensions)
 end
 
 --- Resolve the scope argument to a single root directory.
