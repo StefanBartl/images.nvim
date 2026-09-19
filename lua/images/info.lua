@@ -27,8 +27,13 @@ local M = {}
 --- file changes — and that is exactly what the key captures. `:Image compare`
 --- saves half its calls that way, and any repeated display of the same image
 --- saves all of them.
----@type table<string, Images.Info>
-local cache = {}
+---
+--- A TTL rather than an unbounded table (PERF-42, same reasoning as
+--- `images.pixels`'s twin cache): a key never goes stale on its own, but
+--- nothing ever removed an entry for a file no longer looked at either, so a
+--- long session visiting many distinct images grew this table for its
+--- lifetime with no way back short of a restart.
+local cache = require("lib.nvim.cache.memory").namespace("images.info", { ttl = 300 })
 
 ---@class Images.Info : Images.Scale.MaybeDims
 ---@field path string absolute path
@@ -62,7 +67,7 @@ function M.collect(path)
 
   local mtime = stat.mtime and stat.mtime.sec or 0
   local key = ("%s:%d:%d"):format(path, mtime, stat.size)
-  local hit = cache[key]
+  local hit = cache.get(key)
   if hit then return hit end
 
   ---@type Images.Info
@@ -94,7 +99,7 @@ function M.collect(path)
     end
   end
 
-  cache[key] = info
+  cache.set(key, info)
   return info
 end
 
