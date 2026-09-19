@@ -51,6 +51,21 @@ local function cfg()
   return require("images.config").get()
 end
 
+--- A configured positive number, made safe to divide/format below (ERR-22):
+--- `(c.timeout_ms or 10000) / 1000` throws for a non-number `timeout_ms`
+--- (reproduced with a boolean, a string and a table — "attempt to perform
+--- arithmetic on a ... value") since `or` only substitutes on `nil`/`false`,
+--- not on a wrong type. `>= 1` also rejects 0/negative, which would divide
+--- down to a `timeout_s` of 0 before `math.max(1, ...)` masks it, or pass a
+--- negative/zero byte quota straight through to curl/wget.
+---@param value any
+---@param default number
+---@return number
+local function valid_positive(value, default)
+  if type(value) == "number" and value == value and value >= 1 then return value end
+  return default
+end
+
 --- Download the image at `url`, cached — a second call with the same URL does
 --- not download again but hits the cache.
 ---
@@ -69,8 +84,8 @@ function M.fetch(url, on_done)
   local out = cache_path(url)
   if vim.uv.fs_stat(out) then return on_done(out, nil) end
 
-  local timeout_s = math.max(1, math.floor((c.timeout_ms or 10000) / 1000))
-  local max_bytes = c.max_bytes or (20 * 1024 * 1024)
+  local timeout_s = math.max(1, math.floor(valid_positive(c.timeout_ms, 10000) / 1000))
+  local max_bytes = valid_positive(c.max_bytes, 20 * 1024 * 1024)
 
   local executable = require("lib.nvim.cross.executable")
   local cmd
