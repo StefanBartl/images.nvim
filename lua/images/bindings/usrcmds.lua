@@ -15,6 +15,7 @@
 local M = {}
 
 local composer = require("lib.nvim.bindings.usercmd.composer")
+local expand_path = require("lib.nvim.cross.fs.expand_path")
 
 -- Like the built-in FILE (readable file, <Tab> file completion), but
 -- additionally permitting an http(s) URL — for `:Image show <url>` with
@@ -25,7 +26,9 @@ local composer = require("lib.nvim.bindings.usercmd.composer")
 composer.register_type("IMAGE_TARGET", {
   validate = function(raw)
     if require("images.remote").is_remote(raw) then return true, raw, nil end
-    local expanded = vim.fn.expand(raw)
+    -- expand_path, not vim.fn.expand (SEC-34): `raw` is the raw
+    -- `:Image show <target>` argument the user typed.
+    local expanded = expand_path(raw)
     local p = vim.fn.fnamemodify(expanded, ":p")
     if vim.fn.filereadable(p) ~= 1 then return false, nil, ("'%s' is not a readable file or URL"):format(raw) end
     return true, expanded, nil
