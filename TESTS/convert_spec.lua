@@ -18,6 +18,23 @@ return function(H)
   H.falsy(convert.is_svg("image.png"), "png is not svg")
   H.falsy(convert.is_svg("image.svg.png"), "only the last extension counts")
 
+  -- ── target_formats: a wrong-shaped `extensions` degrades (ERR-22) ────────
+  -- `extensions = "png"` (a plausible typo for the list) used to reach
+  -- `ipairs` as a bare string and throw -- reproduced -- and this one is
+  -- reachable from `setup()` itself, via bindings/usrcmds.lua's `:Image
+  -- convert` enum, not only from a hover/scan action like the sibling sites
+  -- fixed in browse.lua/resolve.lua. No `magick` needed: this never touches
+  -- the filesystem, so it runs regardless of the gate below.
+  do
+    local config = require("images.config")
+    local prev_conf = config.get()
+    config.setup({ extensions = "png" })
+    local ok, formats_or_err = pcall(convert.target_formats)
+    H.ok(ok, "a wrong-shaped extensions does not throw: " .. tostring(formats_or_err))
+    H.ok(ok and vim.tbl_contains(formats_or_err, "png"), "…and falls back to the default extension list")
+    config.setup(prev_conf)
+  end
+
   -- ── to_png: missing file ─────────────────────────────────────────────────
   local png, err = convert.to_png("/definitely/does/not/exist.svg")
   H.falsy(png, "a missing file yields no result")

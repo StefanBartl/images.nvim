@@ -355,7 +355,15 @@ end
 ---@return string[]
 function M.target_formats()
   local out = { "pdf" }
-  for _, ext in ipairs(require("images.config").get().extensions) do
+  -- A wrong-shaped `extensions` (e.g. `"png"`, a plausible typo for the list)
+  -- would otherwise reach `ipairs` as-is and throw ("bad argument #1 to
+  -- 'ipairs' (table expected, got string)", reproduced) -- and this runs
+  -- during `setup()` itself (via bindings/usrcmds.lua's `:Image convert`
+  -- enum), so a bad config crashes plugin startup. Degrade to the default
+  -- list instead (ERR-22). Mirrors `config.DEFAULTS.extensions`.
+  local extensions = require("images.config").get().extensions
+  if type(extensions) ~= "table" then extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" } end
+  for _, ext in ipairs(extensions) do
     if ext:lower() ~= "svg" then out[#out + 1] = ext:lower() end
   end
   table.sort(out)
