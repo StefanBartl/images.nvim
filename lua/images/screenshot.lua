@@ -43,6 +43,23 @@ local function cfg()
   return require("images.config").get()
 end
 
+--- A configured millisecond value, made safe to hand to `timer:start` (ERR-22):
+--- libuv's binding throws synchronously for a non-number (`bad argument #1 to
+--- 'start' (number expected, got string)`, reproduced with a string and a
+--- boolean alike) rather than degrading, and that call is not `pcall`'d --
+--- `x or default` alone only catches `nil`/`false`, not a wrong type. `>= 1`
+--- also rules out 0 and negative values: libuv accepts both without error,
+--- but 0 busy-fires the timer every loop tick and a negative `timeout_ms`
+--- would make `elapsed >= timeout_ms` below never trip -- a silent hang
+--- instead of a crash, still not a value that should reach the timer as-is.
+---@param value any
+---@param default integer
+---@return integer
+local function valid_ms(value, default)
+  if type(value) == "number" and value == value and value >= 1 then return math.floor(value) end
+  return default
+end
+
 --- Check the file after a capture: does it exist, and is it non-empty? The
 --- shared ending for macOS/Linux, where a cancellation (<Esc>) is not visible
 --- in the exit code, only in the missing/empty file.
@@ -163,8 +180,8 @@ local function capture_windows(out, callback)
         end
 
         local c = cfg().display.screenshot
-        local timeout_ms = c.windows_timeout_ms or 60000
-        local interval_ms = c.windows_poll_interval_ms or 600
+        local timeout_ms = valid_ms(c.windows_timeout_ms, 60000)
+        local interval_ms = valid_ms(c.windows_poll_interval_ms, 600)
         local elapsed = 0
         -- A PowerShell `-STA` start routinely takes longer than the poll
         -- interval, so without this a tick can fire while the previous
