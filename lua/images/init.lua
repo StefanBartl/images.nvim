@@ -594,11 +594,11 @@ function M.orphans()
     ---@param confirmed boolean
     local function delete_if_confirmed(confirmed)
       if not confirmed then return end
-      local ok = pcall(vim.uv.fs_unlink, choice.path)
+      local ok, err = require("images.orphans").delete(choice.path)
       if ok then
         notify().info("deleted: " .. choice.rel)
       else
-        notify().error("could not delete: " .. choice.rel)
+        notify().error("could not delete: " .. choice.rel .. (err and (" (" .. err .. ")") or ""))
       end
     end
 

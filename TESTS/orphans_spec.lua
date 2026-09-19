@@ -61,4 +61,18 @@ return function(H)
 
   pcall(vim.api.nvim_buf_delete, buf, { force = true })
   pcall(vim.api.nvim_buf_delete, other_buf, { force = true })
+
+  -- ── delete: a real success/failure signal, not a bare pcall (ERR-03) ─────
+  -- `vim.uv.fs_unlink`'s synchronous form returns `nil, err` on failure
+  -- rather than raising, so `pcall` around it alone is always `true`.
+  do
+    local path = root .. "/assets/a.png" -- still on disk from above
+    local ok, err = orphans.delete(path)
+    H.ok(ok, "deleting an existing file reports success" .. (err and (" (" .. tostring(err) .. ")") or ""))
+    H.eq(vim.fn.filereadable(path), 0, "…and the file is actually gone")
+
+    local ok2, err2 = orphans.delete(path)
+    H.falsy(ok2, "deleting the same path again reports failure, not a false success")
+    H.ok(type(err2) == "string" and #err2 > 0, "…with a reason: " .. tostring(err2))
+  end
 end

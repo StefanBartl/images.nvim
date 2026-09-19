@@ -121,6 +121,7 @@ local specs = {
   "hover_float_spec.lua",
   "redact_spec.lua",
   "terminal_draw_spec.lua",
+  "debug_spec.lua",
   "anchor_spec.lua",
   "testcard_spec.lua",
   "calibration_spec.lua",
