@@ -38,25 +38,41 @@ end
 local cached = nil
 ---@type boolean
 local loaded = false
+---@type string|nil
+local load_err = nil
 
---- Read the stored values. A missing or unreadable file is not an error case
---- but the normal state before the first calibration.
+--- Read the stored values. A missing or empty file is not an error case but
+--- the normal state before the first calibration; a file that exists but
+--- fails to decode as JSON is corrupt, which — unlike "missing" — is worth
+--- surfacing (see `err`, and `:checkhealth images`).
 ---@param force boolean|nil discard the memoized result
----@return table values empty when nothing is stored
+---@return table values empty when nothing is stored, or the file is corrupt
+---@return string|nil err set only when the file exists but could not be read
 function M.load(force)
-  if loaded and not force then return cached or {} end
+  if loaded and not force then return cached or {}, load_err end
   loaded = true
   cached = {}
+  load_err = nil
 
   local f = io.open(M.path(), "r")
-  if not f then return cached end
+  if not f then return cached, nil end
   local raw = f:read("*a")
   f:close()
-  if not raw or raw == "" then return cached end
+  if not raw or raw == "" then return cached, nil end
 
   local ok, decoded = pcall(vim.json.decode, raw)
-  if ok and type(decoded) == "table" then cached = decoded end
-  return cached
+  if ok and type(decoded) == "table" then
+    cached = decoded
+  else
+    load_err = "calibration file is corrupt: " .. M.path()
+    -- Preserve the unreadable file next to itself rather than silently
+    -- discarding it: `M.save` always rewrites the WHOLE file (load-modify-
+    -- save), so without this the next `:Image calibrate` would overwrite a
+    -- corrupt file with only the newly measured keys, and any earlier
+    -- measurement in it would be gone with no one ever having seen it.
+    pcall(vim.uv.fs_copyfile, M.path(), M.path() .. ".corrupt")
+  end
+  return cached, load_err
 end
 
 --- Store values. Existing entries are kept, so a partial calibration does not
@@ -92,14 +108,36 @@ function M.clear()
   return ok ~= nil or vim.fn.filereadable(M.path()) == 0
 end
 
+--- The two keys `:Image calibrate` ever writes (see `images.calibrate`'s
+--- `offer_save`), with a check for the shape each must have. A persisted file
+--- is untrusted input (SEC-33): it is user-editable JSON, not `setup()`
+--- Lua, and `config.setup` deep-merges whatever `as_config` returns straight
+--- into the live `display` table with no validation of its own.
+---@type table<string, fun(v: any): boolean>
+local KNOWN = {
+  terminal_padding = function(v)
+    return type(v) == "table" and type(v.row) == "number" and type(v.col) == "number"
+  end,
+  cell_aspect = function(v)
+    return type(v) == "number"
+  end,
+}
+
 --- The calibration as a `display` sub-table, shaped the way `config.setup`
---- expects it. Empty when nothing is stored — everything then behaves as if
---- this module did not exist.
+--- expects it. Empty when nothing is stored, or when the stored file is
+--- corrupt or hand-edited beyond the two keys above — everything then
+--- behaves as if this module did not exist, rather than handing an
+--- unvalidated table straight into the live configuration.
 ---@return table
 function M.as_config()
   local values = M.load()
-  if vim.tbl_isempty(values) then return {} end
-  return { display = values }
+  local out = {}
+  for key, is_valid in pairs(KNOWN) do
+    local v = values[key]
+    if v ~= nil and is_valid(v) then out[key] = v end
+  end
+  if vim.tbl_isempty(out) then return {} end
+  return { display = out }
 end
 
 return M
