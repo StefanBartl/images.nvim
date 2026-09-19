@@ -621,20 +621,29 @@ local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
   ---@type table<integer, table[]>
   local marks = {}
 
+  -- Hoisted out of the row loop (PERF-25): this used to be a `local
+  -- function` re-created every row, up to `rows` closure allocations per
+  -- painted frame, up to twelve times a second. The run state it closed
+  -- over is now passed in explicitly instead.
+  ---@param row_marks table[]
+  ---@param pieces string[]
+  ---@param run_start integer
+  ---@param stop integer  # exclusive cell column the run ends at
+  ---@param fg string
+  ---@param bg string
+  local function close_run(row_marks, pieces, run_start, stop, fg, bg)
+    row_marks[#row_marks + 1] = {
+      col = run_start,
+      text = concat(pieces, "", run_start + 1, stop),
+      fg = fg,
+      bg = bg,
+    }
+  end
+
   for row = 0, rows - 1 do
     local pieces = {}
     local run_start, run_key, run_fg, run_bg = 0, nil, nil, nil
     local row_marks = {}
-
-    ---@param stop integer  # exclusive cell column the run ends at
-    local function close_run(stop)
-      row_marks[#row_marks + 1] = {
-        col = run_start,
-        text = concat(pieces, "", run_start + 1, stop),
-        fg = run_fg,
-        bg = run_bg,
-      }
-    end
 
     for col = 0, cols - 1 do
       local origin = base + (row * sy) * span + col * sx * BPP
@@ -649,11 +658,11 @@ local function paint_cells(buf, ns, raw, base, cols, rows, levels, geo)
       -- colour laid over one.
       local key = fg .. bg
       if key ~= run_key then
-        if run_key then close_run(col) end
+        if run_key then close_run(row_marks, pieces, run_start, col, run_fg, run_bg) end
         run_key, run_fg, run_bg, run_start = key, fg, bg, col
       end
     end
-    if run_key then close_run(cols) end
+    if run_key then close_run(row_marks, pieces, run_start, cols, run_fg, run_bg) end
 
     marks[row] = row_marks
   end
