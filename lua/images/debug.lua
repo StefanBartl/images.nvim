@@ -32,6 +32,8 @@
 --- real image path, and using one is the point rather than a convenience:
 --- the letterboxing bug was invisible to every card-based test.
 
+local expand_path = require("lib.nvim.cross.fs.expand_path")
+
 local M = {}
 
 ---@return Lib.Notify.Notifier
@@ -240,7 +242,7 @@ function M.columns(path)
   end
 
   local COLS, ROWS = 12, 6
-  local card = path and vim.fn.expand(path) or testcard.write(COLS, ROWS, require("images.scale").CELL_ASPECT)
+  local card = path and expand_path(path) or testcard.write(COLS, ROWS, require("images.scale").CELL_ASPECT)
   if not card or (path and vim.fn.filereadable(card) == 0) then
     notify().error("could not read: " .. tostring(card))
     return
@@ -316,7 +318,7 @@ function M.float(cols, rows, path)
     return
   end
 
-  local card = path and vim.fn.expand(path) or testcard.write(cols, rows, require("images.scale").CELL_ASPECT)
+  local card = path and expand_path(path) or testcard.write(cols, rows, require("images.scale").CELL_ASPECT)
   if not card or (path and vim.fn.filereadable(card) == 0) then
     notify().error("could not read: " .. tostring(card))
     return
