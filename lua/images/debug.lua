@@ -21,6 +21,10 @@
 ---              float's *reported* corner. Marker off the corner means the
 ---              window is not where Neovim says it is — which is exactly
 ---              failure mode 7.
+---   `disarm`   undoes what `report` wired into `images.terminal.draw`, and
+---              drops what it collected. `report`'s own instrumentation is
+---              the only one of the three that reaches into another module
+---              and stays there past its own call.
 ---
 --- **Why a generated card is not enough.** `images.testcard` builds its card
 --- to whatever box it is given, so it fills any frame by construction and can
@@ -148,6 +152,30 @@ local function mark(row, col)
   vim.defer_fn(function()
     pcall(os.remove, card)
   end, 5000)
+end
+
+--- Undo `arm()`: restore the untouched `images.terminal.draw` and drop the
+--- collected log. `arm`'s own comment has always promised this restore path;
+--- until now nothing actually called it, so every `:Image debug report`
+--- rewired `images.terminal.draw` for the rest of the session with no way
+--- back short of restarting Neovim (PRIN-10).
+---@return nil
+function M.disarm()
+  if not armed then
+    notify().info("not armed — nothing to undo")
+    return
+  end
+
+  local term = require("images.terminal")
+  if term.__debug_draw then
+    ---@diagnostic disable-next-line: duplicate-set-field
+    term.draw = term.__debug_draw
+    term.__debug_draw = nil
+  end
+  armed = false
+  log = {}
+
+  notify().info("Debug instrumentation removed — images.terminal.draw restored.")
 end
 
 --- Arm the observer, or print what it has collected.

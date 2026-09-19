@@ -191,7 +191,11 @@ coordinates actually sent per draw, `columns` tells a constant offset (which
 and `float` checks whether a window is where Neovim says it is. The failure
 modes these three were built to tell apart turned up two real bugs.
 
-- **Module:** `images/debug.lua` (`M.report`, `M.columns`, `M.float`)
+`report` is the one of the four that leaves something behind: it wraps
+`images.terminal.draw` to log every draw, and that wrapper stays in place
+across calls until `disarm` removes it again.
+
+- **Module:** `images/debug.lua` (`M.report`, `M.columns`, `M.float`, `M.disarm`)
 - **Usercmds:** `:Image debug <mode> [path]` ([usercmds](../BINDINGS.md#user-commands))
 
 ## Status line segment

@@ -276,5 +276,12 @@ guessing at it.
 | `report` | which coordinates were actually sent, per draw |
 | `columns` | is this a constant offset (`terminal_padding` can absorb it) or a scaling one (it cannot) |
 | `float` | is the window where Neovim claims it is |
+| `disarm` | undo `report`'s instrumentation |
 
 The failure modes these three were built to tell apart turned up two real bugs.
+
+`report` is the one mode that leaves something behind between calls: it wraps
+`images.terminal.draw` to log every draw, and the wrapper stays in place
+until `:Image debug disarm` removes it again (or until the wrapper's own
+log is cleared by re-arming). Nothing else here changes anything after it
+returns.
