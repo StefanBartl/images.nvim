@@ -175,6 +175,13 @@ local function capture_windows(out, callback)
         -- actually hold; `pending` throttles a tick against the previous
         -- one still running, instead of starting a new PowerShell process on
         -- top of it every 600 ms regardless.
+        --
+        -- `elapsed` advances on every tick unconditionally, independent of
+        -- `pending`/the read it may or may not start: a hung
+        -- `read_clipboard_image_async` call (its callback never invoked --
+        -- e.g. a spawned `powershell.exe -STA` blocked by AV/EDR hooking)
+        -- must not freeze the timeout along with it, or the poll runs
+        -- forever with no error and no completion.
         local done = false
         local pending = false
 
@@ -199,8 +206,13 @@ local function capture_windows(out, callback)
           interval_ms,
           interval_ms,
           vim.schedule_wrap(function()
-            if done or pending then return end
+            if done then return end
             elapsed = elapsed + interval_ms
+            if elapsed >= timeout_ms then
+              finish(false, "timed out — no new capture detected in the clipboard")
+              return
+            end
+            if pending then return end
             pending = true
             read_clipboard_image_async(function(current)
               pending = false
@@ -214,8 +226,6 @@ local function capture_windows(out, callback)
                 fd:write(current)
                 fd:close()
                 finish(true)
-              elseif elapsed >= timeout_ms then
-                finish(false, "timed out — no new capture detected in the clipboard")
               end
             end)
           end)
