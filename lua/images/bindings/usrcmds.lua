@@ -267,10 +267,10 @@ function M.register(cfg)
       {
         path = { "debug" },
         args = {
-          { name = "mode", type = "STRING", enum = { "report", "columns", "float" } },
+          { name = "mode", type = "STRING", enum = { "report", "columns", "float", "disarm" } },
           { name = "path", type = "FILE", optional = true },
         },
-        desc = "Measure image placement: report (log draws), columns (constant vs. scaling offset), float (is a window where it says it is)",
+        desc = "Measure image placement: report (log draws), columns (constant vs. scaling offset), float (is a window where it says it is), disarm (undo report's instrumentation)",
         run = function(ctx)
           local debug = require("images.debug")
           local mode = ctx.args.mode
@@ -278,6 +278,8 @@ function M.register(cfg)
             debug.columns(ctx.args.path)
           elseif mode == "float" then
             debug.float(nil, nil, ctx.args.path)
+          elseif mode == "disarm" then
+            debug.disarm()
           else
             debug.report()
           end

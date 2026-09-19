@@ -27,7 +27,7 @@ completion and this table all come from the same spec.
 | `:Image convert <format> [path]` | — | Copy in another format, same stem (`photo.jpg` → `photo.png`); `pdf` takes the same route as `:Image export` (needs ImageMagick) |
 | `:Image orphans` | — | Find images in `paste.dir` with no link, offer to delete one |
 | `:Image calibrate` | — | Measure this terminal's image placement, store the correction |
-| `:Image debug <mode> [path]` | — | Measure a misplaced draw: `report` logs the coordinates sent, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is |
+| `:Image debug <mode> [path]` | — | Measure a misplaced draw: `report` logs the coordinates sent, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is, `disarm` undoes `report`'s instrumentation |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
 | `:Image zen [path]` | — | Show one image full-screen in a real editable window |

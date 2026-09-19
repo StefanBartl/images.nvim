@@ -347,6 +347,13 @@ Calling |images.setup()| is optional when using `opts`.
                                         cannot)
                             float       check whether a window is where
                                         Neovim says it is
+                            disarm      undo `report`'s instrumentation of
+                                        `images.terminal.draw`
+
+                        `report` is the one mode that leaves something
+                        behind between calls: it wraps
+                        `images.terminal.draw` to log every draw, and the
+                        wrapper stays in place until `disarm` removes it.
 
 :Image check            Report whether this terminal can display images, and
                         re-run the detection (useful after setting
