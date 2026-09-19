@@ -166,6 +166,17 @@ local function capture_windows(out, callback)
         local timeout_ms = c.windows_timeout_ms or 60000
         local interval_ms = c.windows_poll_interval_ms or 600
         local elapsed = 0
+        -- A PowerShell `-STA` start routinely takes longer than the poll
+        -- interval, so without this a tick can fire while the previous
+        -- tick's read is still in flight -- and once the snip lands, every
+        -- one of those in-flight reads sees `current ~= baseline` and
+        -- re-enters the success path below. `done` makes `M.capture`'s
+        -- documented single-shot contract (`callback(ok, err)` runs once)
+        -- actually hold; `pending` throttles a tick against the previous
+        -- one still running, instead of starting a new PowerShell process on
+        -- top of it every 600 ms regardless.
+        local done = false
+        local pending = false
 
         local timer = assert(vim.uv.new_timer())
         local function stop()
@@ -175,25 +186,36 @@ local function capture_windows(out, callback)
           end
         end
 
+        ---@param ok boolean
+        ---@param err string|nil
+        local function finish(ok, err)
+          if done then return end
+          done = true
+          stop()
+          callback(ok, err)
+        end
+
         timer:start(
           interval_ms,
           interval_ms,
           vim.schedule_wrap(function()
+            if done or pending then return end
             elapsed = elapsed + interval_ms
+            pending = true
             read_clipboard_image_async(function(current)
+              pending = false
+              if done then return end
               if current and current ~= baseline then
-                stop()
                 local fd = io.open(out, "wb")
                 if not fd then
-                  callback(false, "target file not writable: " .. out)
+                  finish(false, "target file not writable: " .. out)
                   return
                 end
                 fd:write(current)
                 fd:close()
-                callback(true)
+                finish(true)
               elseif elapsed >= timeout_ms then
-                stop()
-                callback(false, "timed out — no new capture detected in the clipboard")
+                finish(false, "timed out — no new capture detected in the clipboard")
               end
             end)
           end)
