@@ -82,7 +82,12 @@ function M.fetch(url, on_done)
   if not c.enabled then return on_done(nil, "remote images are disabled (`display.remote.enabled = true` to turn them on)") end
 
   local out = cache_path(url)
-  if vim.uv.fs_stat(out) then return on_done(out, nil) end
+  -- PERF-42: a cache entry needs a defined invalidation, not "forever" --
+  -- otherwise a URL whose content changes (an avatar, a status badge, a
+  -- regenerated screenshot) is served stale for the life of the cache dir.
+  local ttl_s = valid_positive(c.cache_ttl_s, 24 * 60 * 60)
+  local cached_stat = vim.uv.fs_stat(out)
+  if cached_stat and cached_stat.mtime and (os.time() - cached_stat.mtime.sec) < ttl_s then return on_done(out, nil) end
 
   local timeout_s = math.max(1, math.floor(valid_positive(c.timeout_ms, 10000) / 1000))
   local max_bytes = valid_positive(c.max_bytes, 20 * 1024 * 1024)
