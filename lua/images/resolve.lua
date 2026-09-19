@@ -23,7 +23,14 @@ function M.is_image(target)
   local ext = target:match("%.([%w]+)%s*$") or target:match("%.([%w]+)[?#]")
   if not ext then return false end
   ext = ext:lower()
-  for _, e in ipairs(cfg().extensions) do
+  -- A wrong-shaped `extensions` (e.g. `"png"`, a plausible typo for the list)
+  -- would otherwise reach `ipairs` as-is and throw ("bad argument #1 to
+  -- 'ipairs' (table expected, got string)", reproduced) on essentially every
+  -- cursor-based resolve -- degrade to the default list instead (ERR-22).
+  -- Mirrors `config.DEFAULTS.extensions`.
+  local extensions = cfg().extensions
+  if type(extensions) ~= "table" then extensions = { "png", "jpg", "jpeg", "gif", "webp", "bmp", "svg" } end
+  for _, e in ipairs(extensions) do
     if e == ext then return true end
   end
   return false
