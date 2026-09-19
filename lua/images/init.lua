@@ -133,8 +133,14 @@ function M.show(path)
       -- `images.terminal`'s module docs for what a scroll costs). Fitting first
       -- also makes `row_below_cursor` exact: it reserves the rows the picture
       -- will actually occupy rather than the most it might.
-      local cols, rows =
-        require("images.scale").fit_cells(display.max_cols, display.max_rows, require("images.pixels").read(file))
+      --
+      -- 60/25 mirror `config.DEFAULTS.display.max_cols`/`max_rows` -- an
+      -- invalid configured value degrades to the default instead of reaching
+      -- `fit_cells`'s arithmetic as-is (ERR-22).
+      local scale = require("images.scale")
+      local max_cols = scale.valid_box(display.max_cols, 60)
+      local max_rows = scale.valid_box(display.max_rows, 25)
+      local cols, rows = scale.fit_cells(max_cols, max_rows, require("images.pixels").read(file))
       local ok, err = require("images.terminal").draw(file, row_below_cursor(rows), 1, cols, rows)
       if not ok then
         notify().error(err or "could not display the image")

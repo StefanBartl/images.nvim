@@ -26,6 +26,20 @@ local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
+--- A configured fraction, made safe to multiply against `vim.o.columns`/
+--- `vim.o.lines` below (ERR-22): a non-number `width`/`height` throws there
+--- ("attempt to perform arithmetic on a ... value", reproduced with a string,
+--- a boolean and a table) since `zen_cfg.width or 0.9` only substitutes the
+--- default on `nil`/`false`, not on a wrong type. 0 and negative fractions
+--- are left to `M.dimensions`'s own `math.max(1, ...)` clamp, same as before.
+---@param value any
+---@param default number
+---@return number
+local function valid_fraction(value, default)
+  if type(value) == "number" and value == value then return value end
+  return default
+end
+
 --- The currently open zen window, if there is one.
 ---@type integer|nil
 local winid = nil
@@ -55,8 +69,8 @@ end
 ---@return integer height
 function M.dimensions(zen_cfg)
   zen_cfg = zen_cfg or {}
-  local width = math.max(1, math.floor(vim.o.columns * (zen_cfg.width or 0.9)))
-  local height = math.max(1, math.floor(vim.o.lines * (zen_cfg.height or 0.85)))
+  local width = math.max(1, math.floor(vim.o.columns * valid_fraction(zen_cfg.width, 0.9)))
+  local height = math.max(1, math.floor(vim.o.lines * valid_fraction(zen_cfg.height, 0.85)))
   return width, height
 end
 
