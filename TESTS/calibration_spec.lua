@@ -82,10 +82,13 @@ return function(H)
   H.eq(conf.display.max_cols, require("images.config.DEFAULTS").display.max_cols, "untouched defaults survive")
 
   -- ── A corrupt file must not take setup() down ────────────────────────────
+  pcall(os.remove, sandbox .. ".corrupt")
   local f = io.open(sandbox, "w")
   f:write("{ this is not json")
   f:close()
-  calibration.load(true)
+  local _, load_err = calibration.load(true)
+  H.contains(load_err or "", "corrupt", "corrupt (unlike missing) is reported, not collapsed into empty (ERR-11)")
+  H.eq(vim.fn.filereadable(sandbox .. ".corrupt"), 1, "…and the unreadable file is preserved before anything overwrites it")
 
   local ok_setup, conf2 = pcall(config.setup, {})
   H.ok(ok_setup, "setup() survives an unreadable state file")
@@ -94,6 +97,31 @@ return function(H)
     require("images.config.DEFAULTS").display.max_cols,
     "…and still returns the defaults"
   )
+  pcall(os.remove, sandbox .. ".corrupt")
+
+  -- ── as_config only carries the two keys calibration ever writes, typed
+  --    correctly -- a hand-edited or foreign file must not become an
+  --    unrestricted overlay on `display` (SEC-33) ───────────────────────────
+  do
+    local f2 = assert(io.open(sandbox, "w"))
+    f2:write(vim.json.encode({
+      terminal_padding = { row = 3, col = -1 }, -- valid
+      cell_aspect = "wide", -- wrong type -- must be dropped
+      remote = { enabled = true }, -- unknown key entirely -- must be dropped
+      clear_events = "not a list", -- unknown key -- must be dropped
+    }))
+    f2:close()
+    calibration.load(true)
+
+    local sanitized = calibration.as_config()
+    H.eq(sanitized.display.terminal_padding.row, 3, "the correctly-typed known key survives")
+    H.falsy(sanitized.display.cell_aspect, "a wrong-typed known key is dropped, not passed through")
+    H.falsy(sanitized.display.remote, "an unknown key never reaches the `display` overlay")
+    H.falsy(sanitized.display.clear_events, "…not even one that shares a name with a real display option")
+
+    local conf3 = config.setup({})
+    H.falsy(conf3.display.remote.enabled, "the default stands: a stray file cannot flip remote.enabled on")
+  end
 
   -- ── clear ─────────────────────────────────────────────────────────────────
   calibration.save({ terminal_padding = { row = -3 } })
