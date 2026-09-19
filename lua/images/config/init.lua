@@ -36,7 +36,7 @@ local KNOWN = {
     browse_exclude = true,
     browse_max_entries = true,
     zen = { width = true, height = true },
-    remote = { enabled = true, timeout_ms = true, max_bytes = true },
+    remote = { enabled = true, timeout_ms = true, max_bytes = true, cache_ttl_s = true },
     screenshot = { windows_timeout_ms = true, windows_poll_interval_ms = true },
     redact = { padding_cells = true },
     ascii_fallback = { enabled = true, levels = true, cells = true },

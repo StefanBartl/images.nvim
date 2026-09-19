@@ -60,6 +60,7 @@
 ---@field enabled boolean load http(s) images; default false (privacy, see images.remote)
 ---@field timeout_ms integer download timeout
 ---@field max_bytes integer maximum download size
+---@field cache_ttl_s integer seconds a downloaded image is served from disk before a re-fetch is attempted
 
 ---@class ImagesNvim.ScreenshotConfig : ImagesNvim.ScreenshotOpts
 ---@field windows_timeout_ms integer how long to wait for a new clipboard image
@@ -149,9 +150,10 @@
 ---@field levels? integer steps per colour channel (default 16); caps the highlight groups this can ever create at levels^3
 
 ---@class ImagesNvim.RemoteOpts
----@field enabled?    boolean load http(s) images; default false (privacy, see images.remote)
----@field timeout_ms? integer download timeout
----@field max_bytes?  integer maximum download size
+---@field enabled?      boolean load http(s) images; default false (privacy, see images.remote)
+---@field timeout_ms?   integer download timeout
+---@field max_bytes?    integer maximum download size
+---@field cache_ttl_s?  integer seconds a downloaded image is served from disk before a re-fetch is attempted
 
 ---@class ImagesNvim.ScreenshotOpts
 ---@field windows_timeout_ms?       integer how long to wait for a new clipboard image

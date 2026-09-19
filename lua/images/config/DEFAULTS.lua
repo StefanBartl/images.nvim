@@ -68,6 +68,12 @@ return {
       enabled = false,
       timeout_ms = 10000,
       max_bytes = 20 * 1024 * 1024,
+      -- The disk cache in images.remote had no invalidation at all: once a
+      -- URL was fetched, the same bytes were served forever, even after the
+      -- remote content changed (PERF-42). A day balances the two failure
+      -- modes -- a badge/avatar URL going stale for a session vs. every
+      -- hover of the same link re-downloading it.
+      cache_ttl_s = 24 * 60 * 60,
     },
     -- Windows only, see images.screenshot: the one platform where `:Image
     -- screenshot` polls instead of waiting on the target file directly.
