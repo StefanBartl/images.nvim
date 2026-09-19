@@ -21,6 +21,8 @@
 --- `:Image pickers` is the image browser, pickers.nvim previews images on the
 --- way past.
 
+local expand_path = require("lib.nvim.cross.fs.expand_path")
+
 local M = {}
 
 ---@return ImagesNvim.Config
@@ -113,7 +115,9 @@ function M.roots(scope, arg)
 
   if scope == "path" then
     if not arg or arg == "" then return nil, "the `path` scope needs a directory: :Image pickers path <dir>" end
-    local expanded = vim.fn.fnamemodify(vim.fn.expand(arg), ":p")
+    -- expand_path, not vim.fn.expand (SEC-34): `arg` is the raw
+    -- `:Image pickers path <dir>` argument the user typed.
+    local expanded = vim.fn.fnamemodify(expand_path(arg), ":p")
     if vim.fn.isdirectory(expanded) == 0 then return nil, "not a directory: " .. arg end
     return resolve.normalize_path(expanded)
   end
