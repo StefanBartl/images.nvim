@@ -37,4 +37,23 @@ return function(H)
   -- lazy and never calls `setup` themselves.
   H.ok(config.get() ~= nil, "get() always returns a configuration")
   H.eq(config.get().command, "Image", "…and a complete one at that")
+
+  -- ── A typo'd nested option is rejected, not swallowed into the default
+  --    (ERR-50) ───────────────────────────────────────────────────────────
+  cfg = config.setup({ paste = { ask_altext = true } })
+  H.eq(cfg.paste.ask_alt_text, false, "the misspelled key never applies -- the real option keeps its default")
+  H.falsy(cfg.paste.ask_altext, "…and the typo itself is not merged in as a dead field")
+  H.ok(#config.issues() > 0, "the typo is recorded as an issue for :checkhealth")
+  H.contains(config.issues()[1], "ask_alt_text", "…naming the option it was probably meant to be")
+
+  -- ── A wrong-shaped nested table is dropped, not merged as-is ─────────────
+  cfg = config.setup({ display = "not a table" })
+  H.eq(cfg.display.max_cols, 60, "a scalar given where `display` expects a table falls back to the default")
+  H.ok(#config.issues() > 0, "…and is recorded as an issue")
+
+  -- ── A clean setup() reports no issues ────────────────────────────────────
+  config.setup({ display = { max_cols = 30 } })
+  H.eq(#config.issues(), 0, "a recognized option leaves no issues behind")
+
+  config.setup({}) -- neutral again for any spec that runs after this one
 end
