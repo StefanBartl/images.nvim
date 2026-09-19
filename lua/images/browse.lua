@@ -66,6 +66,12 @@ local function walk(root, exclude, extensions)
   local found = {}
   local visited = 0
   local stack = { root }
+  -- Hoisted out of the loop (ERR-01): the bound is a constant for the whole
+  -- walk -- the configuration cannot change while it runs -- so re-deriving
+  -- it (a `pcall` + `require` + `config.get()` round trip) on every single
+  -- scanned entry only scales the overhead with tree size instead of images
+  -- found.
+  local limit = max_entries()
 
   while #stack > 0 do
     local dir = table.remove(stack)
@@ -75,7 +81,7 @@ local function walk(root, exclude, extensions)
         local name, kind = vim.uv.fs_scandir_next(handle)
         if not name then break end
         visited = visited + 1
-        if visited > max_entries() then
+        if visited > limit then
           table.sort(found)
           return found
         end
