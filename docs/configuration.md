@@ -7,6 +7,14 @@ definitions live in `lua/images/@types/init.lua`.
 
 Nothing here is required: `opts = {}` is a complete configuration.
 
+`setup()` validates what you pass it before merging: an option it does not
+recognise (usually a typo in a nested key, e.g. `ask_altext` for
+`ask_alt_text`) is dropped rather than merged in as an inert extra field, with
+a warning that includes a "did you mean" guess when one is plausible, and a
+value given the wrong shape (a table option handed a scalar) falls back to
+its default the same way. Both are also kept for `:checkhealth images` — see
+[health.md](health.md).
+
 ## Table of contents
 
 - [The whole default table](#the-whole-default-table)
