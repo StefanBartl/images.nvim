@@ -127,4 +127,51 @@ return function(H)
     H.eq(vim.fn.isdirectory(root .. "/assets"), 0, "…and creates no directory")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
+
+  -- ── 4. The link lands via the window current when the paste started, not
+  --      whatever window is current when the (async) capture callback fires
+  --      (ERR-33) ────────────────────────────────────────────────────────────
+  do
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+    local buf = make_buf(root)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "one", "two", "three" })
+    vim.api.nvim_set_current_buf(buf)
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+    local doc_win = vim.api.nvim_get_current_win()
+
+    -- A second window on an unrelated buffer -- simulates ui.kit's alt-text
+    -- input float becoming the current window before the capture callback
+    -- runs, the way it does with `paste.ask_alt_text = true`.
+    vim.cmd("botright split")
+    local other_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(other_buf)
+    local other_win = vim.api.nvim_get_current_win()
+    H.ok(other_win ~= doc_win, "a second window exists to switch to")
+
+    -- The fake capture switches away from the document window before
+    -- invoking its callback -- what an async process callback (or an input
+    -- float) does in practice.
+    local function fake_capture_switching_window(out, cb)
+      local fd = assert(io.open(out, "wb"))
+      fd:write("x")
+      fd:close()
+      vim.api.nvim_set_current_win(other_win)
+      cb(true)
+    end
+
+    vim.api.nvim_set_current_win(doc_win)
+    paste.paste_with_name(buf, "shot.png", fake_capture_switching_window)
+
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    H.ok(
+      lines[3] and lines[3]:find("assets/shot.png", 1, true) ~= nil,
+      "the link lands on the line the cursor was on when the paste started: " .. vim.inspect(lines)
+    )
+    H.falsy(lines[1] and lines[1]:find("assets/shot.png", 1, true), "…not on the first line via the now-current other window")
+
+    pcall(vim.api.nvim_win_close, other_win, true)
+    pcall(vim.api.nvim_buf_delete, other_buf, { force = true })
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
 end

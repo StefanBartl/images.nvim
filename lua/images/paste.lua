@@ -240,16 +240,22 @@ end
 --- Insert the link at the cursor position valid at the time of the call. Runs
 --- after the clipboard write — synchronously right afterwards, or
 --- asynchronously after the alt-text prompt — and therefore rechecks the
---- buffer's state: between determining the buffer and reaching here there was
---- at least one synchronous process call, plus user input in the alt-text case.
---- The buffer may have been closed or set `nomodifiable` in the meantime — the
---- image is written either way, only the link is missing, and the user should
---- hear about it.
+--- buffer's and window's state: between determining them and reaching here
+--- there was at least one synchronous process call, plus user input in the
+--- alt-text case. The buffer may have been closed or set `nomodifiable` in the
+--- meantime, and the window that was current when the paste started may no
+--- longer be — `k.input`'s alt-text prompt runs its `on_submit` from the
+--- input float's own context, so `vim.api.nvim_win_get_cursor(0)` there would
+--- return the popup's cursor, not the document's. `win` is therefore captured
+--- by the caller before any of that can happen (see `paste_with_name`), not
+--- read here. Either way the image is written regardless — only the link is
+--- missing, and the user should hear about it.
 ---@param buf integer
+---@param win integer window current when the paste started
 ---@param rel string path relative to the document
 ---@param alt string|nil alt text; empty or nil = no alt text
 ---@return nil
-local function insert_link(buf, rel, alt)
+local function insert_link(buf, win, rel, alt)
   if not vim.api.nvim_buf_is_valid(buf) then
     notify().warn("the buffer is gone — the image is at " .. rel)
     return
@@ -258,19 +264,23 @@ local function insert_link(buf, rel, alt)
     notify().warn("the buffer is not modifiable — the image is at " .. rel)
     return
   end
+  if not vim.api.nvim_win_is_valid(win) then
+    notify().warn("the window is gone — the image is at " .. rel)
+    return
+  end
 
   -- Avoid backslashes in the link: markdown paths travel better with `/`.
   local forward = (rel:gsub("\\", "/"))
   local c = cfg().paste
   local link = (alt and alt ~= "") and c.alt_link_template:format(alt, forward) or c.link_template:format(forward)
 
-  local pos = vim.api.nvim_win_get_cursor(0)
+  local pos = vim.api.nvim_win_get_cursor(win)
   local inserted = pcall(vim.api.nvim_buf_set_text, buf, pos[1] - 1, pos[2], pos[1] - 1, pos[2], { link })
   if not inserted then
     notify().warn("could not insert the link — the image is at " .. rel)
     return
   end
-  pcall(vim.api.nvim_win_set_cursor, 0, { pos[1], pos[2] + #link })
+  pcall(vim.api.nvim_win_set_cursor, win, { pos[1], pos[2] + #link })
 
   notify().info("image saved: " .. rel)
 end
@@ -298,6 +308,9 @@ local function paste_with_name(buf, filename_override, capture)
     return
   end
 
+  -- Captured now, alongside `buf` -- the one synchronous point before the
+  -- async gap `capture` opens (see `insert_link`'s docstring for why).
+  local win = vim.api.nvim_get_current_win()
   local tmp = vim.fn.tempname() .. ".png"
 
   capture(tmp, function(ok, cap_err)
@@ -321,7 +334,7 @@ local function paste_with_name(buf, filename_override, capture)
     end
 
     if not cfg().paste.ask_alt_text then
-      insert_link(buf, rel, nil)
+      insert_link(buf, win, rel, nil)
       return
     end
 
@@ -330,19 +343,19 @@ local function paste_with_name(buf, filename_override, capture)
       k.input({
         title = "Alt text (empty = none)",
         on_submit = function(alt)
-          insert_link(buf, rel, alt)
+          insert_link(buf, win, rel, alt)
         end,
         -- Cancelling should still insert the link, just without alt text — by
         -- this point the image is already on disk, and a lost link (kit.input
         -- calls nothing at all on <Esc> without on_cancel) would be the worse
         -- surprise than a link without alt text.
         on_cancel = function()
-          insert_link(buf, rel, nil)
+          insert_link(buf, win, rel, nil)
         end,
       })
     else
       local alt = vim.fn.input("Alt text (empty = none): ")
-      insert_link(buf, rel, alt)
+      insert_link(buf, win, rel, alt)
     end
   end)
 end
