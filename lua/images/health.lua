@@ -207,6 +207,23 @@ local function check_pdf()
 end
 
 ---@return nil
+local function check_config()
+  local found = require("images.config").issues()
+  if #found == 0 then return end
+  vim.health.warn("setup() rejected option(s):\n- " .. table.concat(found, "\n- "))
+end
+
+---@return nil
+local function check_calibration()
+  local _, err = require("images.calibration").load()
+  if not err then return end
+  vim.health.warn(err, {
+    "the previous file was preserved next to it with a `.corrupt` suffix",
+    "run `:Image calibrate` again to replace it with a fresh measurement",
+  })
+end
+
+---@return nil
 local function check_deps()
   if pcall(require, "lib.nvim.bindings.usercmd.composer") then
     vim.health.ok("`lib.nvim` found")
@@ -288,6 +305,8 @@ function M.check()
   check_blocks()
   check_ocr()
   check_pdf()
+  check_config()
+  check_calibration()
   check_deps()
   check_lib_deps()
 end

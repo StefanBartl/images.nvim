@@ -17,6 +17,8 @@ running on:
 | **block graphics** | Prints a sample row of each ASCII-fallback geometry (`half`, `quadrant`, `sextant`) so you can read off which one this terminal actually renders as shapes rather than replacement boxes — see [configuration.md](configuration.md#displayascii_fallback) |
 | **OCR** | Whether `tesseract` was found (and by which of the three lookup routes), which language data is installed, and whether the configured `ocr.lang` is among it |
 | **PDF** | Whether a PDF entry can be previewed as its first page — separately reporting `pdf.enabled = false`, `pdfport.nvim` missing, and `pdftoppm` missing, since each has a different fix |
+| **config** | Any `setup()` option the last call had to reject — an unknown key (with a "did you mean" guess) or one given the wrong shape — so a typo does not just silently keep its default forever |
+| **calibration** | Whether the stored `stdpath("data")/images.nvim/calibration.json` failed to decode; a corrupt file behaves like no calibration at all, but unlike a missing one it is worth knowing about |
 | **dependencies** | `lib.nvim` (required, errors if missing) and `markdown.nvim` (optional, only changes which path resolver is used) |
 | **declared tools** | A pointer into `:Lib deps show images.nvim`, generated from [install.json](install.json) — only shown when the installed `lib.nvim` supports it |
 

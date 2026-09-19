@@ -67,6 +67,25 @@ If the remaining offset is smaller than one cell, calibration says so plainly
 rather than pretending to fix it. That part is the protocol limit, and
 `display.draw_inset` is what covers it.
 
+## A `setup()` option seems to have no effect
+
+Check `:checkhealth images` first: a nested option `setup()` does not
+recognise — almost always a typo, e.g. `paste = { ask_altext = true }` — is
+dropped before the merge rather than silently doing nothing forever, and is
+reported there (with a "did you mean" guess when one is plausible) as well as
+once via `notify()` when `setup()` runs. See
+[configuration.md](configuration.md#the-whole-default-table).
+
+## `:Image calibrate`'s stored values seem to have reset
+
+`stdpath("data")/images.nvim/calibration.json` can end up truncated by a
+crash or a full disk. That is indistinguishable from "never calibrated" in
+its effect — `terminal_padding` and `cell_aspect` fall back to their
+defaults — but `:checkhealth images` reports the corrupt file specifically,
+and the file itself is preserved next to a `.corrupt` copy rather than
+silently overwritten by the next `:Image calibrate`. Run calibration again to
+replace it.
+
 ## An image lands somewhere unexpected and calibration did not help
 
 `:Image debug` measures instead of guessing:
