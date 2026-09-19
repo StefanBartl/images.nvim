@@ -78,7 +78,14 @@ function M.open(path, display)
   -- `blocks.fit_cells`, not `images.scale.fit_cells`: a half block holds two
   -- pixels, which makes them square, and the other function corrects for a
   -- cell being twice as tall as it is wide. Using it here halves the picture.
-  local cols, rows = blocks.fit_cells(display.max_cols, display.max_rows, image_px)
+  --
+  -- 60/25 mirror `config.DEFAULTS.display.max_cols`/`max_rows` -- an invalid
+  -- configured value degrades to the default instead of reaching the
+  -- arithmetic in `fit_cells` as-is (ERR-22).
+  local scale = require("images.scale")
+  local max_cols = scale.valid_box(display.max_cols, 60)
+  local max_rows = scale.valid_box(display.max_rows, 25)
+  local cols, rows = blocks.fit_cells(max_cols, max_rows, image_px)
 
   local raw, err = blocks.sample({ path }, cols, rows)
   if not raw then return false, err end

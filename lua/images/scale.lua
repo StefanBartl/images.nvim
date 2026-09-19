@@ -164,6 +164,24 @@ end
 --- difference.
 M.CELL_ASPECT = 0.5
 
+--- A configured `max_cols`/`max_rows`, made safe for every caller that reads
+--- it straight off `display` (ERR-22): a non-number throws the moment it
+--- reaches a comparison or multiplication (`M.fit_cells`'s own `cols <=
+--- max_cols` included, once `image_px` is known), and a 0 or negative box is
+--- a valid number that still crashes downstream — `nvim_open_win` rejects a
+--- non-positive width/height outright (`hover_float.lua`'s `M.dimensions`).
+--- `x or default` alone only substitutes on `nil`/`false`, not on either of
+--- those, so callers that read `display.max_cols`/`max_rows` route it through
+--- here before using it for anything, the same idiom as `images.pdf`'s
+--- `M.page`/`M.dpi`.
+---@param value any
+---@param default integer
+---@return integer
+function M.valid_box(value, default)
+  if type(value) == "number" and value == value and value >= 1 then return math.floor(value) end
+  return default
+end
+
 --- Determine the draw box in cells that fills `image_px`'s aspect ratio
 --- (expressed in cells via `M.CELL_ASPECT`) within the maximum size — the same
 --- "fit to the longer axis" idea as any aspect-ratio fit, just with the
@@ -209,7 +227,14 @@ end
 ---@param padding_cells integer|nil
 ---@return { x1: integer, y1: integer, x2: integer, y2: integer }
 function M.cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding_cells)
-  padding_cells = padding_cells or 0
+  -- `padding_cells` is `display.redact.padding_cells` verbatim (see
+  -- `images.redact`): a non-number reaches the subtraction below and throws
+  -- ("attempt to perform arithmetic on ... (a string/boolean/table value)",
+  -- reproduced with each), which `padding_cells or 0` does not catch since
+  -- only `nil`/`false` fall through it. A negative value would shrink the
+  -- box instead of growing it — the opposite of what this margin is for — so
+  -- it is clamped to 0 the same as an invalid type (ERR-22).
+  if type(padding_cells) ~= "number" or padding_cells ~= padding_cells or padding_cells < 0 then padding_cells = 0 end
 
   local col1 = math.max(1, box.col1 - padding_cells)
   local row1 = math.max(1, box.row1 - padding_cells)

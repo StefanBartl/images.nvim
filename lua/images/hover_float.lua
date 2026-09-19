@@ -71,8 +71,15 @@ end
 ---@return integer width
 ---@return integer height
 function M.dimensions(display_cfg)
-  local width = math.min(display_cfg.max_cols, math.max(1, vim.o.columns - 4))
-  local height = math.min(display_cfg.max_rows, math.max(1, vim.o.lines - 4))
+  local scale = require("images.scale")
+  -- 60/25 mirror `config.DEFAULTS.display.max_cols`/`max_rows` -- an invalid
+  -- configured value degrades to the built-in default rather than reaching
+  -- `math.min` (a wrong type) or `nvim_open_win` (a non-positive box) as-is
+  -- (ERR-22).
+  local max_cols = scale.valid_box(display_cfg.max_cols, 60)
+  local max_rows = scale.valid_box(display_cfg.max_rows, 25)
+  local width = math.min(max_cols, math.max(1, vim.o.columns - 4))
+  local height = math.min(max_rows, math.max(1, vim.o.lines - 4))
   return width, height
 end
 
