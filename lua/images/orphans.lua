@@ -68,4 +68,20 @@ function M.find(buf)
   return orphans
 end
 
+--- Delete an orphaned image file.
+---
+--- `vim.uv.fs_unlink`'s synchronous form does not raise on failure — it
+--- returns `nil, err_name, err_msg`, so a bare `pcall` around it is always
+--- `true` regardless of whether the file was actually removed. The real
+--- success signal is the call's own return value.
+---@param path string absolute path
+---@return boolean ok
+---@return string|nil err
+function M.delete(path)
+  local call_ok, unlink_ok, err_msg = pcall(vim.uv.fs_unlink, path)
+  if not call_ok then return false, tostring(unlink_ok) end
+  if not unlink_ok then return false, err_msg or "unknown error" end
+  return true
+end
+
 return M
