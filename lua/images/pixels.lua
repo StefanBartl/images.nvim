@@ -37,8 +37,16 @@ local M = {}
 --- Keyed by path plus mtime plus size, exactly like `images.info`'s cache: the
 --- header only changes when the file does. `false` is cached too — an
 --- unreadable or unsupported container must not be re-opened on every redraw.
----@type table<string, Images.Scale.Dims|false>
-local cache = {}
+---
+--- A TTL rather than an unbounded table (PERF-42: an entry needs a defined
+--- point at which it becomes invalid). A given key's file version never
+--- changes underneath it, so nothing here ever strictly *needs* re-reading —
+--- but a long session that touches many distinct files (`:Image pickers`
+--- over a large tree, a picker preview swept across a long list) would
+--- otherwise grow this table for the rest of the session with no way back
+--- short of a restart. `lib.nvim.cache.memory` gives entries a session-scale
+--- lifetime instead, without images.nvim having to hand-roll eviction.
+local cache = require("lib.nvim.cache.memory").namespace("images.pixels", { ttl = 300 })
 
 -- ── Byte readers. 1-based offsets, the way Lua indexes strings. ─────────────
 
@@ -211,12 +219,12 @@ function M.read(path)
   if not stat then return nil end
 
   local key = ("%s:%d:%d"):format(path, stat.mtime and stat.mtime.sec or 0, stat.size)
-  local hit = cache[key]
+  local hit = cache.get(key)
   if hit ~= nil then return hit or nil end
 
   local f = io.open(path, "rb")
   if not f then
-    cache[key] = false
+    cache.set(key, false)
     return nil
   end
 
@@ -242,12 +250,12 @@ function M.read(path)
   f:close()
 
   if not (w and h and w > 0 and h > 0) then
-    cache[key] = false
+    cache.set(key, false)
     return nil
   end
 
   local dims = { width = w, height = h }
-  cache[key] = dims
+  cache.set(key, dims)
   return dims
 end
 
