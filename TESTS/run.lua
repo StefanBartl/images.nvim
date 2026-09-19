@@ -158,13 +158,22 @@ end
 
 local failed = 0
 for _, name in ipairs(specs) do
-  local run = dofile(dir .. name)
-  local ok, err = pcall(run, H)
-  if ok then
-    print(("ok    %s"):format(name))
-  else
+  -- `dofile` is a filesystem boundary too (ERR-01): a syntax error or a
+  -- missing spec file must not abort the whole loop and skip every
+  -- remaining spec behind it -- the same per-spec verdict this loop already
+  -- gives a spec that loads fine but fails at runtime.
+  local ok_load, run_or_err = pcall(dofile, dir .. name)
+  if not ok_load then
     failed = failed + 1
-    print(("FAIL  %s\n      %s"):format(name, tostring(err)))
+    print(("FAIL  %s\n      %s"):format(name, tostring(run_or_err)))
+  else
+    local ok, err = pcall(run_or_err, H)
+    if ok then
+      print(("ok    %s"):format(name))
+    else
+      failed = failed + 1
+      print(("FAIL  %s\n      %s"):format(name, tostring(err)))
+    end
   end
 end
 
