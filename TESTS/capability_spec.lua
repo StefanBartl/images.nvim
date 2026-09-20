@@ -36,6 +36,9 @@ return function(H)
   H.ok(cap.reason and #cap.reason > 0, "there is a reason")
   H.contains(cap.hint or "", "imgcat", "the hint names the concrete test")
   H.contains(cap.hint or "", "assume_supported", "…and the option that silences it")
+  -- WezTerm is detected, so a terminal that lands here is by definition not
+  -- WezTerm: sending it to a WezTerm-only tool would be no help at all.
+  H.falsy((cap.hint or ""):lower():find("wezterm", 1, true), "…without naming a terminal-specific tool")
 
   -- ── force skips detection ────────────────────────────────────────────────
   cap = fresh(true)

@@ -46,7 +46,7 @@ return {
     -- images.hover_float). Affects only `:Image show`/hover, not the gallery.
     hover_mode = "overlay",
     -- Skip detection: set this when the terminal does speak OSC 1337 but is
-    -- not recognised (`wezterm imgcat` works, images.nvim warns anyway). Only
+    -- not recognised (an OSC 1337 probe like `imgcat` works, images.nvim warns anyway). Only
     -- silences the warning, changes nothing about drawing.
     assume_supported = false,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },

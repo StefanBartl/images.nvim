@@ -848,6 +848,13 @@ Nothing is drawn ~
     printf '\033]1337;File=inline=1;preserveAspectRatio=1:%s\a' \
         "$(base64 < picture.png | tr -d '\n')"
 <
+    The same in PowerShell (Windows):
+>
+    $b = [Convert]::ToBase64String(
+        [IO.File]::ReadAllBytes((Resolve-Path picture.png).Path))
+    [Console]::Write("$([char]27)]1337;File=inline=1;" +
+        "preserveAspectRatio=1:$b$([char]7)")
+<
     A terminal that ships its own tool works as well: `imgcat picture.png`
     (iTerm2) or `wezterm imgcat picture.png` (WezTerm).
     If that shows nothing, the terminal does not do OSC 1337 — with

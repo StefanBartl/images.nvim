@@ -140,7 +140,8 @@ function M.capability(force)
     capability = {
       ok = false,
       reason = "terminal not recognised (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "empty") .. ")",
-      hint = "test with `wezterm imgcat image.png` or the equivalent. "
+      hint = "test with `imgcat image.png` or your terminal's own OSC 1337 tool "
+        .. "(see :help images-troubleshooting). "
         .. "If that works, set `display.assume_supported = true`.",
     }
   end
