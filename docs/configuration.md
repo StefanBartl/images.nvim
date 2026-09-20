@@ -51,6 +51,7 @@ require("images").setup({
       enabled = false,
       timeout_ms = 10000,
       max_bytes = 20 * 1024 * 1024,
+      cache_ttl_s = 24 * 60 * 60,
     },
     screenshot = {
       windows_timeout_ms = 60000,
@@ -153,10 +154,12 @@ each of the two.
 | `enabled` | `false` | Allow `:Image show <url>` and hovering an `http(s)` link to download. Off by default on purpose: opening a document should not make an outbound request on its own — the same posture email clients take |
 | `timeout_ms` | `10000` | Download timeout |
 | `max_bytes` | `20 * 1024 * 1024` | Largest download accepted |
+| `cache_ttl_s` | `86400` (a day) | How long a downloaded image is served from disk before a re-fetch is attempted |
 
-Downloads are cached by URL under `stdpath("cache")/images.nvim/remote`. Only
-the single-image path resolves remote targets; `:Image gallery`, `compare`,
-`pickers` and `zen` do not.
+Downloads are cached by URL under `stdpath("cache")/images.nvim/remote`, for
+`cache_ttl_s` seconds — past that, the same URL is fetched again rather than
+served stale forever. Only the single-image path resolves remote targets;
+`:Image gallery`, `compare`, `pickers` and `zen` do not.
 
 ### display.screenshot
 

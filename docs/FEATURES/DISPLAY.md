@@ -68,13 +68,15 @@ single-image path gets this fallback.
 `http(s)://…` download and cache the image before drawing. Off by default
 — a document merely being opened should not silently trigger a network
 request, the same posture email clients take toward remote images.
-Downloads are cached by URL with a size and time limit. Gallery, compare,
-pickers and zen do not resolve remote images yet — only the single-image
-path does.
+Downloads are bounded by a size and a download timeout, and cached by URL on
+disk for `cache_ttl_s` seconds (default a day) — past that, the same URL is
+fetched again rather than served stale forever. Gallery, compare, pickers and
+zen do not resolve remote images yet — only the single-image path does.
 
 - **Module:** `images/remote.lua` (`M.is_remote`, `M.fetch`)
 - **Config:** `opts.display.remote.enabled` (default `false`),
-  `opts.display.remote.timeout_ms`, `opts.display.remote.max_bytes`
+  `opts.display.remote.timeout_ms`, `opts.display.remote.max_bytes`,
+  `opts.display.remote.cache_ttl_s`
 
 ## Zen: full-screen single image
 
