@@ -53,19 +53,19 @@ where they do not.
 Start at [docs/README.md](docs/README.md) — what's where, and which question
 each page answers.
 
-**The Basics**
+### The Basics
 
 - [Requirements](docs/installation.md#requirements) — Neovim version, the terminal question, and the one required plugin.
 - [Installation](docs/installation.md) — plugin managers and optional external tools.
 - [Quickstart](docs/quickstart.md) — the first thing to run after installing.
 
-**Configuration**
+### Configuration
 
 - [What you get with the defaults](docs/what-you-get.md) — the sixteen `:Image` routes and the six keymaps that matter on day one.
 - [All options](docs/configuration.md) — every `setup()` option and its default.
 - [Commands](docs/commands.md) / [Bindings cheatsheet](docs/BINDINGS.md)
 
-**The Rest**
+### The Rest
 
 - [What it does and what not](docs/scope.md) — the four feature groups, and the four limits the OSC 1337 decision buys.
 - [How the commands combine day to day](docs/WORKFLOW.md)
