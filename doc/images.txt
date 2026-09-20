@@ -841,10 +841,15 @@ open.nvim       Can route image targets here.
 9. TROUBLESHOOTING                                    *images-troubleshooting*
 
 Nothing is drawn ~
-    Verify the terminal itself first, outside Neovim:
+    Verify the terminal itself first, outside Neovim, with a tool that
+    speaks the same protocol: OSC 1337, the iTerm2 inline-image protocol
+    (not the Kitty graphics protocol). Any POSIX shell will do:
 >
-    wezterm imgcat picture.png
+    printf '\033]1337;File=inline=1;preserveAspectRatio=1:%s\a' \
+        "$(base64 < picture.png | tr -d '\n')"
 <
+    A terminal that ships its own tool works as well: `imgcat picture.png`
+    (iTerm2) or `wezterm imgcat picture.png` (WezTerm).
     If that shows nothing, the terminal does not do OSC 1337 — with
     ImageMagick installed, `:Image show`/hover already fall back to a
     block-character rendering instead (|images-ascii-config|); without it,
@@ -871,8 +876,8 @@ A window opens but stays empty, or shows only its first rows ~
     the repaint that opening the window itself triggers. A caller of
     |images.draw()| that opens its own window passes `opts.defer = true` for
     the same reason. If an empty window still appears from a built-in path,
-    the terminal is most likely ignoring the sequence entirely; check
-    `wezterm imgcat` above.
+    the terminal is most likely ignoring the sequence entirely; run the
+    terminal check under "Nothing is drawn" above.
 
 The image leaves empty space at one edge of the `:Image zen` window ~
     `preserveAspectRatio=1` scales the image DOWN to fit the sent cell box,

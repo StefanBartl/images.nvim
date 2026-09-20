@@ -120,7 +120,7 @@ document mixing local and remote images will show remote ones on hover
 but skip them in a gallery view. Don't be surprised when a gallery looks
 sparser than the buffer's actual link count.
 
-## Windows/WezTerm and the ASCII fallback
+## Unrecognized terminals and the ASCII fallback
 
 If `:Image check` reports the terminal isn't recognized (SSH session,
 tmux without passthrough, a genuinely unsupported terminal), `:Image
@@ -128,8 +128,9 @@ show`/hover don't just fail silently — they draw a block-character
 approximation instead, sampled from the real pixel colors via
 ImageMagick. This needs `display.ascii_fallback.enabled = true` (the
 default) and ImageMagick present; with neither, you get the old
-silent-no-op-with-a-warning. If a known-good terminal (WezTerm via
-`wezterm imgcat` working from a raw shell) is still misdetected, set
+silent-no-op-with-a-warning. If a known-good terminal (one whose OSC 1337
+probe from [troubleshooting.md](troubleshooting.md#nothing-is-drawn-at-all)
+draws from a raw shell) is still misdetected, set
 `display.assume_supported = true` rather than fighting the heuristic —
 there is no capability query for OSC 1337, so detection is inherently a
 best guess from environment variables.
