@@ -15,11 +15,17 @@ Three probes, three different questions:
 
 ## Nothing is drawn at all
 
-Verify the terminal itself first, outside Neovim:
+Verify the terminal itself first, outside Neovim, with a tool that speaks the
+same protocol — OSC 1337, the iTerm2 inline-image protocol, *not* the Kitty
+graphics protocol. Any POSIX shell will do:
 
 ```sh
-wezterm imgcat picture.png
+printf '\033]1337;File=inline=1;preserveAspectRatio=1:%s\a' \
+    "$(base64 < picture.png | tr -d '\n')"
 ```
+
+A terminal that ships its own tool works as well: `imgcat picture.png`
+(iTerm2) or `wezterm imgcat picture.png` (WezTerm).
 
 If that shows nothing, the terminal does not implement OSC 1337. With
 ImageMagick installed, `:Image show`/hover already fall back to a
@@ -34,7 +40,7 @@ A multiplexer is the other common cause — tmux needs
 
 That is the ASCII fallback, not a bug: the terminal was not detected as
 OSC-1337-capable. `:Image check` confirms the detection. If the terminal *does*
-work (`wezterm imgcat` draws) and is only misdetected, set
+work (the probe above draws) and is only misdetected, set
 `display.assume_supported = true` rather than fighting the heuristic — the
 protocol has no capability query, so detection is a best guess from environment
 variables. See
