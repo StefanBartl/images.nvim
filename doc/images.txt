@@ -426,6 +426,7 @@ under the same key).
           enabled = false,
           timeout_ms = 10000,
           max_bytes = 20 * 1024 * 1024,
+          cache_ttl_s = 24 * 60 * 60,
         },
         screenshot = {
           windows_timeout_ms = 60000,
@@ -586,8 +587,10 @@ document should not silently make a network request just because it
 contains an image link, the same reasoning email clients apply to "load
 remote images". `display.remote.timeout_ms` and `.max_bytes` bound the
 download; results are cached by URL under
-`stdpath("cache")/images.nvim/remote`. Uses `curl` if found, else `wget`;
-neither present is reported as an error, not a silent no-op.
+`stdpath("cache")/images.nvim/remote` for `display.remote.cache_ttl_s`
+seconds (default a day) before a re-fetch is attempted, so a URL whose
+content changes is not served stale forever. Uses `curl` if found, else
+`wget`; neither present is reported as an error, not a silent no-op.
 
 Only the single-image path resolves remote images — `:Image gallery`,
 `compare`, `pickers` and `zen` do not (yet); a remote link inside a buffer is
