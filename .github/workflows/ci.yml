@@ -22,12 +22,13 @@ jobs:
       - run: |
           exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
           luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-output-lint
           path: ${{ runner.temp }}/test-output.log
           if-no-files-found: ignore
+          retention-days: 14
 
   test:
     # The side-effect-free modules only: grid layout, link detection, metadata
@@ -59,12 +60,13 @@ jobs:
       - run: |
           exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
           LIB_NVIM_PATH=.deps/lib.nvim nvim -n -i NONE --headless -u NONE -l TESTS/run.lua
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-output-test-${{ matrix.os }}
           path: ${{ runner.temp }}/test-output.log
           if-no-files-found: ignore
+          retention-days: 14
 
   map:
     # Generates the map; the gate is the generator's own exit code, which is
@@ -96,9 +98,10 @@ jobs:
       - run: |
           exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
           nvim -n -i NONE --headless -l scripts/gen_map.lua
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-output-map
           path: ${{ runner.temp }}/test-output.log
           if-no-files-found: ignore
+          retention-days: 14
