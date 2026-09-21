@@ -90,6 +90,7 @@ jobs:
         with:
           repository: StefanBartl/documentation.nvim
           path: .deps/documentation.nvim
+          ref: ci-verified
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
       - run: |
