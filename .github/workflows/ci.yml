@@ -8,6 +8,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - name: stylua --check
@@ -18,7 +19,15 @@ jobs:
           args: --check lua/ plugin/ scripts/ TESTS/
       - name: Install luacheck
         run: sudo apt-get update && sudo apt-get install -y lua5.1 luarocks && sudo luarocks install luacheck 1.2.0
-      - run: luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
+      - run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-lint
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore
 
   test:
     # The side-effect-free modules only: grid layout, link detection, metadata
@@ -26,6 +35,7 @@ jobs:
     # graphics protocol and cannot be checked headless.
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       # One platform failing must not cancel the others: which of the three
       # broke is the whole information content of this job.
@@ -46,7 +56,15 @@ jobs:
           ref: ci-verified
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
-      - run: LIB_NVIM_PATH=.deps/lib.nvim nvim --headless -u NONE -l TESTS/run.lua
+      - run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          LIB_NVIM_PATH=.deps/lib.nvim nvim -n -i NONE --headless -u NONE -l TESTS/run.lua
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-test-${{ matrix.os }}
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore
 
   map:
     # Generates the map; the gate is the generator's own exit code, which is
@@ -60,6 +78,7 @@ jobs:
     # a working copy is the pre-commit hook's business; the layer rules are
     # what CI can meaningfully enforce.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/checkout@v5
@@ -73,4 +92,12 @@ jobs:
           path: .deps/documentation.nvim
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
-      - run: nvim --headless -l scripts/gen_map.lua
+      - run: |
+          exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
+          nvim -n -i NONE --headless -l scripts/gen_map.lua
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output-map
+          path: ${{ runner.temp }}/test-output.log
+          if-no-files-found: ignore
