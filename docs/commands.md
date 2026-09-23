@@ -108,7 +108,7 @@ pin, and closes a `:Image zen` window if one is open.
 
 ## Capturing
 
-### `:Image paste [name]`
+### `:Image paste [name] [path=relative|absolute|repos|<prefix>]`
 
 The everyday case for documentation: take a screenshot, run it, and the PNG is
 written to `assets/<document>-<timestamp>.png` with `![](assets/…)` inserted at
@@ -120,6 +120,19 @@ either way.
 `:Image paste {name}` uses `{name}` as the filename directly, skipping any
 prompt. A count on `<leader>iv` forces the prompt instead — see
 [configuration.md](configuration.md#paste).
+
+`path=...` picks how the inserted *link* spells out the image's location —
+never where the file itself is written, only the link text:
+
+- `path=relative` (default) — relative to the document, unchanged from before this argument existed
+- `path=absolute` — the full filesystem path
+- `path=repos` — rooted at `$REPOS_DIR` (falls back to `relative` outside it, errors if `$REPOS_DIR` is unset)
+- `path=<anything else>` — a literal custom prefix, e.g. `path=/static/img`
+
+Without `path=...`, `paste.default_path_mode` decides (default `"relative"`,
+so a plain paste stays a one-keypress action); set it to `false` to be asked
+interactively every time instead — see
+[configuration.md](configuration.md#pastedefault_path_mode--image-paste-path).
 
 ### `:Image screenshot`
 

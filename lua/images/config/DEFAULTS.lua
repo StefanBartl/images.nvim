@@ -155,6 +155,23 @@ return {
     -- always forced to .png (see images.paste.sanitize_filename). Default
     -- false for the same reason as ask_alt_text.
     ask_filename = false,
+    -- Which form the inserted link's path takes: "relative" (default, the
+    -- only behaviour before this option existed) links relative to the
+    -- document; "absolute" is the full filesystem path; "repos" is rooted at
+    -- $REPOS_DIR (falls back to "relative" when the file is outside it, and
+    -- to an error when the variable itself is unset); anything else is used
+    -- literally as a custom prefix (e.g. "/static/img"), see
+    -- images.paste.resolve_link_path. This never changes WHERE the file is
+    -- written (still `paste.dir`/an existing resource folder next to the
+    -- document) — only how that location is spelled out in the link.
+    --
+    -- `false` means "ask every time" instead: `:Image paste` (without a
+    -- `path=...` argument) then offers a ui.kit.select choice among the four
+    -- options above, falling back to vim.ui.select without ui.nvim. Kept
+    -- "relative" by default so a plain paste stays the one-keypress, no-
+    -- prompt action it always was; opt into the prompt by setting this to
+    -- `false` explicitly.
+    default_path_mode = "relative",
   },
 
   -- `:Image ocr`, see images.ocr. Deliberately top-level rather than under

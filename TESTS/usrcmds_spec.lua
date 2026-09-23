@@ -96,6 +96,21 @@ return function(H)
   call = run("ImageTest paste shot")
   H.eq(call[1], "paste", "paste with a name dispatches correctly")
   H.eq(call[2], "shot", "…and the name arrives")
+
+  -- ── `path=...` kv, Phase 3 point 8: forwarded as paste's 3rd argument ────
+  call = run("ImageTest paste")
+  H.eq(call[4], nil, "paste without path=... forwards no path_mode")
+  call = run("ImageTest paste path=absolute")
+  H.eq(call[2], nil, "…path=absolute alone still leaves the name argument unset")
+  H.eq(call[4], "absolute", "…and the path_mode arrives as the 3rd argument")
+  call = run("ImageTest paste shot path=repos")
+  H.eq(call[2], "shot", "name and path= combine: the name still arrives")
+  H.eq(call[4], "repos", "…alongside the path_mode")
+  -- An unrecognised value is a literal custom prefix (not validated against
+  -- the enum: `values` on the kv spec only seeds completion, see
+  -- images/bindings/usrcmds.lua), so it must pass through unchanged too.
+  call = run("ImageTest paste path=/static/img")
+  H.eq(call[4], "/static/img", "path=<anything else> passes through as a literal custom prefix")
   H.eq(run("ImageTest replace")[1], "replace", "replace dispatches correctly")
   H.eq(run("ImageTest orphans")[1], "orphans", "orphans dispatches correctly")
   H.eq(run("ImageTest pin")[1], "pin", "pin dispatches correctly")

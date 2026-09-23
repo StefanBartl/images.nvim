@@ -74,6 +74,7 @@
 ---@field ask_alt_text boolean ask for alt text before inserting
 ---@field alt_link_template string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename boolean ask for a file name before inserting (extension always forced to .png)
+---@field default_path_mode string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos" ($REPOS_DIR-rooted)|a literal custom prefix; `false` asks interactively (ui.kit.select, falling back to vim.ui.select) instead — see images.paste.resolve_link_path
 
 ---@class ImagesNvim.OcrConfig : ImagesNvim.OcrOpts
 ---@field lang string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
@@ -167,6 +168,7 @@
 ---@field ask_alt_text?       boolean ask for alt text before inserting
 ---@field alt_link_template?  string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename?       boolean ask for a file name before inserting (extension always forced to .png)
+---@field default_path_mode? string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos"|a literal custom prefix; `false` asks interactively — see images.paste.resolve_link_path
 
 ---@class ImagesNvim.OcrOpts
 ---@field lang? string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)

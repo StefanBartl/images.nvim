@@ -75,6 +75,7 @@ require("images").setup({
     ask_alt_text = false,
     alt_link_template = "![%s](%s)",
     ask_filename = false,
+    default_path_mode = "relative",
   },
   ocr = {
     lang = "eng",
@@ -256,11 +257,34 @@ because the cost was never in writing text.
 | `ask_alt_text` | `false` | `true` prompts for alt text first, producing `![alt](path)`. Cancelling still inserts the plain link — the file is already on disk by then, and a lost link would be the worse surprise |
 | `alt_link_template` | `"![%s](%s)"` | Inserted text with alt text; `%s %s` = alt text, relative path |
 | `ask_filename` | `false` | `true` prompts for a name, prefilled with what `name_template` would produce. Any path component is dropped and the extension is forced to `.png`. Cancelling here writes nothing at all — unlike the alt-text prompt, the clipboard has not been read yet |
+| `default_path_mode` | `"relative"` | How the inserted link's path is spelled out — see `:Image paste`'s `path=...` argument below. `false` asks every time instead of assuming `"relative"` |
 
 `:Image paste {name}` sanitizes `{name}` the same way and skips the prompt
 outright: a name on the command line always outranks `ask_filename`. So does a
 count on the keymap, in the other direction — `1<leader>iv` forces the prompt
 even with `ask_filename = false`.
+
+### `paste.default_path_mode` / `:Image paste path=...`
+
+`:Image paste` (and the plain `<leader>iv` keymap) can link the pasted image
+four different ways, chosen by `path=...` on the command line:
+
+| `path=` | Result |
+| --- | --- |
+| `relative` (default) | Relative to the document — unchanged from before this option existed |
+| `absolute` | The full filesystem path |
+| `repos` | Rooted at `$REPOS_DIR` (falls back to `relative` when the file sits outside it; errors if `$REPOS_DIR` itself is unset) |
+| anything else | Used literally as a custom prefix, e.g. `path=/static/img` → `/static/img/assets/shot-1.png` |
+
+This only changes what gets written into the *link* — the file itself always
+lands in `paste.dir` (or an existing resource folder), exactly as before.
+
+Without a `path=...` argument, `paste.default_path_mode` decides: its default,
+`"relative"`, is used silently, so a plain paste stays the one-keypress,
+no-prompt action it always was. Set it to `false` to be asked every time
+instead — a `ui.kit.select` prompt (falling back to `vim.ui.select`) offers
+the four choices above, with "custom prefix…" opening a second, free-text
+prompt for the literal prefix.
 
 ## ocr
 

@@ -369,9 +369,10 @@ end
 --- Save the clipboard image and link it.
 ---@param name string|nil a file name already given — skips any name prompt
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@param path_mode string|nil "relative"|"absolute"|"repos"|a custom prefix, already given as `:Image paste`'s `path=...`; nil = `paste.default_path_mode`, asked interactively (ui.kit.select) when that is `false`
 ---@return nil
-function M.paste(name, force_ask)
-  require("images.paste").run(name, force_ask)
+function M.paste(name, force_ask, path_mode)
+  require("images.paste").run(name, force_ask, path_mode)
 end
 
 --- Capture a screen selection interactively, save it and link it — the same
