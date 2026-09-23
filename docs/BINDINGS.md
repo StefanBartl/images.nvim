@@ -16,7 +16,7 @@ completion and this table all come from the same spec.
 | `:Image next` | — | Jump to the next image of the buffer and show it |
 | `:Image prev` | — | Same, backwards; both wrap around |
 | `:Image info [path]` | — | Format, dimensions and file size |
-| `:Image paste [name]` | — | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly |
+| `:Image paste [name] [path=relative\|absolute\|repos\|<prefix>]` | — | Save the clipboard image next to the document and insert the link; with `name`, use that filename directly; `path=` picks how the link spells out the location (default `paste.default_path_mode`, `"relative"`) |
 | `:Image screenshot` | — | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
 | `:Image export [path]` | — | Export an image as PDF next to the source file (via `pdfport.nvim` if installed, else needs ImageMagick) |

@@ -192,16 +192,53 @@ end
 -- Exposed for tests: reads only, never writes.
 M.find_existing_resource_dir = find_existing_resource_dir
 
+--- Turn the doc-relative link path `doc_rel` into whatever `mode` asks for.
+--- Only the STRING inserted into the markdown link changes here — the file
+--- itself always lands next to the document (or in `paste.dir`/an existing
+--- resource folder, see `target_paths`), exactly as before this existed;
+--- `mode` only picks how that location is spelled out in the link text.
+---@param abs string absolute path of the image file on disk
+---@param doc_rel string path relative to the document's own directory — what "relative" (the only behaviour before this existed) produces
+---@param mode string|nil "relative" (default/nil) | "absolute" | "repos" | a literal custom prefix
+---@return string|nil link_path
+---@return string|nil err
+local function resolve_link_path(abs, doc_rel, mode)
+  if not mode or mode == "" or mode == "relative" then return doc_rel, nil end
+
+  local forward_abs = (abs:gsub("\\", "/"))
+  if mode == "absolute" then return forward_abs, nil end
+
+  if mode == "repos" then
+    local repos_dir = vim.env.REPOS_DIR
+    if not repos_dir or repos_dir == "" then return nil, "$REPOS_DIR is not set" end
+    local norm_repos = (repos_dir:gsub("\\", "/"))
+    if forward_abs:sub(1, #norm_repos + 1) == norm_repos .. "/" then return forward_abs:sub(#norm_repos + 2), nil end
+    -- Outside $REPOS_DIR: fall back to the same doc-relative path "relative"
+    -- would produce, rather than erroring — mirrors buffer-ctx.nvim's
+    -- ops/filepath.lua (mode="repos"), which falls back to the cwd-relative
+    -- path for this same "outside the root" case, reserving the hard error
+    -- for the variable being unset outright.
+    return doc_rel, nil
+  end
+
+  -- Anything else is a literal custom prefix, joined onto the doc-relative
+  -- path — e.g. mode="/static/img" -> "/static/img/assets/shot-1.png".
+  return (mode:gsub("/+$", "")) .. "/" .. doc_rel, nil
+end
+-- Exposed for tests: a pure function, no filesystem or terminal needed.
+M.resolve_link_path = resolve_link_path
+
 --- Determine the target path for a new image and create the directory. Runs
 --- only AFTER a successful capture (see `paste_with_name`) — otherwise an empty
 --- clipboard, for instance, would still create an `assets` directory with
 --- nothing written into it.
 ---@param buf integer
 ---@param filename_override string|nil an already sanitised name; nil = template
+---@param path_mode string|nil see `resolve_link_path`; nil = "relative"
 ---@return string|nil absolute path
----@return string|nil relative path for the link
+---@return string|nil link path to use in the markdown link
 ---@return string|nil err
-local function target_paths(buf, filename_override)
+local function target_paths(buf, filename_override, path_mode)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then return nil, nil, "the buffer has no file name — save it first" end
 
@@ -218,8 +255,11 @@ local function target_paths(buf, filename_override)
 
   local file = filename_override or c.name_template:format(doc_stem, os.time())
   local abs = dir .. "/" .. file
-  local rel = (sub ~= "") and (sub .. "/" .. file) or file
-  return abs, rel, nil
+  local doc_rel = (sub ~= "") and (sub .. "/" .. file) or file
+
+  local link_path, mode_err = resolve_link_path(abs, doc_rel, path_mode)
+  if not link_path then return nil, nil, mode_err end
+  return abs, link_path, nil
 end
 
 --- Move `src` to `dst`. `fs_rename` fails across drive boundaries (EXDEV, the
@@ -301,8 +341,9 @@ end
 ---@param buf integer
 ---@param filename_override string|nil already sanitised; nil = template
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
+---@param path_mode string|nil see `resolve_link_path`; nil = "relative"
 ---@return nil
-local function paste_with_name(buf, filename_override, capture)
+local function paste_with_name(buf, filename_override, capture, path_mode)
   if vim.api.nvim_buf_get_name(buf) == "" then
     notify().error("the buffer has no file name — save it first")
     return
@@ -320,7 +361,7 @@ local function paste_with_name(buf, filename_override, capture)
       return
     end
 
-    local abs, rel, err = target_paths(buf, filename_override)
+    local abs, rel, err = target_paths(buf, filename_override, path_mode)
     if not abs or not rel then
       pcall(vim.uv.fs_unlink, tmp)
       notify().error(err or "cannot determine the target path")
@@ -372,8 +413,9 @@ end
 ---@param capture fun(out: string, cb: fun(ok: boolean, err: string|nil))
 ---@param direct_name string|nil a name already given as a command argument
 ---@param force_ask boolean|nil  # prompt even when `paste.ask_filename` is off
+---@param path_mode string|nil see `resolve_link_path`; nil = "relative"
 ---@return nil
-local function capture_with_optional_name(capture, direct_name, force_ask)
+local function capture_with_optional_name(capture, direct_name, force_ask, path_mode)
   local buf = vim.api.nvim_get_current_buf()
 
   if direct_name then
@@ -382,7 +424,7 @@ local function capture_with_optional_name(capture, direct_name, force_ask)
       notify().error("invalid file name: " .. direct_name)
       return
     end
-    paste_with_name(buf, sanitized, capture)
+    paste_with_name(buf, sanitized, capture, path_mode)
     return
   end
 
@@ -391,7 +433,7 @@ local function capture_with_optional_name(capture, direct_name, force_ask)
   -- keypress previously had no way to name the file at all -- only
   -- `:Image paste {name}` did.
   if not (cfg().paste.ask_filename or force_ask) then
-    paste_with_name(buf, nil, capture)
+    paste_with_name(buf, nil, capture, path_mode)
     return
   end
 
@@ -402,7 +444,7 @@ local function capture_with_optional_name(capture, direct_name, force_ask)
       title = "File name",
       default = suggested,
       on_submit = function(name)
-        paste_with_name(buf, sanitize_filename(name), capture)
+        paste_with_name(buf, sanitize_filename(name), capture, path_mode)
       end,
       -- Unlike the alt-text prompt: nothing has been captured or written yet, so
       -- cancelling really does mean "do nothing" rather than "carry on with
@@ -417,16 +459,108 @@ local function capture_with_optional_name(capture, direct_name, force_ask)
       notify().info("cancelled")
       return
     end
-    paste_with_name(buf, sanitize_filename(name), capture)
+    paste_with_name(buf, sanitize_filename(name), capture, path_mode)
   end
 end
+
+--- Choose the path mode for the link (see `resolve_link_path`): an explicit
+--- `path=...` argument (`:Image paste path=absolute`) wins outright; without
+--- one, a configured `paste.default_path_mode` is used silently — default
+--- `"relative"`, the only behaviour before this existed, so a plain
+--- `:Image paste`/keymap paste stays a one-keypress, no-prompt action.
+--- Setting that option to `false` means "ask me every time", and only then
+--- does the interactive choice (ui.nvim's UI kit, falling back to
+--- `vim.ui.select`/`vim.fn.input`) appear.
+---@param explicit_mode string|nil already given via `path=...`
+---@param on_resolved fun(mode: string|nil) mode = nil means "cancelled"
+---@return nil
+local function resolve_path_mode(explicit_mode, on_resolved)
+  if explicit_mode and explicit_mode ~= "" then
+    on_resolved(explicit_mode)
+    return
+  end
+
+  local default_mode = cfg().paste.default_path_mode
+  if default_mode and default_mode ~= "" then
+    on_resolved(default_mode)
+    return
+  end
+
+  local choices = {
+    { label = "relative to the document", value = "relative" },
+    { label = "absolute filesystem path", value = "absolute" },
+    { label = "$REPOS_DIR-rooted", value = "repos" },
+    { label = "custom prefix…", value = "custom" },
+  }
+
+  local function ask_custom_prefix()
+    local k = kit()
+    if k and k.input then
+      k.input({
+        title = "Custom path prefix",
+        on_submit = function(prefix)
+          on_resolved((prefix and prefix ~= "") and prefix or nil)
+        end,
+        on_cancel = function()
+          on_resolved(nil)
+        end,
+      })
+    else
+      local prefix = vim.fn.input("Custom path prefix: ")
+      on_resolved(prefix ~= "" and prefix or nil)
+    end
+  end
+
+  local function handle_choice(choice)
+    if not choice then
+      on_resolved(nil)
+      return
+    end
+    if choice.value == "custom" then
+      ask_custom_prefix()
+    else
+      on_resolved(choice.value)
+    end
+  end
+
+  local k = kit()
+  if k and k.select then
+    k.select({
+      items = choices,
+      title = "Image link path",
+      format_item = function(c)
+        return c.label
+      end,
+      on_select = handle_choice,
+      on_cancel = function()
+        on_resolved(nil)
+      end,
+    })
+  else
+    vim.ui.select(choices, {
+      prompt = "Image link path",
+      format_item = function(c)
+        return c.label
+      end,
+    }, handle_choice)
+  end
+end
+-- Exposed for tests: drives the interactive choice with a faked kit()/vim.ui.select.
+M.resolve_path_mode = resolve_path_mode
 
 --- Save the clipboard image and insert the link at the cursor.
 ---@param name string|nil a file name already given (`:Image paste {name}`) — skips any name prompt
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
+---@param path_mode string|nil already given via `path=...` (see `resolve_path_mode`); nil = `paste.default_path_mode`, asked interactively when that is `false`
 ---@return nil
-function M.run(name, force_ask)
-  capture_with_optional_name(clipboard_to_file, name, force_ask)
+function M.run(name, force_ask, path_mode)
+  resolve_path_mode(path_mode, function(mode)
+    if not mode then
+      notify().info("cancelled")
+      return
+    end
+    capture_with_optional_name(clipboard_to_file, name, force_ask, mode)
+  end)
 end
 
 -- Exposed for tests: both take `capture` as a parameter, so a fake suffices --
@@ -437,6 +571,11 @@ M.capture_with_optional_name = capture_with_optional_name
 --- Capture an interactive screen selection straight into a file and process it
 --- like `M.run` — the everyday case in one step instead of three (launch a
 --- screenshot tool by hand, clipboard, `:Image paste`).
+---
+--- Path mode is deliberately pinned to "relative" here, not threaded through
+--- `resolve_path_mode`: `:Image screenshot` has no `path=...` argument (only
+--- `:Image paste` does, see `usrcmds.lua`), so it must stay exactly the
+--- one-keypress action it always was, unaffected by `paste.default_path_mode`.
 ---@param force_ask boolean|nil  # prompt for a name even when `ask_filename` is off
 ---@return nil
 function M.screenshot(force_ask)
@@ -445,7 +584,7 @@ function M.screenshot(force_ask)
     notify().error(screenshot.unavailable_reason())
     return
   end
-  capture_with_optional_name(screenshot.capture, nil, force_ask)
+  capture_with_optional_name(screenshot.capture, nil, force_ask, "relative")
 end
 
 --- Replace an existing image with the clipboard contents, without touching the

@@ -141,9 +141,15 @@ function M.register(cfg)
       {
         path = { "paste" },
         args = { { name = "name", type = "STRING", optional = true } },
-        desc = "Save an image from the clipboard and link it; with {name} named directly instead of the configured name prompt",
+        -- Bare `key=value`, not a `--flag`: a path prefix is the common case
+        -- (a custom one especially) and would just be noise behind a dash --
+        -- see media.nvim's `:Media dashboard path=<dir>` for the same
+        -- reasoning. `values` only seeds completion; any other string
+        -- (a custom prefix) is still accepted, see images.paste.resolve_link_path.
+        kv = { { key = "path", type = "STRING", values = { "relative", "absolute", "repos" } } },
+        desc = "Save an image from the clipboard and link it; with {name} named directly instead of the configured name prompt; path=relative|absolute|repos|<prefix> picks the link path (default: paste.default_path_mode, asked interactively when that is false)",
         run = function(ctx)
-          require("images").paste(ctx.args.name)
+          require("images").paste(ctx.args.name, nil, (ctx.kv or {}).path)
         end,
       },
 

@@ -50,6 +50,7 @@ local KNOWN = {
     ask_alt_text = true,
     alt_link_template = true,
     ask_filename = true,
+    default_path_mode = true,
   },
   ocr = { lang = true, args = true, bin = true },
   deps_popup = true,
