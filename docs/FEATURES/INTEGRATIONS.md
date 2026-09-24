@@ -13,7 +13,7 @@ tools.
     - [A PDF is one of ours too](#a-pdf-is-one-of-ours-too)
   - [filetree.nvim and open.nvim](#filetreenvim-and-opennvim)
   - [pdfport.nvim, in both directions](#pdfportnvim-in-both-directions)
-  - [language.nvim after OCR — an integration with no code in it](#languagenvim-after-ocr-an-integration-with-no-code-in-it)
+  - [language.nvim after OCR — an integration with no code in it](#languagenvim-after-ocr--an-integration-with-no-code-in-it)
   - [lib.nvim.deps: missing-tool reporting](#libnvimdeps-missing-tool-reporting)
   - [Right-click context menu (nvzone/menu)](#right-click-context-menu-nvzonemenu)
   - [Health check](#health-check)
