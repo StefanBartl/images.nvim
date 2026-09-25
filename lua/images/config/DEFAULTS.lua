@@ -232,6 +232,13 @@ return {
     enable = true,
   },
 
+  -- Which hosts may drive this plugin. `ui_menu = false` keeps ui.nvim's
+  -- right-click menu (ui.menu) from composing the Images fly-out; the entries
+  -- stay available to any other host through `menu`/`items()`.
+  integrations = {
+    ui_menu = true,
+  },
+
   keymaps = {
     show = "<leader>im",
     gallery = "<leader>ig",

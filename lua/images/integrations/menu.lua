@@ -32,6 +32,17 @@ local function ft_allowed(ft, fts)
   return false
 end
 
+--- Whether a host that asks first (ui.nvim's `ui.menu`) may show this
+--- plugin's fly-out: `integrations.ui_menu` is not false and the `menu` group
+--- is not switched off. `items()`/`submenu()` themselves stay governed by
+--- `menu` alone, so other hosts are unaffected by `ui_menu`.
+---@return boolean
+function M.enabled()
+  local cfg = require("images.config").get()
+  if (cfg.integrations or {}).ui_menu == false then return false end
+  return (cfg.menu or {}).enable ~= false
+end
+
 --- Build the images.nvim menu entries for `bufnr`.
 --- Returns an empty list when the integration is disabled or the filetype is
 --- not configured, so a host can splice it in with `vim.list_extend` without

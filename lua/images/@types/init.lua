@@ -10,6 +10,7 @@
 ---@field keymaps ImagesNvim.KeymapConfig
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu? ImagesNvim.MenuConfig enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
+---@field integrations? ImagesNvim.IntegrationsConfig which hosts may drive this plugin (`ui_menu`)
 ---@field pdf? ImagesNvim.PdfConfig PDF pages drawn as pictures, via pdfport.nvim (see images.pdf)
 
 ---Off switch for `images.integrations.menu`. images.nvim has no nvzone/menu
@@ -110,10 +111,17 @@
 ---@field keymaps?    ImagesNvim.KeymapOpts
 ---@field deps_popup? boolean show the one-off lib.nvim.deps popup on the first setup() after installation (default true; a no-op without lib.nvim.deps)
 ---@field menu?       ImagesNvim.MenuOpts enable/disable `images.integrations.menu` (its nvzone/menu context-menu contribution)
+---@field integrations? ImagesNvim.IntegrationsOpts which hosts may drive this plugin (`ui_menu`)
 ---@field pdf?        ImagesNvim.PdfOpts PDF pages drawn as pictures, via pdfport.nvim (see images.pdf)
 
 ---@class ImagesNvim.MenuOpts
 ---@field enable? boolean default true
+
+---@class ImagesNvim.IntegrationsConfig : ImagesNvim.IntegrationsOpts
+---@field ui_menu? boolean let ui.nvim's right-click menu (`ui.menu`) compose the Images fly-out; default true
+
+---@class ImagesNvim.IntegrationsOpts
+---@field ui_menu? boolean default true
 
 ---@class ImagesNvim.PdfOpts
 ---@field enabled? boolean default true

@@ -56,6 +56,7 @@ local KNOWN = {
   deps_popup = true,
   pdf = { enabled = true, page = true, dpi = true },
   menu = { enable = true },
+  integrations = { ui_menu = true },
   keymaps = {
     show = true,
     gallery = true,
