@@ -24,6 +24,7 @@ its default the same way. Both are also kept for `:checkhealth images` — see
 - [ocr](#ocr)
 - [pdf](#pdf)
 - [menu](#menu)
+- [integrations](#integrations)
 - [keymaps](#keymaps)
 - [Statusline](#statusline)
 
@@ -89,6 +90,9 @@ require("images").setup({
   },
   menu = {
     enable = true,
+  },
+  integrations = {
+    ui_menu = true,
   },
   keymaps = {
     show = "<leader>im",
@@ -319,6 +323,12 @@ mtime, page and dpi.
 | Key | Default | What it does |
 | --- | --- | --- |
 | `enable` | `true` | Whether `images.integrations.menu` returns any entries at all. It contributes right-click entries in the shape [nvzone/menu](https://github.com/nvzone/menu) expects; without that plugin installed it is inert either way |
+
+## integrations
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `ui_menu` | `true` | Whether ui.nvim's right-click menu (`ui.menu`) composes the Images fly-out. `false` hides it there while `images.integrations.menu`'s `items()`/`submenu()` keep working for any other host. The module answers `enabled()` (`false` when this or `menu.enable` is off), which is what `ui.menu` asks first |
 
 ## keymaps
 

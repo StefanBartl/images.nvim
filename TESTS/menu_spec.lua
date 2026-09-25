@@ -66,6 +66,15 @@ return function(H)
   require("images.config").setup({ menu = { enable = false } })
   H.eq(#menu.items(buf), 0, "menu.enable = false returns no entries")
 
+  -- ── enabled(): what ui.nvim's ui.menu asks first ─────────────────────────
+  require("images.config").setup({})
+  H.eq(menu.enabled(), true, "enabled() is true by default")
+  require("images.config").setup({ integrations = { ui_menu = false } })
+  H.eq(menu.enabled(), false, "integrations.ui_menu = false -> enabled() false")
+  H.ok(#menu.items(buf) > 0, "ui_menu = false leaves items() to other hosts")
+  require("images.config").setup({ menu = { enable = false } })
+  H.eq(menu.enabled(), false, "menu.enable = false -> enabled() false")
+
   -- ── filetype not in keymaps.filetypes: no entries ─────────────────────────
   require("images.config").setup({})
   vim.bo[buf].filetype = "lua"

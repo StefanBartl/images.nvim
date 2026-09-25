@@ -474,6 +474,9 @@ under the same key).
       menu = {
         enable = true,
       },
+      integrations = {
+        ui_menu = true,
+      },
       keymaps = {
         show = "<leader>im",
         gallery = "<leader>ig",
@@ -553,7 +556,9 @@ installed; false disables it even with it installed.
 plugin want, and why" popup on the first `setup()` after installation, via
 lib.nvim's deps module. `menu.enable` (default true) controls whether
 `images.integrations.menu` returns any right-click entries at all; without
-nvzone/menu installed it is inert either way.
+nvzone/menu installed it is inert either way. `integrations.ui_menu = false`
+keeps ui.nvim's right-click menu from composing the fly-out while other hosts
+still get `items()`.
 
 `display.zen` sizes the `:Image zen` window as a fraction (0-1) of the
 editor's width/height — that is the MAXIMUM box. The window actually opened
