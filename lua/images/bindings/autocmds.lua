@@ -16,6 +16,10 @@ local M = {}
 function M.register(_cfg)
   autocmd.create("VimLeavePre", function()
     require("images.terminal").clear()
+    -- No-op on any platform but Windows, and even there only once
+    -- `:Image paste` has actually spawned the persistent clipboard helper --
+    -- see images.win_clipboard_worker.
+    require("images.win_clipboard_worker").shutdown()
   end, {
     group = autocmd.group("images.autocmds", true),
     desc = "images: clear the displayed image before quitting",

@@ -172,6 +172,14 @@ return {
     -- prompt action it always was; opt into the prompt by setting this to
     -- `false` explicitly.
     default_path_mode = "relative",
+    -- Windows only (see images.win_clipboard_worker): how long a single
+    -- clipboard read may take on the persistent PowerShell helper before it
+    -- is treated as hung, killed, and a fresh one started for the next
+    -- paste. Generous by default -- the helper's *first* read in a session
+    -- still pays the full `-STA` PowerShell + WinForms/Drawing assembly load
+    -- cost (a second or more, worse under antivirus/EDR real-time scanning),
+    -- and this must not fire on that legitimately slow but working case.
+    windows_clipboard_timeout_ms = 20000,
   },
 
   -- `:Image ocr`, see images.ocr. Deliberately top-level rather than under
