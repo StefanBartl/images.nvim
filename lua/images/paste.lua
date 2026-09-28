@@ -62,18 +62,23 @@ end
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 local function clipboard_to_file(out, callback)
-  -- Windows goes through a persistent worker, not a fresh `powershell.exe`
-  -- per call -- see images.win_clipboard_worker for why: a cold `-STA`
-  -- PowerShell with WinForms/Drawing loaded routinely takes a second or
-  -- more (far worse under antivirus/EDR), and a fresh process pays that on
-  -- every single paste. The worker itself already handles the "no image"/
-  -- error distinction the same way the shared branch below does for
-  -- macOS/Linux; only the final "does the file actually exist and have
-  -- bytes" check is shared, via `finish_from_file`.
-  if require("lib.nvim.cross.platform.is_windows")() then
+  local is_windows = require("lib.nvim.cross.platform.is_windows")()
+
+  -- Windows normally goes through a persistent worker, not a fresh
+  -- `powershell.exe` per call -- see images.win_clipboard_worker for why: a
+  -- cold `-STA` PowerShell with WinForms/Drawing loaded routinely takes a
+  -- second or more (far worse under antivirus/EDR), and a fresh process pays
+  -- that on every single paste. `paste.windows_persistent_helper = false`
+  -- opts back out of keeping that process alive for the session -- every
+  -- paste then falls through to the one-shot command below instead, exactly
+  -- as before this module existed. Not unlinking `out` on failure here: the
+  -- worker never touches `out` when it reports failure (see its own
+  -- protocol -- `$img.Save` only runs on the success path), so there is
+  -- nothing of ours to clean up -- and for `M.replace`, `out` is the
+  -- pre-existing image being replaced, which a failed read must leave alone.
+  if is_windows and cfg().paste.windows_persistent_helper ~= false then
     require("images.win_clipboard_worker").save_to_file(out, function(ok, err)
       if not ok then
-        pcall(vim.uv.fs_unlink, out)
         callback(false, err)
         return
       end
@@ -96,7 +101,17 @@ local function clipboard_to_file(out, callback)
   local write_stdout = false
   local executable = require("lib.nvim.cross.executable")
 
-  if require("lib.nvim.cross.platform.is_macos")() then
+  if is_windows then
+    -- `paste.windows_persistent_helper = false`: the one-shot command this
+    -- module used before the persistent worker existed, unchanged.
+    local ps = table.concat({
+      "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
+      "$img = [System.Windows.Forms.Clipboard]::GetImage();",
+      "if ($img -eq $null) { exit 3 };",
+      ("$img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png);"):format(out:gsub("'", "''")),
+    }, " ")
+    cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
+  elseif require("lib.nvim.cross.platform.is_macos")() then
     if not executable.exists("pngpaste") then
       callback(false, "`pngpaste` not found (brew install pngpaste)")
       return
@@ -148,6 +163,11 @@ local function clipboard_to_file(out, callback)
     end)
   end)
 end
+-- Exposed for tests: the platform/config branching itself has no UI and no
+-- real clipboard in it -- `lib.nvim.cross.platform.is_windows`,
+-- `images.win_clipboard_worker` and `vim.system` are stubbed at the seam
+-- instead (see TESTS/paste_target_spec.lua).
+M.clipboard_to_file = clipboard_to_file
 
 --- The suggested file name from the template — the prefill for the name prompt
 --- and the fallback when no input of the user's own arrives.

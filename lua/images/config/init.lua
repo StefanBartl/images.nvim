@@ -52,6 +52,7 @@ local KNOWN = {
     ask_filename = true,
     default_path_mode = true,
     windows_clipboard_timeout_ms = true,
+    windows_persistent_helper = true,
   },
   ocr = { lang = true, args = true, bin = true },
   deps_popup = true,

@@ -78,6 +78,7 @@ require("images").setup({
     ask_filename = false,
     default_path_mode = "relative",
     windows_clipboard_timeout_ms = 20000,
+    windows_persistent_helper = true,
   },
   ocr = {
     lang = "eng",
@@ -263,7 +264,8 @@ because the cost was never in writing text.
 | `alt_link_template` | `"![%s](%s)"` | Inserted text with alt text; `%s %s` = alt text, relative path |
 | `ask_filename` | `false` | `true` prompts for a name, prefilled with what `name_template` would produce. Any path component is dropped and the extension is forced to `.png`. Cancelling here writes nothing at all — unlike the alt-text prompt, the clipboard has not been read yet |
 | `default_path_mode` | `"relative"` | How the inserted link's path is spelled out — see `:Image paste`'s `path=...` argument below. `false` asks every time instead of assuming `"relative"` |
-| `windows_clipboard_timeout_ms` | `20000` | Windows only. `:Image paste` reads the clipboard through one PowerShell process kept alive for the whole session instead of spawning a fresh one every time (see below) — this bounds how long a single read may take before it is treated as hung, killed, and replaced |
+| `windows_persistent_helper` | `true` | Windows only. Keep one PowerShell process alive for the session instead of spawning a fresh one per paste (see below). `false` opts out entirely — every paste starts and tears down its own `powershell.exe -STA` again, at the cost of that process's full startup price on every single paste |
+| `windows_clipboard_timeout_ms` | `20000` | Windows only, and only while `windows_persistent_helper` is `true`. Bounds how long a single read on the persistent process may take before it is treated as hung, killed, and replaced |
 
 `:Image paste {name}` sanitizes `{name}` the same way and skips the prompt
 outright: a name on the command line always outranks `ask_filename`. So does a
@@ -301,9 +303,11 @@ real-time scanning). Spawning a fresh PowerShell for every paste would pay
 that cost every time, so `:Image paste` instead keeps one such process alive
 for the whole Neovim session: the first paste starts it and pays the load
 cost, every paste after that is one line over an already-running process —
-milliseconds, not seconds. See `paste.windows_clipboard_timeout_ms` above for
-the one knob this adds; nothing else about `:Image paste`'s behaviour
-changes. macOS and Linux are unaffected — they never had this cost.
+milliseconds, not seconds. Set `paste.windows_persistent_helper = false` to
+opt out entirely — no extra process is ever kept around, at the cost of
+every single paste paying the full startup price again, like before this
+existed. See `paste.windows_clipboard_timeout_ms` above for the other knob
+this adds. macOS and Linux are unaffected — they never had this cost.
 
 ## ocr
 

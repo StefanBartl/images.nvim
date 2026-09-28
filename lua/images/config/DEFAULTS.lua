@@ -180,6 +180,15 @@ return {
     -- cost (a second or more, worse under antivirus/EDR real-time scanning),
     -- and this must not fire on that legitimately slow but working case.
     windows_clipboard_timeout_ms = 20000,
+    -- Windows only. `true` (default): `:Image paste` keeps one PowerShell
+    -- process alive for the session instead of starting a fresh one per
+    -- paste (see images.win_clipboard_worker). `false` opts back out --
+    -- every paste spawns and tears down its own `powershell.exe -STA`
+    -- again, exactly as before that module existed. For anyone who does not
+    -- want an extra background process sitting around at all, at the cost
+    -- of every single paste paying the full PowerShell + assembly-load
+    -- startup price again.
+    windows_persistent_helper = true,
   },
 
   -- `:Image ocr`, see images.ocr. Deliberately top-level rather than under
