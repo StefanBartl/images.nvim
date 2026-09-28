@@ -114,6 +114,7 @@ local specs = {
   "scale_spec.lua",
   "sanitize_filename_spec.lua",
   "paste_target_spec.lua",
+  "win_clipboard_worker_spec.lua",
   "convert_spec.lua",
   "ocr_spec.lua",
   "remote_spec.lua",

@@ -51,6 +51,7 @@ local KNOWN = {
     alt_link_template = true,
     ask_filename = true,
     default_path_mode = true,
+    windows_clipboard_timeout_ms = true,
   },
   ocr = { lang = true, args = true, bin = true },
   deps_popup = true,

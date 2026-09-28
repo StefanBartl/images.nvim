@@ -77,6 +77,7 @@ require("images").setup({
     alt_link_template = "![%s](%s)",
     ask_filename = false,
     default_path_mode = "relative",
+    windows_clipboard_timeout_ms = 20000,
   },
   ocr = {
     lang = "eng",
@@ -262,6 +263,7 @@ because the cost was never in writing text.
 | `alt_link_template` | `"![%s](%s)"` | Inserted text with alt text; `%s %s` = alt text, relative path |
 | `ask_filename` | `false` | `true` prompts for a name, prefilled with what `name_template` would produce. Any path component is dropped and the extension is forced to `.png`. Cancelling here writes nothing at all — unlike the alt-text prompt, the clipboard has not been read yet |
 | `default_path_mode` | `"relative"` | How the inserted link's path is spelled out — see `:Image paste`'s `path=...` argument below. `false` asks every time instead of assuming `"relative"` |
+| `windows_clipboard_timeout_ms` | `20000` | Windows only. `:Image paste` reads the clipboard through one PowerShell process kept alive for the whole session instead of spawning a fresh one every time (see below) — this bounds how long a single read may take before it is treated as hung, killed, and replaced |
 
 `:Image paste {name}` sanitizes `{name}` the same way and skips the prompt
 outright: a name on the command line always outranks `ask_filename`. So does a
@@ -289,6 +291,19 @@ no-prompt action it always was. Set it to `false` to be asked every time
 instead — a `ui.kit.select` prompt (falling back to `vim.ui.select`) offers
 the four choices above, with "custom prefix…" opening a second, free-text
 prompt for the literal prefix.
+
+### Windows: why the first paste of a session is the slow one
+
+Reading a clipboard image on Windows needs a `-STA` PowerShell process with
+`System.Windows.Forms`/`System.Drawing` loaded — that load is the expensive
+part (roughly a second on a normal machine, much more under antivirus/EDR
+real-time scanning). Spawning a fresh PowerShell for every paste would pay
+that cost every time, so `:Image paste` instead keeps one such process alive
+for the whole Neovim session: the first paste starts it and pays the load
+cost, every paste after that is one line over an already-running process —
+milliseconds, not seconds. See `paste.windows_clipboard_timeout_ms` above for
+the one knob this adds; nothing else about `:Image paste`'s behaviour
+changes. macOS and Linux are unaffected — they never had this cost.
 
 ## ocr
 

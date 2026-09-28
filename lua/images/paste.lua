@@ -39,41 +39,64 @@ local function kit()
   return ok and k or nil
 end
 
+--- Check `out` after a write: does it exist, and is it non-empty? An empty
+--- or missing file (nothing was on the clipboard) is reported the same way
+--- regardless of which platform branch produced it.
+---@param out string
+---@param callback fun(ok: boolean, err: string|nil)
+---@return nil
+local function finish_from_file(out, callback)
+  local stat = vim.uv.fs_stat(out)
+  if not stat or stat.size == 0 then
+    pcall(vim.uv.fs_unlink, out)
+    callback(false, "no image in the clipboard")
+    return
+  end
+  callback(true)
+end
+
 --- Write the clipboard image to `out`. Asynchronous like `images.screenshot`'s
 --- `capture`, so both follow the same call contract and
---- `capture_with_optional_name` need not distinguish sync from async — the read
---- itself is a single fast process call (milliseconds), not a multi-second
---- interactive procedure like a screen selection; a `:wait()` would be harmless
---- here, but a uniform signature is still cleaner than a special rule for this
---- one case.
+--- `capture_with_optional_name` need not distinguish sync from async.
 ---@param out string target path (PNG)
 ---@param callback fun(ok: boolean, err: string|nil)
 ---@return nil
 local function clipboard_to_file(out, callback)
+  -- Windows goes through a persistent worker, not a fresh `powershell.exe`
+  -- per call -- see images.win_clipboard_worker for why: a cold `-STA`
+  -- PowerShell with WinForms/Drawing loaded routinely takes a second or
+  -- more (far worse under antivirus/EDR), and a fresh process pays that on
+  -- every single paste. The worker itself already handles the "no image"/
+  -- error distinction the same way the shared branch below does for
+  -- macOS/Linux; only the final "does the file actually exist and have
+  -- bytes" check is shared, via `finish_from_file`.
+  if require("lib.nvim.cross.platform.is_windows")() then
+    require("images.win_clipboard_worker").save_to_file(out, function(ok, err)
+      if not ok then
+        pcall(vim.uv.fs_unlink, out)
+        callback(false, err)
+        return
+      end
+      finish_from_file(out, callback)
+    end)
+    return
+  end
+
   local cmd ---@type string[]
-  -- Set only for the Linux branch: `wl-paste`/`xclip` write the image to
-  -- stdout, and this callback writes those bytes to `out` itself, rather than
-  -- a shell `>` redirect. `out` is not always a tempname -- `M.replace` hands
-  -- it a path resolved from a Markdown link or the cursor (see
-  -- `images.resolve.to_path`), which can legitimately contain a single quote
-  -- ("John's screenshot.png") or, from a crafted link, worse. Interpolating
-  -- that into a `sh -c "... > '%s'"` string (as this used to) is exactly the
-  -- shell-injection shape `images.resolve.to_path`'s own module docs warn
-  -- about for backtick command substitution -- an argv array to `wl-paste`/
-  -- `xclip` plus a direct file write sidesteps it entirely, no escaping
-  -- needed.
+  -- `wl-paste`/`xclip` write the image to stdout, and this callback writes
+  -- those bytes to `out` itself, rather than a shell `>` redirect. `out` is
+  -- not always a tempname -- `M.replace` hands it a path resolved from a
+  -- Markdown link or the cursor (see `images.resolve.to_path`), which can
+  -- legitimately contain a single quote ("John's screenshot.png") or, from a
+  -- crafted link, worse. Interpolating that into a `sh -c "... > '%s'"`
+  -- string (as this used to) is exactly the shell-injection shape
+  -- `images.resolve.to_path`'s own module docs warn about for backtick
+  -- command substitution -- an argv array to `wl-paste`/`xclip` plus a
+  -- direct file write sidesteps it entirely, no escaping needed.
   local write_stdout = false
   local executable = require("lib.nvim.cross.executable")
 
-  if require("lib.nvim.cross.platform.is_windows")() then
-    local ps = table.concat({
-      "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
-      "$img = [System.Windows.Forms.Clipboard]::GetImage();",
-      "if ($img -eq $null) { exit 3 };",
-      ("$img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png);"):format(out:gsub("'", "''")),
-    }, " ")
-    cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
-  elseif require("lib.nvim.cross.platform.is_macos")() then
+  if require("lib.nvim.cross.platform.is_macos")() then
     if not executable.exists("pngpaste") then
       callback(false, "`pngpaste` not found (brew install pngpaste)")
       return
@@ -93,7 +116,7 @@ local function clipboard_to_file(out, callback)
 
   -- `text = false` for the stdout-writing branch: `text = true` normalises
   -- `\r\n` to `\n` in the captured output, which would silently corrupt PNG
-  -- bytes containing that sequence. The other branches never read
+  -- bytes containing that sequence. The other branch never reads
   -- `result.stdout`, only `result.stderr` for an error message, where the
   -- normalisation is harmless.
   vim.system(cmd, { text = not write_stdout }, function(result)
@@ -121,13 +144,7 @@ local function clipboard_to_file(out, callback)
         fd:close()
       end
 
-      local stat = vim.uv.fs_stat(out)
-      if not stat or stat.size == 0 then
-        pcall(vim.uv.fs_unlink, out)
-        callback(false, "no image in the clipboard")
-        return
-      end
-      callback(true)
+      finish_from_file(out, callback)
     end)
   end)
 end

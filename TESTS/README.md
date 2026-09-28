@@ -89,6 +89,7 @@ Everything else with real branching logic has an assertion-based spec.
 | `screenshot.lua` | `screenshot_spec.lua` | Availability detection |
 | `terminal.lua` | `terminal_draw_spec.lua`, `capability_spec.lua` | Draw-call shaping and terminal-capability detection |
 | `testcard.lua` | `testcard_spec.lua` | Generated PNG correctness |
+| `win_clipboard_worker.lua` | `win_clipboard_worker_spec.lua` | Request queueing/serialization, response parsing, timeout + respawn, shutdown — `vim.system` stubbed, the real Windows-only PowerShell process is out of reach headlessly (see this file's own header) |
 | `zen.lua` | `zen_spec.lua` | State/lifecycle only |
 | `bindings/autocmds.lua` | — | One autocmd registration, no branching |
 | `bindings/keymaps.lua` | `keymaps_spec.lua` | Filetype gating, buffer-local registration |
