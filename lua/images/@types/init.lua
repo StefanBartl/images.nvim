@@ -77,6 +77,7 @@
 ---@field ask_filename boolean ask for a file name before inserting (extension always forced to .png)
 ---@field default_path_mode string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos" ($REPOS_DIR-rooted)|a literal custom prefix; `false` asks interactively (ui.kit.select, falling back to vim.ui.select) instead — see images.paste.resolve_link_path
 ---@field windows_clipboard_timeout_ms integer Windows only: how long the persistent clipboard helper may take on one read before it is killed and restarted — see images.win_clipboard_worker
+---@field windows_persistent_helper boolean Windows only: keep one PowerShell process alive for the session instead of spawning a fresh one per paste (default true); `false` opts out entirely — see images.win_clipboard_worker
 
 ---@class ImagesNvim.OcrConfig : ImagesNvim.OcrOpts
 ---@field lang string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
@@ -178,6 +179,8 @@
 ---@field alt_link_template?  string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename?       boolean ask for a file name before inserting (extension always forced to .png)
 ---@field default_path_mode? string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos"|a literal custom prefix; `false` asks interactively — see images.paste.resolve_link_path
+---@field windows_clipboard_timeout_ms? integer Windows only: how long the persistent clipboard helper may take on one read before it is killed and restarted — see images.win_clipboard_worker
+---@field windows_persistent_helper?    boolean Windows only: keep one PowerShell process alive for the session instead of spawning a fresh one per paste (default true); `false` opts out entirely — see images.win_clipboard_worker
 
 ---@class ImagesNvim.OcrOpts
 ---@field lang? string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)

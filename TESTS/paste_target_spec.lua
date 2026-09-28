@@ -345,4 +345,88 @@ return function(H)
     vim.fn.input = original_input
     config.setup({}) -- restore the plain default for any spec running after this one
   end
+
+  -- ── 8. paste.windows_persistent_helper: the opt-out gate, forced onto the
+  --      Windows branch regardless of the host OS this suite runs on ───────
+  --
+  -- `lib.nvim.cross.platform.is_windows` and `images.win_clipboard_worker`
+  -- are stubbed at `package.loaded` (this suite's convention for a seam that
+  -- would otherwise need a real OS/process -- see TESTS/README.md, "Real
+  -- external processes"). `clipboard_to_file` resolves both via `require()`
+  -- at call time, so replacing the cached module works even though
+  -- `images.paste` itself was already loaded above.
+  do
+    local config = require("images.config")
+    local original_is_windows = package.loaded["lib.nvim.cross.platform.is_windows"]
+    local original_worker = package.loaded["images.win_clipboard_worker"]
+    local original_system = vim.system
+
+    package.loaded["lib.nvim.cross.platform.is_windows"] = function()
+      return true
+    end
+
+    -- Default (true): routes through the persistent worker, not a one-shot
+    -- `vim.system` call.
+    local worker_calls = 0
+    package.loaded["images.win_clipboard_worker"] = {
+      save_to_file = function(_out, cb)
+        worker_calls = worker_calls + 1
+        cb(false, "no image in the clipboard")
+      end,
+    }
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function()
+      error("windows_persistent_helper defaults to true -- vim.system must not be called directly")
+    end
+
+    config.setup({})
+    local done1, ok1, err1
+    paste.clipboard_to_file(vim.fn.tempname() .. ".png", function(ok, err)
+      done1, ok1, err1 = true, ok, err
+    end)
+    H.ok(done1, "default: resolves via the worker")
+    H.eq(worker_calls, 1, "default: the persistent worker is used")
+    H.falsy(ok1, "…the worker's own failure is propagated as-is")
+    H.eq(err1, "no image in the clipboard", "…with its message unchanged")
+
+    -- windows_persistent_helper = false: falls through to the one-shot
+    -- `powershell.exe` command instead, worker untouched.
+    package.loaded["images.win_clipboard_worker"] = {
+      save_to_file = function()
+        error("windows_persistent_helper = false -- the worker must not be reached")
+      end,
+    }
+    local spawned_cmd
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function(cmd, _opts, on_exit)
+      spawned_cmd = cmd
+      vim.schedule(function()
+        on_exit({ code = 3, stdout = "", stderr = "" })
+      end)
+      return { pid = -1 }
+    end
+
+    config.setup({ paste = { windows_persistent_helper = false } })
+    local done2, ok2, err2
+    paste.clipboard_to_file(vim.fn.tempname() .. ".png", function(ok, err)
+      done2, ok2, err2 = true, ok, err
+    end)
+    vim.wait(200, function()
+      return done2
+    end, 5)
+
+    vim.system = original_system
+    package.loaded["images.win_clipboard_worker"] = original_worker
+    package.loaded["lib.nvim.cross.platform.is_windows"] = original_is_windows
+    config.setup({}) -- restore the plain default for any spec running after this one
+
+    H.eq(
+      spawned_cmd and spawned_cmd[1],
+      "powershell.exe",
+      "windows_persistent_helper=false: spawns the one-shot command directly"
+    )
+    H.ok(done2, "…and still resolves")
+    H.falsy(ok2, '…exit code 3 still means "no image in the clipboard"')
+    H.eq(err2, "no image in the clipboard", "…with the same message as the worker path")
+  end
 end
