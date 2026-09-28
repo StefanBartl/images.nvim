@@ -179,14 +179,21 @@ return function(H)
     H.eq(spawn_count_after_timeout, 2, "the request after a timeout starts a fresh process")
   end
 
-  -- ── shutdown(): closes stdin on a live worker, and is a harmless no-op
-  --    when none was ever started ──────────────────────────────────────────
+  -- ── shutdown(): closes stdin on a live worker, is a harmless no-op when
+  --    none was ever started, and still answers a request that was in
+  --    flight (or queued) at the moment Neovim quits -- the caller (e.g.
+  --    images.paste's clipboard_to_file) is waiting on that callback to
+  --    clean up a temp file/show a warning, and shutdown() used to drop the
+  --    worker reference first, leaving it unanswered ─────────────────────
   do
     worker._reset()
     local shutdown_noop_ok = pcall(worker.shutdown)
 
     local fake = install_fake_powershell()
-    worker.save_to_file(vim.fn.tempname() .. ".png", function() end)
+    local in_flight_done, in_flight_ok, in_flight_err
+    worker.save_to_file(vim.fn.tempname() .. ".png", function(ok, err)
+      in_flight_done, in_flight_ok, in_flight_err = true, ok, err
+    end)
     worker.shutdown()
     local closed = fake.current().closed
 
@@ -194,6 +201,9 @@ return function(H)
 
     H.ok(shutdown_noop_ok, "shutdown() without a worker does not throw")
     H.ok(closed, "shutdown() closes the live worker's stdin")
+    H.ok(in_flight_done, "shutdown() still answers a request that was in flight")
+    H.falsy(in_flight_ok, "…as a failure, not left hanging forever")
+    H.contains(in_flight_err or "", "shutting down", "…with a message naming why")
   end
 
   worker._reset()

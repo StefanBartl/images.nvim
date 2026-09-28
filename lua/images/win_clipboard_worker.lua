@@ -234,12 +234,18 @@ end
 --- own (verified: it exits cleanly on stdin EOF, no forced kill needed).
 --- Called from `images.bindings.autocmds`' `VimLeavePre`; a no-op when no
 --- worker has ever been started, or on any other platform.
+---
+--- Goes through `fail_all` rather than dropping `worker` directly: a request
+--- can legitimately still be in flight (or queued behind one) when Neovim
+--- quits, and its callback is what unlinks a stray temp file / shows a
+--- warning in `images.paste` -- skipping it would leave that caller waiting
+--- on a callback that never comes, on the one path this module's own
+--- "every held request gets answered" contract did not actually cover.
 ---@return nil
 function M.shutdown()
   local w = worker
-  worker = nil
   if not w then return end
-  stop_timer(w)
+  fail_all(w, "shutting down")
   pcall(function()
     w.proc:write(nil)
   end)
