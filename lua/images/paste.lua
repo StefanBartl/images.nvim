@@ -74,8 +74,11 @@ local function clipboard_to_file(out, callback)
   -- as before this module existed. Not unlinking `out` on failure here: the
   -- worker never touches `out` when it reports failure (see its own
   -- protocol -- `$img.Save` only runs on the success path), so there is
-  -- nothing of ours to clean up -- and for `M.replace`, `out` is the
-  -- pre-existing image being replaced, which a failed read must leave alone.
+  -- nothing of ours to clean up. `out` is always a tempname by the time it
+  -- reaches this function -- `M.replace` no longer hands this its final
+  -- target directly either (see its own docstring); callers unlink it
+  -- themselves on failure, which is the right owner for that decision, not
+  -- this function guessing at what `out` means to whoever called it.
   if is_windows and cfg().paste.windows_persistent_helper ~= false then
     require("images.win_clipboard_worker").save_to_file(out, function(ok, err)
       if not ok then
@@ -300,19 +303,42 @@ local function target_paths(buf, filename_override, path_mode)
 end
 
 --- Move `src` to `dst`. `fs_rename` fails across drive boundaries (EXDEV, the
---- normal case on Windows between the temp and project drives) — then it copies
---- instead and deletes the original.
+--- normal case on Windows between the temp and project drives) — then it
+--- stages a copy of `src` next to `dst` (same directory, so guaranteed the
+--- same volume) and `fs_rename`s *that* into place, rather than
+--- `fs_copyfile`ing straight over `dst`.
+---
+--- That staging step is what makes this atomic even across the EXDEV case:
+--- `fs_copyfile` overwrites its target in place, non-atomically — anything
+--- that interrupts it mid-copy (Neovim killed, disk full, an AV/EDR lock)
+--- leaves a truncated or mixed-bytes `dst` behind. Copying into a same-
+--- volume staging file first confines that exact risk to the staging file,
+--- which is disposable; `dst` itself is only ever touched by the final
+--- `fs_rename`, which is atomic by definition (POSIX `rename(2)`; Windows'
+--- `MoveFileEx` with `MOVEFILE_REPLACE_EXISTING`, which is what `fs_rename`
+--- uses under `dst` already existing). `M.replace` is the caller this
+--- matters for — `dst` there is a real, pre-existing file worth protecting,
+--- not a fresh tempname.
 ---@param src string
 ---@param dst string
 ---@return boolean ok
 local function move_file(src, dst)
   if vim.uv.fs_rename(src, dst) then return true end
-  if vim.uv.fs_copyfile(src, dst) then
-    pcall(vim.uv.fs_unlink, src)
-    return true
+
+  local dir = vim.fn.fnamemodify(dst, ":h")
+  local staging = ("%s/.%s.%d.tmp"):format(dir, vim.fn.fnamemodify(dst, ":t"), vim.uv.hrtime())
+  if vim.uv.fs_copyfile(src, staging) then
+    if vim.uv.fs_rename(staging, dst) then
+      pcall(vim.uv.fs_unlink, src)
+      return true
+    end
+    pcall(vim.uv.fs_unlink, staging)
   end
   return false
 end
+-- Exposed for tests: `vim.uv.fs_rename` is stubbed to force the EXDEV
+-- fallback (no real second drive needed) -- see TESTS/paste_target_spec.lua.
+M.move_file = move_file
 
 --- Insert the link at the cursor position valid at the time of the call. Runs
 --- after the clipboard write — synchronously right afterwards, or
@@ -648,6 +674,16 @@ function M.replace(path)
     return
   end
 
+  -- Read before the write, not after: `move_file`'s `fs_rename` replaces
+  -- `file`'s directory entry with the tempname's inode outright (same for
+  -- its `fs_copyfile`+`fs_rename` fallback -- the staging file is a fresh
+  -- one too), so the resulting file has the *new* file's permissions, not
+  -- `file`'s -- e.g. a deliberate `chmod 600` would silently become
+  -- whatever the OS temp directory's default is. `fs_chmod` afterwards
+  -- restores the bits explicitly; harmless no-op-ish on Windows, where
+  -- `vim.uv.fs_chmod` has no POSIX mode bits to restore.
+  local prior = vim.uv.fs_stat(file)
+
   local tmp = vim.fn.tempname() .. ".png"
   clipboard_to_file(tmp, function(ok, err)
     if not ok then
@@ -660,6 +696,7 @@ function M.replace(path)
       notify().error("could not replace the file: " .. file)
       return
     end
+    if prior then pcall(vim.uv.fs_chmod, file, prior.mode) end
     notify().info("replaced: " .. vim.fn.fnamemodify(file, ":~"))
   end)
 end

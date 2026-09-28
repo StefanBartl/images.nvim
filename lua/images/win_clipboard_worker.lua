@@ -145,6 +145,13 @@ end
 
 --- Resolve the in-flight request with a parsed response line, then move on
 --- to whatever is queued next.
+---
+--- Each `callback` invocation runs through `pcall`, same reasoning as
+--- `fail_all`: this is the ordinary response path, taken on every normal
+--- paste, far more often than `fail_all` runs -- a throwing callback here
+--- must not stop `send_next(w)` below from running, or whatever is queued
+--- behind this request would never be sent at all (nothing else re-enters
+--- `send_next` until the next unrelated `save_to_file` call happens to).
 ---@param w Images.ClipboardWorker
 ---@param code string "0" ok | "3" no image | anything else = error
 ---@param message string only meaningful for the error case
@@ -156,12 +163,12 @@ local function handle_response(w, code, message)
   if not req then return end -- a stray line with no request waiting on it
 
   if code == "3" then
-    req.callback(false, "no image in the clipboard")
+    pcall(req.callback, false, "no image in the clipboard")
   elseif code == "0" then
-    req.callback(true)
+    pcall(req.callback, true)
   else
     local trimmed = vim.trim(message or "")
-    req.callback(false, trimmed ~= "" and trimmed or "could not read the clipboard")
+    pcall(req.callback, false, trimmed ~= "" and trimmed or "could not read the clipboard")
   end
   send_next(w)
 end

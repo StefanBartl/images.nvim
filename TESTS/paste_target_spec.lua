@@ -508,4 +508,106 @@ return function(H)
     package.loaded["lib.nvim.cross.platform.is_windows"] = original_is_windows
     pcall(vim.uv.fs_unlink, target)
   end
+
+  -- ── 10. move_file: the EXDEV fallback stages a same-directory copy and
+  --      renames THAT into place, rather than `fs_copyfile`ing straight over
+  --      `dst` -- an ultracode review of the previous case flagged that a
+  --      direct overwrite is not atomic (an interrupted copy could leave
+  --      `dst` truncated), which defeated the whole point of routing
+  --      M.replace through move_file in the first place. `vim.uv.fs_rename`
+  --      is stubbed to always fail so this exercises the fallback without
+  --      needing a real second drive ─────────────────────────────────────
+  do
+    local move_file = paste.move_file
+    local original_rename = vim.uv.fs_rename
+
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+    local src = root .. "/src.png"
+    local dst = root .. "/dst.png"
+    H.write(src, "new bytes")
+    H.write(dst, "old bytes")
+
+    -- Only the direct src -> dst rename fails (the simulated EXDEV); the
+    -- fallback's OWN rename (staging -> dst, same directory as dst) must
+    -- still go through the real vim.uv.fs_rename, or this would not tell
+    -- the atomic-staging fallback apart from a plain `return nil` no-op.
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.uv.fs_rename = function(from, to)
+      if from == src then return nil end
+      return original_rename(from, to)
+    end
+
+    local ok = move_file(src, dst)
+
+    vim.uv.fs_rename = original_rename
+
+    H.ok(ok, "move_file still succeeds via the fallback when fs_rename fails")
+    H.eq(vim.uv.fs_stat(src), nil, "…src is gone (moved, not left behind)")
+
+    local fd = assert(io.open(dst, "rb"))
+    local content = fd:read("*a")
+    fd:close()
+    H.eq(content, "new bytes", "…dst ends up with src's bytes")
+
+    local leftover = false
+    for _, entry in ipairs(vim.fn.readdir(root) or {}) do
+      if entry ~= "src.png" and entry ~= "dst.png" then leftover = true end
+    end
+    H.falsy(leftover, "…and no staging file is left behind in the target directory")
+
+    vim.fn.delete(root, "rf")
+  end
+
+  -- ── 11. M.replace preserves the target's existing permission bits across
+  --      the move -- move_file's rename (or its staging fallback) replaces
+  --      dst's directory entry with a brand-new inode, which otherwise
+  --      silently drops whatever mode `dst` had (e.g. a deliberate
+  --      `chmod 600`) in favour of the new file's OS-default permissions.
+  --      `vim.uv.fs_chmod` is stubbed rather than relied on for real: actual
+  --      permission-bit semantics differ enough across Windows/POSIX that
+  --      asserting the OS truly changed the mode would make this test
+  --      platform-fragile: what this function controls, and what regressed,
+  --      is whether `fs_chmod` gets called with the target's own prior mode
+  --      at all ─────────────────────────────────────────────────────────
+  do
+    local original_is_windows = package.loaded["lib.nvim.cross.platform.is_windows"]
+    local original_worker = package.loaded["images.win_clipboard_worker"]
+    local original_chmod = vim.uv.fs_chmod
+
+    package.loaded["lib.nvim.cross.platform.is_windows"] = function()
+      return true
+    end
+
+    local target = vim.fn.tempname() .. ".png"
+    H.write(target, "original bytes")
+    local prior_mode = assert(vim.uv.fs_stat(target)).mode
+
+    package.loaded["images.win_clipboard_worker"] = {
+      save_to_file = function(out, cb)
+        H.write(out, "new bytes")
+        cb(true)
+      end,
+    }
+    local chmod_calls = {}
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.uv.fs_chmod = function(path, mode)
+      chmod_calls[#chmod_calls + 1] = { path = path, mode = mode }
+      return original_chmod(path, mode)
+    end
+
+    paste.replace(target)
+
+    vim.uv.fs_chmod = original_chmod
+    package.loaded["images.win_clipboard_worker"] = original_worker
+    package.loaded["lib.nvim.cross.platform.is_windows"] = original_is_windows
+    pcall(vim.uv.fs_unlink, target)
+
+    -- `M.replace` resolves `path` through `images.resolve.to_path`, which
+    -- normalises to forward slashes -- compare normalised, not against
+    -- `target` as `vim.fn.tempname()` spelled it (backslashes on Windows).
+    H.eq(#chmod_calls, 1, "a successful replace restores the target's permission bits exactly once")
+    H.eq(chmod_calls[1] and chmod_calls[1].path, (target:gsub("\\", "/")), "…on the target itself")
+    H.eq(chmod_calls[1] and chmod_calls[1].mode, prior_mode, "…with the mode it had before the replace")
+  end
 end
