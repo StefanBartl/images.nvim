@@ -39,6 +39,17 @@ local function kit()
   return ok and k or nil
 end
 
+--- lib.nvim's minimal coroutine async/await runner -- used by
+--- `paste_with_name`, a genuinely linear pipeline (capture -> target path ->
+--- move -> optional alt text -> insert link). Not used by
+--- `images.win_clipboard_worker`, which is a persistent process reacting to
+--- several independent, sometimes-racing event sources and stays callback-
+--- based for that reason -- see that module's own header.
+---@return table
+local function async_mod()
+  return require("lib.nvim.async")
+end
+
 --- Check `out` after a write: does it exist, and is it non-empty? An empty
 --- or missing file (nothing was on the clipboard) is reported the same way
 --- regardless of which platform branch produced it.
@@ -388,13 +399,51 @@ local function insert_link(buf, win, rel, alt)
   notify().info("image saved: " .. rel)
 end
 
+--- Await the alt-text prompt: ui.kit's `input` when available -- its
+--- `on_submit`/`on_cancel` fire from the input float's own context, the
+--- main loop, same as every other kit-backed callback in this file --
+--- otherwise the already-synchronous `vim.fn.input` fallback, which needs
+--- no await at all.
+---@return string|nil alt empty/nil = no alt text (also nil on cancel)
+local function await_alt_text()
+  local k = kit()
+  if k and k.input then
+    return async_mod().await(function(resume)
+      k.input({
+        title = "Alt text (empty = none)",
+        on_submit = function(alt)
+          resume(alt)
+        end,
+        -- Cancelling should still insert the link, just without alt text — by
+        -- this point the image is already on disk, and a lost link (kit.input
+        -- calls nothing at all on <Esc> without on_cancel) would be the worse
+        -- surprise than a link without alt text.
+        on_cancel = function()
+          resume(nil)
+        end,
+      })
+    end)
+  end
+  return vim.fn.input("Alt text (empty = none): ")
+end
+
 --- The second half of `M.run`/`M.screenshot`, after an optional name prompt:
 --- produce the image file via `capture(out, cb)` and then optionally ask for
 --- alt text. `capture` is interchangeable — `clipboard_to_file` for `:Image
 --- paste`, `images.screenshot.capture` for `:Image screenshot` — and everything
---- after it (target path, link, alt text) is identical for both. Asynchronous,
---- because an interactive screen selection can take anywhere from seconds to a
---- minute, and blocking on that would freeze Neovim for the duration.
+--- after it (target path, link, alt text) is identical for both.
+---
+--- Written against `lib.nvim.async`, not nested callbacks: this is a
+--- genuinely linear pipeline (capture -> target path -> move -> optional alt
+--- text -> insert link) -- unlike `images.win_clipboard_worker`, which reacts
+--- to several independent, sometimes-racing event sources (a stdout stream,
+--- a cancellable timeout, process exit) and stays callback-based for exactly
+--- that reason (see that module's own header). `async.wrap`/`async.await`
+--- add no scheduling of their own on top of `capture`'s/`k.input`'s own
+--- callbacks -- they only suspend and resume the coroutine, so every
+--- `vim.fn`/`vim.api` call below still only ever runs from a context those
+--- callbacks already guarantee is main-loop-safe, the same assumption the
+--- pre-async version of this function depended on.
 ---
 --- `capture` writes to a temporary file first, not straight into `paste.dir` —
 --- only after a successful capture is the target directory determined
@@ -412,12 +461,16 @@ local function paste_with_name(buf, filename_override, capture, path_mode)
     return
   end
 
-  -- Captured now, alongside `buf` -- the one synchronous point before the
-  -- async gap `capture` opens (see `insert_link`'s docstring for why).
+  -- Captured now, alongside `buf` -- the one point before the async gap
+  -- `capture` opens where both are certainly still valid (see
+  -- `insert_link`'s docstring for why `win` in particular has to be).
   local win = vim.api.nvim_get_current_win()
   local tmp = vim.fn.tempname() .. ".png"
+  local async = async_mod()
+  local await_capture = async.wrap(capture, 2)
 
-  capture(tmp, function(ok, cap_err)
+  async.run(function()
+    local ok, cap_err = await_capture(tmp)
     if not ok then
       pcall(vim.uv.fs_unlink, tmp)
       notify().warn(cap_err or "paste failed")
@@ -437,31 +490,10 @@ local function paste_with_name(buf, filename_override, capture, path_mode)
       return
     end
 
-    if not cfg().paste.ask_alt_text then
-      insert_link(buf, win, rel, nil)
-      return
-    end
-
-    local k = kit()
-    if k and k.input then
-      k.input({
-        title = "Alt text (empty = none)",
-        on_submit = function(alt)
-          insert_link(buf, win, rel, alt)
-        end,
-        -- Cancelling should still insert the link, just without alt text — by
-        -- this point the image is already on disk, and a lost link (kit.input
-        -- calls nothing at all on <Esc> without on_cancel) would be the worse
-        -- surprise than a link without alt text.
-        on_cancel = function()
-          insert_link(buf, win, rel, nil)
-        end,
-      })
-    else
-      local alt = vim.fn.input("Alt text (empty = none): ")
-      insert_link(buf, win, rel, alt)
-    end
-  end)
+    local alt = nil
+    if cfg().paste.ask_alt_text then alt = await_alt_text() end
+    insert_link(buf, win, rel, alt)
+  end, nil, { tag = "images.paste" })
 end
 
 --- Optionally ask for a file name, then run `paste_with_name` with `capture` as
