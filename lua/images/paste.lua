@@ -627,6 +627,18 @@ end
 --- Replace an existing image with the clipboard contents, without touching the
 --- link. Useful for updating a stale screenshot in place rather than creating a
 --- new file and link.
+---
+--- Writes to a tempname first and only `move_file`s it over `file` once the
+--- read fully succeeded — the same pattern `paste_with_name` already uses for
+--- a fresh paste, applied here too. `clipboard_to_file` used to be handed
+--- `file` directly: on Windows, the persistent worker's `$img.Save(file, ...)`
+--- writes straight into it, non-atomically, so a read killed mid-write (the
+--- clipboard timeout, or the process dying) could leave `file` truncated —
+--- and unlike a failed *paste* (nothing lost, `out` was never anything real),
+--- a failed *replace* would corrupt the very image it was supposed to
+--- update. Routing through a tempname means the worst case on any failure is
+--- an orphaned tempname; `file` itself is only ever touched by `move_file`'s
+--- atomic rename, after `ok` is already known to be `true`.
 ---@param path string|nil nil = the image under the cursor
 ---@return nil
 function M.replace(path)
@@ -636,9 +648,16 @@ function M.replace(path)
     return
   end
 
-  clipboard_to_file(file, function(ok, err)
+  local tmp = vim.fn.tempname() .. ".png"
+  clipboard_to_file(tmp, function(ok, err)
     if not ok then
+      pcall(vim.uv.fs_unlink, tmp)
       notify().warn(err or "replacement failed")
+      return
+    end
+    if not move_file(tmp, file) then
+      pcall(vim.uv.fs_unlink, tmp)
+      notify().error("could not replace the file: " .. file)
       return
     end
     notify().info("replaced: " .. vim.fn.fnamemodify(file, ":~"))

@@ -429,4 +429,83 @@ return function(H)
     H.falsy(ok2, '…exit code 3 still means "no image in the clipboard"')
     H.eq(err2, "no image in the clipboard", "…with the same message as the worker path")
   end
+
+  -- ── 9. M.replace: the existing target file survives a failed read, and is
+  --      only ever replaced by an atomic move on success -- the actual claim
+  --      the previous case's callback-only assertions did not check (an
+  --      ultracode review of that commit flagged the gap: it never created a
+  --      pre-existing file and confirmed it was untouched) ─────────────────
+  do
+    local original_is_windows = package.loaded["lib.nvim.cross.platform.is_windows"]
+    local original_worker = package.loaded["images.win_clipboard_worker"]
+
+    package.loaded["lib.nvim.cross.platform.is_windows"] = function()
+      return true
+    end
+
+    -- Failure: the worker never touches `out` (mirrors what the real
+    -- PowerShell command does when there is no image -- `$img.Save` is never
+    -- reached), so the target must come out exactly as it went in.
+    local target = vim.fn.tempname() .. ".png"
+    H.write(target, "original bytes")
+
+    package.loaded["images.win_clipboard_worker"] = {
+      save_to_file = function(_out, cb)
+        cb(false, "no image in the clipboard")
+      end,
+    }
+    -- `lib.nvim.notify`'s `.create` is swapped for a spy the same way
+    -- guard_spec.lua does it: `images.paste` re-resolves it (`notify()`)
+    -- inside each call, so patching the table field after `images.paste` is
+    -- already loaded still takes effect, no stale upvalue involved.
+    local notify_mod = require("lib.nvim.notify")
+    local original_notify = notify_mod.create
+    local warned
+    ---@diagnostic disable-next-line: duplicate-set-field
+    notify_mod.create = function(_prefix)
+      return {
+        warn = function(msg)
+          warned = msg
+        end,
+        info = function() end,
+        error = function() end,
+      }
+    end
+
+    paste.replace(target)
+
+    notify_mod.create = original_notify
+    local fd = assert(io.open(target, "rb"))
+    local content = fd:read("*a")
+    fd:close()
+
+    H.eq(content, "original bytes", "a failed replace leaves the existing file byte-for-byte untouched")
+    H.contains(warned or "", "no image in the clipboard", "…and warns with the read's own error")
+
+    -- Success: the worker writes into whatever tempname `clipboard_to_file`
+    -- handed it (never `target` directly) -- replace() only moves that
+    -- tempname over `target` once `ok` is true.
+    local worker_out
+    package.loaded["images.win_clipboard_worker"] = {
+      save_to_file = function(out, cb)
+        worker_out = out
+        H.write(out, "new bytes")
+        cb(true)
+      end,
+    }
+
+    paste.replace(target)
+
+    local fd2 = assert(io.open(target, "rb"))
+    local content2 = fd2:read("*a")
+    fd2:close()
+
+    H.ok(worker_out ~= nil and worker_out ~= target, "the worker writes to a tempname, never straight to the target")
+    H.eq(content2, "new bytes", "a successful replace moves the tempname's bytes over the target")
+    H.eq(vim.uv.fs_stat(worker_out), nil, "…and the tempname itself is gone (moved, not copied-and-left)")
+
+    package.loaded["images.win_clipboard_worker"] = original_worker
+    package.loaded["lib.nvim.cross.platform.is_windows"] = original_is_windows
+    pcall(vim.uv.fs_unlink, target)
+  end
 end
