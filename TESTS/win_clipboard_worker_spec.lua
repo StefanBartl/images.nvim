@@ -206,5 +206,33 @@ return function(H)
     H.contains(in_flight_err or "", "shutting down", "…with a message naming why")
   end
 
+  -- ── fail_all: a callback that throws must not stop the rest of the
+  --    requests it is holding from being notified, or stop `shutdown()`
+  --    from reaching its own stdin close right after -- a caller's callback
+  --    is arbitrary code this module does not control (an ultracode review
+  --    flagged the un-pcall'd call as a real, if narrow, exposure) ─────────
+  do
+    worker._reset()
+    local fake = install_fake_powershell()
+
+    worker.save_to_file(vim.fn.tempname() .. ".png", function()
+      error("boom -- a caller's callback throwing")
+    end)
+    local queued_done, queued_ok
+    worker.save_to_file(vim.fn.tempname() .. ".png", function(ok)
+      queued_done, queued_ok = true, ok
+    end)
+
+    local shutdown_ok = pcall(worker.shutdown)
+    local closed = fake.current().closed
+
+    fake.restore()
+
+    H.ok(shutdown_ok, "shutdown() itself does not throw even though the in-flight callback does")
+    H.ok(closed, "…and still closes stdin afterwards")
+    H.ok(queued_done, "the queued request behind the throwing one is still notified")
+    H.falsy(queued_ok, "…as a failure, same as every other request failed by this shutdown")
+  end
+
   worker._reset()
 end

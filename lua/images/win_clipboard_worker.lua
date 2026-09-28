@@ -70,7 +70,13 @@ end
 --- queued) with `err`, and drop the worker so the next call starts a fresh
 --- process. Used for both a hard failure (the process died) and a timeout
 --- (the process may still be alive but is not answering, so it is killed
---- first -- see `send_next`).
+--- first -- see `send_next`), and by `M.shutdown` on `VimLeavePre`.
+---
+--- Each callback runs through `pcall`: a caller's callback is arbitrary code
+--- (`images.paste`'s, ultimately) this module does not control, and one
+--- throwing must not stop the rest of `pending` from being notified, or --
+--- for the `shutdown` caller specifically -- prevent it from reaching its own
+--- `w.proc:write(nil)` right after this returns.
 ---@param w Images.ClipboardWorker
 ---@param err string
 ---@return nil
@@ -78,13 +84,13 @@ local function fail_all(w, err)
   if worker == w then worker = nil end
   stop_timer(w)
   if w.in_flight then
-    w.in_flight.callback(false, err)
+    pcall(w.in_flight.callback, false, err)
     w.in_flight = nil
   end
   local pending = w.queue
   w.queue = {}
   for _, req in ipairs(pending) do
-    req.callback(false, err)
+    pcall(req.callback, false, err)
   end
 end
 
