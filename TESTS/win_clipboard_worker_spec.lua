@@ -234,5 +234,50 @@ return function(H)
     H.falsy(queued_ok, "…as a failure, same as every other request failed by this shutdown")
   end
 
+  -- ── handle_response: the same throw-safety matters here even more than in
+  --    fail_all -- this is the ORDINARY response path, taken on every
+  --    normal paste, not just on timeout/crash/shutdown. A throwing
+  --    callback must not stop `send_next(w)` from running, or whatever is
+  --    queued behind the answered request would never be sent at all ──────
+  do
+    worker._reset()
+    local fake = install_fake_powershell()
+
+    local first_ok = pcall(worker.save_to_file, vim.fn.tempname() .. ".png", function()
+      error("boom -- a caller's callback throwing on an ordinary response")
+    end)
+    local second_done, second_ok
+    worker.save_to_file(vim.fn.tempname() .. ".png", function(ok)
+      second_done, second_ok = true, ok
+    end)
+
+    local writes_before = #fake.current().writes
+    -- Answering the first request runs handle_response -> the throwing
+    -- callback -> (must still reach) send_next(w) for the second one.
+    -- handle_response itself runs inside vim.schedule (on_stdout defers it,
+    -- same as every response), so it hasn't happened yet just because
+    -- stdout_cb returned -- wait for it the same way the file's other
+    -- cases do.
+    local respond_ok = pcall(fake.current().stdout_cb, nil, "IMAGESNVIM:0:\n")
+    vim.wait(200, function()
+      return #fake.current().writes >= 2
+    end, 5)
+    local writes_after = #fake.current().writes
+
+    fake.current().stdout_cb(nil, "IMAGESNVIM:3:\n")
+    vim.wait(200, function()
+      return second_done
+    end, 5)
+
+    fake.restore()
+
+    H.ok(first_ok, "queueing the throwing-callback request does not itself throw")
+    H.ok(respond_ok, "answering it does not propagate the callback's throw out of on_stdout")
+    H.eq(writes_before, 1, "sanity: only the first request's line had been sent so far")
+    H.eq(writes_after, 2, "handle_response still reaches send_next -- the second request's line goes out")
+    H.ok(second_done, "…and it resolves normally")
+    H.falsy(second_ok, "…this run's answer for it (code 3), unaffected by the first one's throw")
+  end
+
   worker._reset()
 end
