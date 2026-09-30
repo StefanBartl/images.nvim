@@ -144,7 +144,7 @@ Calling |images.setup()| is optional when using `opts`.
                         it on the next cursor movement. `:Image clear` or a
                         second `:Image pin` releases it.
 
-:Image paste [{name}] [path={mode}]
+:Image paste [env|abs|rel|repos] [{name}] [path={mode}]
                         Save the clipboard image next to the document and
                         insert a markdown link at the cursor. The target
                         directory and the filename follow `paste.dir` and
@@ -162,12 +162,19 @@ Calling |images.setup()| is optional when using `opts`.
                         the image's location (never where the file itself is
                         written): `relative` (default, unchanged from before
                         this argument existed), `absolute` (full filesystem
-                        path), `repos` (rooted at `$REPOS_DIR`, falling back
+                        path; short: `abs`), `env` (rooted at an environment
+                        variable -- `$NVIM_CONFIG_DIR`, `$REPOS_DIR` or your
+                        `paste.env_roots` -- else relative), `repos` (rooted
+                        at `$REPOS_DIR`, falling back
                         to `relative` outside it and erroring if `$REPOS_DIR`
                         is unset), or anything else, used literally as a
                         custom prefix (`path=/static/img`). Without
                         `path=...`, `paste.default_path_mode` decides — see
-                        |images-paste-config|.
+                        |images-paste-config|. A bare first word
+                        (`env`, `abs`, `rel`, `repos`) is the same as
+                        `path=`; any other first word is the file name.
+                        Afterwards the cursor sits inside the link's empty
+                        alt text in insert mode (`paste.link_cursor`).
 
 :Image screenshot       Take a screenshot interactively and insert it like
                         `:Image paste`, without needing the clipboard as an
@@ -459,7 +466,9 @@ under the same key).
         ask_alt_text = false,
         alt_link_template = "![%s](%s)",
         ask_filename = false,
-        default_path_mode = "relative",
+        default_path_mode = "relative", -- or "env"|"absolute"|"repos"|prefix|false
+        env_roots = {},   -- extra roots for "env": { WIKI_DIR = "E:/wiki" }
+        link_cursor = { enable = true, startinsert = true, path_cursor = "end" },
       },
       ocr = {
         lang = "eng",

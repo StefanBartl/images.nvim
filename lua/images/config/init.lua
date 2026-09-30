@@ -51,6 +51,8 @@ local KNOWN = {
     alt_link_template = true,
     ask_filename = true,
     default_path_mode = true,
+    env_roots = true,
+    link_cursor = { enable = true, startinsert = true, path_cursor = true },
     windows_clipboard_timeout_ms = true,
     windows_persistent_helper = true,
   },

@@ -243,6 +243,79 @@ end
 -- Exposed for tests: reads only, never writes.
 M.find_existing_resource_dir = find_existing_resource_dir
 
+--- Words `:Image paste` accepts as a link-path mode, in place of `path=...`.
+--- `rel`/`abs` are the short spellings of `relative`/`absolute`.
+M.MODE_ALIASES = { rel = "relative", abs = "absolute" }
+M.MODE_WORDS = { env = true, repos = true, rel = true, abs = true, relative = true, absolute = true }
+
+---@param p string
+---@return string
+local function to_fwd(p)
+  return (p:gsub("\\", "/"):gsub("/+$", ""))
+end
+
+--- `abs` rewritten as `$VAR/rest` for the longest of `roots` that contains it,
+--- compared case- and separator-insensitively (Windows paths). nil when none does.
+---@param abs string
+---@param roots table<string, string|fun(): string|nil> variable name -> directory (or a function returning it)
+---@return string|nil
+local function shorten_by_roots(abs, roots)
+  local fwd = to_fwd(abs)
+  local lower = fwd:lower()
+  local best_var, best_len
+  for var, dir in pairs(roots) do
+    if type(dir) == "function" then
+      local ok, value = pcall(dir)
+      dir = ok and value or nil
+    end
+    if type(dir) == "string" and dir ~= "" then
+      local d = to_fwd(dir):lower()
+      local inside = lower == d or lower:sub(1, #d + 1) == d .. "/"
+      if inside and (not best_len or #d > best_len) then
+        best_var, best_len = var, #d
+      end
+    end
+  end
+  if not best_var then return nil end
+  return "$" .. best_var .. fwd:sub(best_len + 1)
+end
+M.shorten_by_roots = shorten_by_roots
+
+--- Directories every machine of this setup knows, used when `paste.env_roots`
+--- and gopath.nvim do not settle a path: the real values of `$REPOS_DIR` and
+--- of Neovim's config directory.
+---@return table<string, string|fun(): string|nil>
+local function builtin_env_roots()
+  return {
+    REPOS_DIR = function()
+      return vim.env.REPOS_DIR
+    end,
+    NVIM_CONFIG_DIR = function()
+      return vim.fn.stdpath("config")
+    end,
+  }
+end
+
+--- `abs` spelled with an environment variable, or nil when it lies under no
+--- known root. Order: the user's own `paste.env_roots` (most explicit), then
+--- gopath.nvim's `shorten_path` -- the logic behind `:Gopath to-repos-dir` /
+--- `to-nvim-dir`, which also recognises a repos root by folder name across
+--- machines -- then the built-in roots above for a setup without gopath.
+---@param abs string
+---@return string|nil
+function M.env_link_path(abs)
+  local custom = shorten_by_roots(abs, cfg().paste.env_roots or {})
+  if custom then return custom end
+
+  local ok, gopath = pcall(require, "gopath.env_shorten")
+  if ok and type(gopath.shorten_path) == "function" then
+    local shortened = gopath.shorten_path(abs)
+    if shortened then return shortened end
+  end
+
+  return shorten_by_roots(abs, builtin_env_roots())
+end
+
 --- Turn the doc-relative link path `doc_rel` into whatever `mode` asks for.
 --- Only the STRING inserted into the markdown link changes here — the file
 --- itself always lands next to the document (or in `paste.dir`/an existing
@@ -250,11 +323,20 @@ M.find_existing_resource_dir = find_existing_resource_dir
 --- `mode` only picks how that location is spelled out in the link text.
 ---@param abs string absolute path of the image file on disk
 ---@param doc_rel string path relative to the document's own directory — what "relative" (the only behaviour before this existed) produces
----@param mode string|nil "relative" (default/nil) | "absolute" | "repos" | a literal custom prefix
+---@param mode string|nil "relative" (default/nil) | "absolute" | "repos" | "env" | a literal custom prefix; "rel"/"abs" are accepted spellings of the first two
 ---@return string|nil link_path
 ---@return string|nil err
 local function resolve_link_path(abs, doc_rel, mode)
+  mode = M.MODE_ALIASES[mode or ""] or mode
   if not mode or mode == "" or mode == "relative" then return doc_rel, nil end
+
+  if mode == "env" then
+    -- Rooted at an environment variable when the file sits under a known
+    -- root, else the doc-relative path: the same "outside the root" fallback
+    -- as "repos" below, and never an error -- a document outside every known
+    -- root is an ordinary case, not a misconfiguration.
+    return M.env_link_path(abs) or doc_rel, nil
+  end
 
   local forward_abs = (abs:gsub("\\", "/"))
   if mode == "absolute" then return forward_abs, nil end
@@ -351,6 +433,22 @@ end
 -- fallback (no real second drive needed) -- see TESTS/paste_target_spec.lua.
 M.move_file = move_file
 
+--- Put the cursor where the link still needs typing -- its empty alt text, or
+--- the path of one that already has alt text -- and enter insert mode, instead
+--- of leaving it behind the link where nothing is left to write
+--- (`lib.nvim.markdown.link_cursor`, tuned by `paste.link_cursor`). Falls back
+--- to the old behaviour (cursor behind the link) without that module.
+---@param win integer
+---@param row integer 0-based row the link was inserted at
+---@param col integer 0-based byte column the link starts at
+---@param link string the inserted text
+---@return nil
+local function place_cursor(win, row, col, link)
+  local ok, link_cursor = pcall(require, "lib.nvim.markdown.link_cursor")
+  if ok and link_cursor.place(win, row, col, link, cfg().paste.link_cursor) then return end
+  pcall(vim.api.nvim_win_set_cursor, win, { row + 1, col + #link })
+end
+
 --- Insert the link at the cursor position valid at the time of the call. Runs
 --- after the clipboard write — synchronously right afterwards, or
 --- asynchronously after the alt-text prompt — and therefore rechecks the
@@ -366,7 +464,7 @@ M.move_file = move_file
 --- missing, and the user should hear about it.
 ---@param buf integer
 ---@param win integer window current when the paste started
----@param rel string path relative to the document
+---@param rel string path as it goes into the link (relative, absolute, or env-rooted -- see `resolve_link_path`)
 ---@param alt string|nil alt text; empty or nil = no alt text
 ---@return nil
 local function insert_link(buf, win, rel, alt)
@@ -394,7 +492,7 @@ local function insert_link(buf, win, rel, alt)
     notify().warn("could not insert the link — the image is at " .. rel)
     return
   end
-  pcall(vim.api.nvim_win_set_cursor, win, { pos[1], pos[2] + #link })
+  place_cursor(win, pos[1] - 1, pos[2], link)
 
   notify().info("image saved: " .. rel)
 end
@@ -585,6 +683,7 @@ local function resolve_path_mode(explicit_mode, on_resolved)
     { label = "relative to the document", value = "relative" },
     { label = "absolute filesystem path", value = "absolute" },
     { label = "$REPOS_DIR-rooted", value = "repos" },
+    { label = "environment-variable-rooted ($NVIM_CONFIG_DIR, $REPOS_DIR, …)", value = "env" },
     { label = "custom prefix…", value = "custom" },
   }
 

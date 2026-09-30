@@ -67,6 +67,11 @@
 ---@field windows_timeout_ms integer how long to wait for a new clipboard image
 ---@field windows_poll_interval_ms integer interval between two clipboard checks
 
+---@class ImagesNvim.LinkCursor
+---@field enable? boolean false = cursor behind the inserted link, as before (default true)
+---@field startinsert? boolean enter insert mode after placing the cursor (default true)
+---@field path_cursor? "end"|"start" where in an already filled path the cursor goes (default "end")
+
 ---@class ImagesNvim.PasteConfig : ImagesNvim.PasteOpts
 ---@field dir string target directory relative to the document ("" = alongside it)
 ---@field existing_dir_names string[] existing folder names (case-insensitive) used instead of `dir` when present in the document's directory
@@ -75,7 +80,9 @@
 ---@field ask_alt_text boolean ask for alt text before inserting
 ---@field alt_link_template string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename boolean ask for a file name before inserting (extension always forced to .png)
----@field default_path_mode string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos" ($REPOS_DIR-rooted)|a literal custom prefix; `false` asks interactively (ui.kit.select, falling back to vim.ui.select) instead — see images.paste.resolve_link_path
+---@field default_path_mode string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos" ($REPOS_DIR-rooted)|"env" (rooted at an environment variable, see `env_roots`)|a literal custom prefix; "rel"/"abs" are accepted short spellings; `false` asks interactively (ui.kit.select, falling back to vim.ui.select) instead — see images.paste.resolve_link_path
+---@field env_roots table<string, string|fun(): string|nil> extra roots for the "env" path: variable name -> directory (or a function returning it); checked before gopath.nvim and the built-in `$REPOS_DIR`/`$NVIM_CONFIG_DIR`, longest directory wins
+---@field link_cursor ImagesNvim.LinkCursor where the cursor goes after the link is inserted (lib.nvim.markdown.link_cursor)
 ---@field windows_clipboard_timeout_ms integer Windows only: how long the persistent clipboard helper may take on one read before it is killed and restarted — see images.win_clipboard_worker
 ---@field windows_persistent_helper boolean Windows only: keep one PowerShell process alive for the session instead of spawning a fresh one per paste (default true); `false` opts out entirely — see images.win_clipboard_worker
 
@@ -178,7 +185,9 @@
 ---@field ask_alt_text?       boolean ask for alt text before inserting
 ---@field alt_link_template?  string text to insert with alt text; %s %s = alt text, relative path
 ---@field ask_filename?       boolean ask for a file name before inserting (extension always forced to .png)
----@field default_path_mode? string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos"|a literal custom prefix; `false` asks interactively — see images.paste.resolve_link_path
+---@field default_path_mode? string|false how the inserted link's path is spelled out: "relative" (default)|"absolute"|"repos"|"env"|a literal custom prefix; `false` asks interactively — see images.paste.resolve_link_path
+---@field env_roots? table<string, string|fun(): string|nil> extra roots for the "env" path (variable name -> directory)
+---@field link_cursor? ImagesNvim.LinkCursor where the cursor goes after the link is inserted
 ---@field windows_clipboard_timeout_ms? integer Windows only: how long the persistent clipboard helper may take on one read before it is killed and restarted — see images.win_clipboard_worker
 ---@field windows_persistent_helper?    boolean Windows only: keep one PowerShell process alive for the session instead of spawning a fresh one per paste (default true); `false` opts out entirely — see images.win_clipboard_worker
 
