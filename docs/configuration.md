@@ -77,6 +77,8 @@ require("images").setup({
     alt_link_template = "![%s](%s)",
     ask_filename = false,
     default_path_mode = "relative",
+    env_roots = {}, -- extra roots for the "env" mode: { WIKI_DIR = "E:/wiki" }
+    link_cursor = { enable = true, startinsert = true, path_cursor = "end" },
     windows_clipboard_timeout_ms = 20000,
     windows_persistent_helper = true,
   },
@@ -263,7 +265,9 @@ because the cost was never in writing text.
 | `ask_alt_text` | `false` | `true` prompts for alt text first, producing `![alt](path)`. Cancelling still inserts the plain link — the file is already on disk by then, and a lost link would be the worse surprise |
 | `alt_link_template` | `"![%s](%s)"` | Inserted text with alt text; `%s %s` = alt text, relative path |
 | `ask_filename` | `false` | `true` prompts for a name, prefilled with what `name_template` would produce. Any path component is dropped and the extension is forced to `.png`. Cancelling here writes nothing at all — unlike the alt-text prompt, the clipboard has not been read yet |
-| `default_path_mode` | `"relative"` | How the inserted link's path is spelled out — see `:Image paste`'s `path=...` argument below. `false` asks every time instead of assuming `"relative"` |
+| `default_path_mode` | `"relative"` | How the inserted link's path is spelled out — see `:Image paste`'s `path=...` argument below. `false` asks every time instead of assuming `"relative"`; `"env"` roots the link at an environment variable (see `env_roots`) |
+| `env_roots` | `{}` | Extra roots for the `env` mode: variable name → directory (or a function returning one). A pasted image under such a directory is linked as `$NAME/rest`. Checked first, longest directory wins; then gopath.nvim's `shorten_path`, then the built-in `$REPOS_DIR` / `$NVIM_CONFIG_DIR` |
+| `link_cursor` | `{ enable = true, startinsert = true, path_cursor = "end" }` | Where the cursor goes after the link is inserted: into the empty alt text of `![](path)` (or into the path of a link that already has alt text), and into insert mode — instead of behind the link. `enable = false` restores the old placement; `startinsert = false` only skips insert mode |
 | `windows_persistent_helper` | `true` | Windows only. Keep one PowerShell process alive for the session instead of spawning a fresh one per paste (see below). `false` opts out entirely — every paste starts and tears down its own `powershell.exe -STA` again, at the cost of that process's full startup price on every single paste |
 | `windows_clipboard_timeout_ms` | `20000` | Windows only, and only while `windows_persistent_helper` is `true`. Bounds how long a single read on the persistent process may take before it is treated as hung, killed, and replaced |
 
@@ -275,12 +279,13 @@ even with `ask_filename = false`.
 ### `paste.default_path_mode` / `:Image paste path=...`
 
 `:Image paste` (and the plain `<leader>iv` keymap) can link the pasted image
-four different ways, chosen by `path=...` on the command line:
+five different ways, chosen by `path=...` (or a bare mode word: `:Image paste env`, `abs`, `rel`, `repos`) on the command line:
 
 | `path=` | Result |
 | --- | --- |
 | `relative` (default) | Relative to the document — unchanged from before this option existed |
-| `absolute` | The full filesystem path |
+| `absolute` (or `abs`) | The full filesystem path |
+| `env` | Rooted at an environment variable when the file sits under a known root (`$NVIM_CONFIG_DIR/…`, `$REPOS_DIR/…`, your own `paste.env_roots`), otherwise the relative path. Uses gopath.nvim's `shorten_path` (the logic of `:Gopath to-nvim-dir` / `to-repos-dir`) when installed |
 | `repos` | Rooted at `$REPOS_DIR` (falls back to `relative` when the file sits outside it; errors if `$REPOS_DIR` itself is unset) |
 | anything else | Used literally as a custom prefix, e.g. `path=/static/img` → `/static/img/assets/shot-1.png` |
 

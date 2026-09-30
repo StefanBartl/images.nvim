@@ -49,6 +49,11 @@ Show the image under the cursor, or `path`. With
 Bare `:Image` with a range is a gallery, not a single image — the most common
 case needs no subcommand either way.
 
+Afterwards the cursor sits inside the link's empty alt text (`![|](assets/…)`)
+in insert mode, ready to type the caption — not behind the link, where nothing
+is left to write. A link that already has alt text puts it into the path
+instead. `paste.link_cursor` tunes or disables this.
+
 ### `:Image gallery [cols]` · `:'<,'>Image gallery [cols]`
 
 Every image of the buffer (or the selection) side by side in a grid. The column
@@ -108,7 +113,7 @@ pin, and closes a `:Image zen` window if one is open.
 
 ## Capturing
 
-### `:Image paste [name] [path=relative|absolute|repos|<prefix>]`
+### `:Image paste [env|abs|rel|repos] [name] [path=<mode>|<prefix>]`
 
 The everyday case for documentation: take a screenshot, run it, and the PNG is
 written to `assets/<document>-<timestamp>.png` with `![](assets/…)` inserted at
@@ -121,11 +126,21 @@ either way.
 prompt. A count on `<leader>iv` forces the prompt instead — see
 [configuration.md](configuration.md#paste).
 
-`path=...` picks how the inserted *link* spells out the image's location —
+The mode can be given as a bare first word — `:Image paste env`, `:Image paste abs`,
+`:Image paste rel`, `:Image paste repos` — with the file name after it
+(`:Image paste env shot`); a first word that is not one of these is the file
+name, as before. `path=...` (which wins when both are given) picks how the
+inserted *link* spells out the image's location —
 never where the file itself is written, only the link text:
 
 - `path=relative` (default) — relative to the document, unchanged from before this argument existed
-- `path=absolute` — the full filesystem path
+- `path=absolute` — the full filesystem path (short word: `abs`)
+- `path=env` — rooted at an environment variable when the file sits under a
+  known root — `$NVIM_CONFIG_DIR/…`, `$REPOS_DIR/…` or one of your
+  `paste.env_roots` — and the relative path otherwise. With gopath.nvim
+  installed this is exactly what `:Gopath to-nvim-dir` / `to-repos-dir` would
+  produce. Combine it with `paste.default_path_mode = "env"` to make it the
+  default.
 - `path=repos` — rooted at `$REPOS_DIR` (falls back to `relative` outside it, errors if `$REPOS_DIR` is unset)
 - `path=<anything else>` — a literal custom prefix, e.g. `path=/static/img`
 

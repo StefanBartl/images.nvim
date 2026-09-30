@@ -140,16 +140,36 @@ function M.register(cfg)
 
       {
         path = { "paste" },
-        args = { { name = "name", type = "STRING", optional = true } },
+        -- `[mode] [name]`: the first word is a link-path mode when it is one of
+        -- env|abs|rel|repos|absolute|relative (the same as `path=...`, shorter),
+        -- otherwise it is the file name, exactly as before the mode words
+        -- existed. A file literally named like a mode word: `:Image paste
+        -- rel env` (mode, then name) or `name=` is not needed.
+        args = {
+          {
+            name = "mode",
+            type = "STRING",
+            optional = true,
+            values = { "env", "abs", "rel", "repos" },
+          },
+          { name = "name", type = "STRING", optional = true },
+        },
         -- Bare `key=value`, not a `--flag`: a path prefix is the common case
         -- (a custom one especially) and would just be noise behind a dash --
         -- see media.nvim's `:Media dashboard path=<dir>` for the same
         -- reasoning. `values` only seeds completion; any other string
         -- (a custom prefix) is still accepted, see images.paste.resolve_link_path.
         kv = { { key = "path", type = "STRING", values = { "relative", "absolute", "repos" } } },
-        desc = "Save an image from the clipboard and link it; with {name} named directly instead of the configured name prompt; path=relative|absolute|repos|<prefix> picks the link path (default: paste.default_path_mode, asked interactively when that is false)",
+        desc = "Save an image from the clipboard and link it: :Image paste [env|abs|rel|repos] [name]; with {name} named directly instead of the configured name prompt; the mode word (or path=relative|absolute|repos|env|<prefix>) picks the link path (default: paste.default_path_mode, asked interactively when that is false)",
         run = function(ctx)
-          require("images").paste(ctx.args.name, nil, (ctx.kv or {}).path)
+          local first, second = ctx.args.mode, ctx.args.name
+          local mode = (ctx.kv or {}).path
+          local name = first
+          if first and require("images.paste").MODE_WORDS[first] then
+            mode = mode or first
+            name = second
+          end
+          require("images").paste(name, nil, mode)
         end,
       },
 

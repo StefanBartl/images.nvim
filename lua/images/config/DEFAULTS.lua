@@ -172,6 +172,24 @@ return {
     -- prompt action it always was; opt into the prompt by setting this to
     -- `false` explicitly.
     default_path_mode = "relative",
+    -- Extra roots for the "env" link path (`:Image paste env`, or
+    -- `default_path_mode = "env"`): variable name -> directory, or a function
+    -- returning one. A pasted image under such a directory is linked as
+    -- `$NAME/rest`, e.g. { WIKI_DIR = "E:/wiki" } gives `$WIKI_DIR/notes/assets/x.png`.
+    -- The longest matching directory wins. These come FIRST; after them
+    -- gopath.nvim's own `shorten_path` (the logic of `:Gopath to-repos-dir` /
+    -- `to-nvim-dir`), then the built-in `$REPOS_DIR` and `$NVIM_CONFIG_DIR`.
+    -- A file under none of them falls back to the "relative" spelling.
+    env_roots = {},
+    -- Where the cursor goes after the link is inserted (lib.nvim.markdown.
+    -- link_cursor): into the empty alt text of `![](path)` -- or, when the
+    -- link already has alt text, into its path -- and into insert mode, instead
+    -- of behind the link where nothing is left to write.
+    link_cursor = {
+      enable = true, -- false: cursor behind the link, as before
+      startinsert = true, -- enter insert mode after placing the cursor
+      path_cursor = "end", -- in a filled path: "end" or "start"
+    },
     -- Windows only (see images.win_clipboard_worker): how long a single
     -- clipboard read may take on the persistent PowerShell helper before it
     -- is treated as hung, killed, and a fresh one started for the next

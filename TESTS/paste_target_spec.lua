@@ -262,6 +262,121 @@ return function(H)
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
+  -- ── 6b. "env" mode: the link is rooted at an environment variable when the
+  --      file sits under a known root, else it falls back to relative ──────
+  do
+    local config = require("images.config")
+    local resolve_link_path = paste.resolve_link_path
+    local saved_repos, saved_gopath = vim.env.REPOS_DIR, package.loaded["gopath.env_shorten"]
+    local doc_rel = "assets/shot.png"
+
+    -- aliases of the short mode words
+    H.eq(resolve_link_path("/x/assets/shot.png", doc_rel, "rel"), doc_rel, "rel is an alias of relative")
+    H.eq(resolve_link_path([[C:\x\shot.png]], doc_rel, "abs"), "C:/x/shot.png", "abs is an alias of absolute")
+    H.eq(paste.MODE_WORDS.env, true, "env is a mode word")
+    H.eq(paste.MODE_WORDS.nonsense, nil, "an ordinary word is not")
+
+    -- without gopath: the built-in roots ($REPOS_DIR's value, stdpath('config'))
+    package.loaded["gopath.env_shorten"] = false -- makes `pcall(require, ...)` fail
+    config.setup(nil)
+    vim.env.REPOS_DIR = "/work/repos"
+    H.eq(
+      resolve_link_path("/work/repos/notes/assets/shot.png", doc_rel, "env"),
+      "$REPOS_DIR/notes/assets/shot.png",
+      "env: under $REPOS_DIR -> $REPOS_DIR/..."
+    )
+    local cfgdir = vim.fn.stdpath("config"):gsub("\\", "/")
+    H.eq(
+      resolve_link_path(cfgdir .. "/docs/assets/shot.png", doc_rel, "env"),
+      "$NVIM_CONFIG_DIR/docs/assets/shot.png",
+      "env: under the nvim config dir -> $NVIM_CONFIG_DIR/..."
+    )
+    H.eq(
+      resolve_link_path(cfgdir:upper() .. "/docs/a.png", doc_rel, "env"),
+      "$NVIM_CONFIG_DIR/docs/a.png",
+      "env: matching ignores case and slash style (Windows paths)"
+    )
+    H.eq(
+      resolve_link_path("/home/me/elsewhere/assets/shot.png", doc_rel, "env"),
+      doc_rel,
+      "env: outside every known root falls back to the doc-relative path"
+    )
+    H.eq(
+      resolve_link_path("/work/repos-archive/x/shot.png", doc_rel, "env"),
+      doc_rel,
+      "env: a sibling folder sharing the root's prefix is not inside it"
+    )
+
+    -- the user's own roots: first, longest directory wins, functions allowed
+    config.setup({
+      paste = {
+        env_roots = {
+          WIKI_DIR = "/work/repos/wiki",
+          DYN_DIR = function()
+            return "/dyn"
+          end,
+        },
+      },
+    })
+    H.eq(
+      resolve_link_path("/work/repos/wiki/n/assets/shot.png", doc_rel, "env"),
+      "$WIKI_DIR/n/assets/shot.png",
+      "env_roots: a custom root beats $REPOS_DIR (longest directory wins)"
+    )
+    H.eq(resolve_link_path("/dyn/a/b.png", doc_rel, "env"), "$DYN_DIR/a/b.png", "env_roots: a function root")
+
+    -- gopath.nvim settles what the custom roots do not
+    package.loaded["gopath.env_shorten"] = {
+      shorten_path = function(abs)
+        if abs:find("gopath-zone", 1, true) then return "$FROM_GOPATH/x" end
+      end,
+    }
+    H.eq(resolve_link_path("/gopath-zone/a.png", doc_rel, "env"), "$FROM_GOPATH/x", "gopath.shorten_path is consulted")
+    H.eq(
+      resolve_link_path("/work/repos/notes/a.png", doc_rel, "env"),
+      "$REPOS_DIR/notes/a.png",
+      "…and the built-in roots still apply when gopath has no answer"
+    )
+
+    package.loaded["gopath.env_shorten"] = saved_gopath
+    vim.env.REPOS_DIR = saved_repos
+    config.setup(nil)
+  end
+
+  -- ── 6c. after inserting, the cursor sits where the link needs typing ─────
+  do
+    local config = require("images.config")
+    config.setup({ paste = { link_cursor = { startinsert = false } } })
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+    local buf = make_buf(root)
+    vim.api.nvim_set_current_buf(buf)
+
+    paste.paste_with_name(buf, "shot.png", fake_capture(true), "relative")
+    local line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+    H.eq(line, "![](assets/shot.png)", "the default link")
+    H.eq(vim.api.nvim_win_get_cursor(0)[2], 2, "cursor is inside the empty alt text, not behind the link")
+
+    -- alt text already given: the path is what is left to edit
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    config.setup({ paste = { ask_alt_text = false, link_template = "![alt](%s)", link_cursor = { startinsert = false } } })
+    paste.paste_with_name(buf, "two.png", fake_capture(true), "relative")
+    H.eq(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1], "![alt](assets/two.png)", "link with alt text")
+    H.eq(vim.api.nvim_win_get_cursor(0)[2], 21, "cursor at the end of the path (before the closing paren)")
+
+    -- opt-out: cursor behind the link, as before
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    config.setup({ paste = { link_cursor = { enable = false, startinsert = false } } })
+    paste.paste_with_name(buf, "three.png", fake_capture(true), "relative")
+    local l3 = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
+    H.eq(vim.api.nvim_win_get_cursor(0)[2], #l3, "link_cursor.enable = false: cursor stays behind the link")
+
+    config.setup(nil)
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
+
   -- ── 7. resolve_path_mode: explicit arg / configured default / interactive
   --      ask, without any real UI kit (unavailable in this test process, see
   --      TESTS/run.lua's own note on that) ─────────────────────────────────
