@@ -25,6 +25,9 @@ return function(H)
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(buf, root .. "/doc.md")
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    -- Shown in the current window, as a real paste's buffer always is: the
+    -- insertion point is read from that window's cursor.
+    vim.api.nvim_set_current_buf(buf)
     return buf
   end
 
@@ -175,6 +178,39 @@ return function(H)
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
+  -- ── 4b. the window switched to ANOTHER BUFFER while the paste was running:
+  --      the position taken from that window means nothing in the document
+  --      buffer: no link is inserted (a warning says where the image is) ────
+  do
+    local config = require("images.config")
+    config.setup({ paste = { link_cursor = { startinsert = false } } })
+    local root = vim.fn.tempname()
+    vim.fn.mkdir(root, "p")
+    local buf = make_buf(root)
+    local other_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(other_buf, 0, -1, false, { "some other buffer with a long first line" })
+    vim.api.nvim_set_current_buf(buf)
+    local win = vim.api.nvim_get_current_win()
+
+    local function capture_then_switch_buffer(out, cb)
+      local fd = assert(io.open(out, "wb"))
+      fd:write("x")
+      fd:close()
+      vim.api.nvim_win_set_buf(win, other_buf)
+      vim.api.nvim_win_set_cursor(win, { 1, 7 })
+      cb(true)
+    end
+
+    paste.paste_with_name(buf, "shot.png", capture_then_switch_buffer)
+    H.eq(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1], "", "nothing is inserted into the document buffer")
+    H.eq(vim.fn.filereadable(root .. "/assets/shot.png"), 1, "…but the image file is on disk")
+    H.eq(vim.api.nvim_win_get_cursor(win)[2], 7, "the window now showing another buffer keeps its cursor")
+
+    config.setup(nil)
+    pcall(vim.api.nvim_buf_delete, other_buf, { force = true })
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end
+
   -- ── 5. resolve_link_path: the path-mode transform, in isolation ──────────
   -- (`:Images paste path=relative|absolute|repos|<prefix>`, Phase 3 point 8 --
   -- mirrors buffer-ctx.nvim's ops/filepath.lua mode="repos", see that
@@ -291,10 +327,11 @@ return function(H)
       "$NVIM_CONFIG_DIR/docs/assets/shot.png",
       "env: under the nvim config dir -> $NVIM_CONFIG_DIR/..."
     )
+    -- Matching ignores case only where the file system does (Windows).
     H.eq(
       resolve_link_path(cfgdir:upper() .. "/docs/a.png", doc_rel, "env"),
-      "$NVIM_CONFIG_DIR/docs/a.png",
-      "env: matching ignores case and slash style (Windows paths)"
+      vim.fn.has("win32") == 1 and "$NVIM_CONFIG_DIR/docs/a.png" or doc_rel,
+      "env: case-insensitive on Windows only"
     )
     H.eq(
       resolve_link_path("/home/me/elsewhere/assets/shot.png", doc_rel, "env"),
