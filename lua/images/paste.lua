@@ -261,7 +261,12 @@ end
 ---@return string|nil
 local function shorten_by_roots(abs, roots)
   local fwd = to_fwd(abs)
-  local lower = fwd:lower()
+  -- Case-insensitive only where the file system is (Windows): on Linux/macOS
+  -- `/Repos` and `/repos` are different directories.
+  local fold = vim.fn.has("win32") == 1 and string.lower or function(s)
+    return s
+  end
+  local lower = fold(fwd)
   local best_var, best_len
   for var, dir in pairs(roots) do
     if type(dir) == "function" then
@@ -269,7 +274,7 @@ local function shorten_by_roots(abs, roots)
       dir = ok and value or nil
     end
     if type(dir) == "string" and dir ~= "" then
-      local d = to_fwd(dir):lower()
+      local d = fold(to_fwd(dir))
       local inside = lower == d or lower:sub(1, #d + 1) == d .. "/"
       if inside and (not best_len or #d > best_len) then
         best_var, best_len = var, #d
@@ -439,13 +444,17 @@ M.move_file = move_file
 --- (`lib.nvim.markdown.link_cursor`, tuned by `paste.link_cursor`). Falls back
 --- to the old behaviour (cursor behind the link) without that module.
 ---@param win integer
+---@param buf integer the buffer the link went into
 ---@param row integer 0-based row the link was inserted at
 ---@param col integer 0-based byte column the link starts at
 ---@param link string the inserted text
 ---@return nil
-local function place_cursor(win, row, col, link)
+local function place_cursor(win, buf, row, col, link)
+  -- The paste is asynchronous: if the window has since switched to another
+  -- buffer, `row`/`col` mean nothing there, so the cursor is left alone.
+  if vim.api.nvim_win_get_buf(win) ~= buf then return end
   local ok, link_cursor = pcall(require, "lib.nvim.markdown.link_cursor")
-  if ok and link_cursor.place(win, row, col, link, cfg().paste.link_cursor) then return end
+  if ok and link_cursor.place(win, row, col, link, cfg().paste.link_cursor, buf) then return end
   pcall(vim.api.nvim_win_set_cursor, win, { row + 1, col + #link })
 end
 
@@ -480,6 +489,12 @@ local function insert_link(buf, win, rel, alt)
     notify().warn("the window is gone — the image is at " .. rel)
     return
   end
+  -- The insertion point is read from `win`'s cursor; a window that has since
+  -- switched to another buffer holds a position that means nothing in `buf`.
+  if vim.api.nvim_win_get_buf(win) ~= buf then
+    notify().warn("the window no longer shows the document — the image is at " .. rel)
+    return
+  end
 
   -- Avoid backslashes in the link: markdown paths travel better with `/`.
   local forward = (rel:gsub("\\", "/"))
@@ -492,7 +507,7 @@ local function insert_link(buf, win, rel, alt)
     notify().warn("could not insert the link — the image is at " .. rel)
     return
   end
-  place_cursor(win, pos[1] - 1, pos[2], link)
+  place_cursor(win, buf, pos[1] - 1, pos[2], link)
 
   notify().info("image saved: " .. rel)
 end
