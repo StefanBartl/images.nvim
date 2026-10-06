@@ -57,9 +57,33 @@ jobs:
           ref: ci-verified
       - uses: rhysd/action-setup-vim@v1
         with: { neovim: true, version: stable }
+      # Checked out from the branch that only moves once the dependency's own CI is green.
+      - uses: actions/checkout@v5
+        with:
+          repository: "StefanBartl/testing.nvim"
+          path: .deps/testing.nvim
+          ref: ci-verified
+
+      # gopath.nvim has no ci-verified branch: checked out from main (switch to ci-verified once it exists).
+      - uses: actions/checkout@v5
+        with:
+          repository: "StefanBartl/gopath.nvim"
+          path: .deps/gopath.nvim
+          ref: main
+
+      # ui.nvim is deliberately NOT checked out: compare_spec.lua needs `ui.kit` unreachable, and
+      # menu_spec.lua degrades to a no-op without a ui.nvim checkout.
       - run: |
           exec > >(tee -a "$RUNNER_TEMP/test-output.log") 2>&1
-          LIB_NVIM_PATH=.deps/lib.nvim nvim -n -i NONE --headless -u NONE -l TESTS/run.lua
+          bash scripts/test.sh --json "$RUNNER_TEMP/testing-ir.json"
+      # The IR is what a reporter or a person reads to find out WHICH case failed on WHICH platform.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: testing-ir-${{ matrix.os }}
+          path: ${{ runner.temp }}/testing-ir.json
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

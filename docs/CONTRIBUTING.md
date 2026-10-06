@@ -25,7 +25,7 @@ anything. `:Image check` is the fastest way to find out whether yours does.
 ## Local commands
 
 ```bash
-nvim --headless -u NONE -l TESTS/run.lua        # tests
+bash scripts/test.sh                          # tests (testing.nvim; --file <name> for one spec)
 nvim --headless -l scripts/gen_map.lua          # regenerate the module map
 nvim --headless -l scripts/gen_map.lua --check  # verify it, write nothing
 luacheck lua/ plugin/ scripts/ TESTS/ --globals vim
@@ -86,7 +86,7 @@ git config core.hooksPath scripts/hooks         # once per clone
 
 ## Tests
 
-`TESTS/run.lua` runs headless.
+`bash scripts/test.sh` runs the specs headless with [testing.nvim](https://github.com/StefanBartl/testing.nvim).
 [GitHub Actions](../.github/workflows/ci.yml) runs it, luacheck and the module-map
 check on every push and PR to `main`.
 
