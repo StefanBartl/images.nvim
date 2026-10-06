@@ -15,13 +15,16 @@ bash scripts/test.sh --json ir.json   # also write the machine-readable result
 ```
 
 Needs [`testing.nvim`](https://github.com/StefanBartl/testing.nvim),
-[`lib.nvim`](https://github.com/StefanBartl/lib.nvim) (a real dependency, not
-a test-only one) and `gopath.nvim`. Each is looked up in `$<NAME>_DIR`
+and [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) (a real dependency,
+not a test-only one). Each is looked up in `$<NAME>_DIR`
 (e.g. `$LIB_NVIM_DIR`), `.deps/<name>`, `../<name>` and
 `stdpath("data")/lazy/<name>`, in that order; a missing one is a hard error.
-`ui.nvim` is deliberately NOT a dependency of the suite: `compare_spec.lua`
-needs `ui.kit` unreachable, and `menu_spec.lua` resolves ui.nvim on its own
-(a sibling checkout), scoped to that one file — see its header.
+`ui.nvim` and `gopath.nvim` are deliberately NOT dependencies of the suite:
+`compare_spec.lua` needs `ui.kit` unreachable, `menu_spec.lua` resolves ui.nvim
+on its own (a sibling checkout) and, without one, asserts nothing
+(`assertions = "warn"` in `.testing.lua`); with gopath.nvim on the runtimepath
+`paste_target_spec.lua`'s "without gopath" block really runs gopath's
+case-insensitive shortener and fails on Linux/macOS.
 
 `TESTS/run.lua` (the old aggregator) is kept for one reason: testing.nvim reads
 its `specs` list as the **run order** (`cell_spec.lua` must run before

@@ -10,10 +10,13 @@ return {
   dialect = "h",
   -- Dependencies (directory names) put on the runtimepath: $<NAME>_DIR, .deps/<name>, ../<name>,
   -- stdpath('data')/lazy/<name>.
-  deps = { "gopath.nvim", "lib.nvim" },
+  deps = { "lib.nvim" },
   -- "none" = all specs in one nvim, "file" = one nvim per spec file
   -- (nothing leaks from one file into the next).
   isolated = "none",
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
   env_allow = { "MAGICK_*" },
+  -- menu_spec.lua returns without a single assertion when no ui.nvim checkout exists (CI, by design);
+  -- the old runner let that pass.
+  assertions = "warn",
 }
