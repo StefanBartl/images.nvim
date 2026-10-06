@@ -64,13 +64,9 @@ jobs:
           path: .deps/testing.nvim
           ref: ci-verified
 
-      # gopath.nvim has no ci-verified branch: checked out from main (switch to ci-verified once it exists).
-      - uses: actions/checkout@v5
-        with:
-          repository: "StefanBartl/gopath.nvim"
-          path: .deps/gopath.nvim
-          ref: main
-
+      # gopath.nvim is deliberately NOT checked out either (as before the migration): with it on the
+      # runtimepath paste_target_spec.lua's "without gopath" block (package.loaded[...] = false does
+      # not make `require` fail on LuaJIT) runs gopath's case-insensitive shortener on Linux/macOS.
       # ui.nvim is deliberately NOT checked out: compare_spec.lua needs `ui.kit` unreachable, and
       # menu_spec.lua degrades to a no-op without a ui.nvim checkout.
       - run: |
