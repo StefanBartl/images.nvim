@@ -1,25 +1,33 @@
 # TESTS/
 
 The headless test suite for images.nvim. No plenary, no busted — a small
-framework-free harness (`harness.lua`) and an aggregator (`run.lua`) that
-loads every `*_spec.lua` and runs it against that harness. See
-[docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) for the workflow this fits
-into; this file is about what is actually covered.
+framework-free harness (`harness.lua`) whose specs are run by
+[testing.nvim](https://github.com/StefanBartl/testing.nvim) (`.testing.lua`,
+dialect `h`). See [docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) for the
+workflow this fits into; this file is about what is actually covered.
 
 ## Running it
 
 ```sh
-nvim --headless -u NONE -l TESTS/run.lua
+bash scripts/test.sh                  # every spec
+bash scripts/test.sh --file config    # only spec files whose name contains "config"
+bash scripts/test.sh --json ir.json   # also write the machine-readable result
 ```
 
-Needs [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) on the
-runtimepath — a real dependency, not a test-only one (`run.lua` resolves a
-sibling checkout, `$LIB_NVIM_PATH`, or `stdpath("data")/lazy/lib.nvim`, in
-that order, and refuses to run at all without it). `gopath.nvim` and
-`ui.nvim` are soft dependencies resolved the same way, each spec skipping the
-block that needs it when it cannot be found — see `run.lua`'s and
-`menu_spec.lua`'s own comments for the one place that convention gets
-inverted on purpose.
+Needs [`testing.nvim`](https://github.com/StefanBartl/testing.nvim),
+[`lib.nvim`](https://github.com/StefanBartl/lib.nvim) (a real dependency, not
+a test-only one) and `gopath.nvim`. Each is looked up in `$<NAME>_DIR`
+(e.g. `$LIB_NVIM_DIR`), `.deps/<name>`, `../<name>` and
+`stdpath("data")/lazy/<name>`, in that order; a missing one is a hard error.
+`ui.nvim` is deliberately NOT a dependency of the suite: `compare_spec.lua`
+needs `ui.kit` unreachable, and `menu_spec.lua` resolves ui.nvim on its own
+(a sibling checkout), scoped to that one file — see its header.
+
+`TESTS/run.lua` (the old aggregator) is kept for one reason: testing.nvim reads
+its `specs` list as the **run order** (`cell_spec.lua` must run before
+`blocks_spec.lua`, see that spec's header) and never executes it. It still runs
+standalone with `nvim --headless -u NONE -l TESTS/run.lua`. The calibration
+sandbox it set up lives in `TESTS/minimal_init.lua` now.
 
 CI (`.github/workflows/ci.yml`) runs this, `stylua --check` and `luacheck`
 on every push and PR to `main`, plus a separate job that generates the
