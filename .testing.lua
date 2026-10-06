@@ -12,8 +12,26 @@ return {
   -- stdpath('data')/lazy/<name>.
   deps = { "lib.nvim" },
   -- "none" = all specs in one nvim, "file" = one nvim per spec file
-  -- (nothing leaks from one file into the next).
-  isolated = "none",
+  -- (nothing leaks from one file into the next). "file" because setup() of the plugin and the
+  -- specs leave autocmds, user commands and highlight groups behind (state guard).
+  isolated = "file",
+  -- Safety nets, all clean on this suite, so all fail the case.
+  guards = {
+    fs = "error",
+    state = "error",
+    scheduled_error = "error",
+    prompt = "error",
+    deprecation = "warn",
+    process_net = "error",
+  },
+  guard_allow = {
+    spawn = {
+      -- The plugin shells out to ImageMagick (convert, crop, scale, identify) and the specs run it for real.
+      "magick",
+      -- ocr_spec.lua runs the real tesseract binary (the specs skip when it is absent).
+      "tesseract",
+    },
+  },
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
   env_allow = { "MAGICK_*" },
   -- menu_spec.lua returns without a single assertion when no ui.nvim checkout exists (CI, by design);
