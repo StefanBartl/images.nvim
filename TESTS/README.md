@@ -104,7 +104,7 @@ Everything else with real branching logic has an assertion-based spec.
 | `zen.lua` | `zen_spec.lua` | State/lifecycle only |
 | `bindings/autocmds.lua` | — | One autocmd registration, no branching |
 | `bindings/keymaps.lua` | `keymaps_spec.lua` | Filetype gating, buffer-local registration |
-| `bindings/usrcmds.lua` | `usrcmds_spec.lua` | Subcommand routing and completion |
+| `bindings/usrcmds.lua` | `usrcmds_spec.lua`, `usrcmds_help_spec.lua` | Subcommand routing and completion; every flag and `key=value` has an option-float text |
 
 ## The four checks this pass looked for specifically
 
