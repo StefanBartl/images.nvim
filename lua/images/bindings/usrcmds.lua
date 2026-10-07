@@ -159,7 +159,19 @@ function M.register(cfg)
         -- see media.nvim's `:Media dashboard path=<dir>` for the same
         -- reasoning. `values` only seeds completion; any other string
         -- (a custom prefix) is still accepted, see images.paste.resolve_link_path.
-        kv = { { key = "path", type = "STRING", values = { "relative", "absolute", "repos" } } },
+        kv = {
+          {
+            key = "path",
+            type = "STRING",
+            values = { "relative", "absolute", "repos" },
+            desc = "Link path style: relative, absolute, repos, env or a custom prefix",
+            enum_desc = {
+              relative = "Relative to the document",
+              absolute = "Full path with forward slashes",
+              repos = "Relative to $REPOS_DIR",
+            },
+          },
+        },
         desc = "Save an image from the clipboard and link it: :Image paste [env|abs|rel|repos] [name]; with {name} named directly instead of the configured name prompt; the mode word (or path=relative|absolute|repos|env|<prefix>) picks the link path (default: paste.default_path_mode, asked interactively when that is false)",
         run = function(ctx)
           local first, second = ctx.args.mode, ctx.args.name
@@ -215,7 +227,12 @@ function M.register(cfg)
         path = { "optimise" },
         args = { { name = "path", type = "FILE", optional = true } },
         flags = {
-          { name = "quality", short = "q", type = "NUMBER" },
+          {
+            name = "quality",
+            short = "q",
+            type = "NUMBER",
+            desc = "Quality 1-100 for lossy formats; default: the source's own",
+          },
         },
         desc = "Write a smaller copy next to the source: metadata stripped, best compression (photo.png -> photo.optimised.png); needs ImageMagick",
         run = function(ctx)
@@ -245,7 +262,12 @@ function M.register(cfg)
           -- A flag rather than a second positional: `:Image ocr deu` would
           -- otherwise be indistinguishable from a file called "deu", and the
           -- language is the rarer of the two arguments anyway.
-          { name = "lang", short = "l", type = "STRING" },
+          {
+            name = "lang",
+            short = "l",
+            type = "STRING",
+            desc = "Tesseract language code, e.g. deu; default: ocr.lang",
+          },
         },
         desc = "Read the text out of an image into a scratch buffer (tesseract); --lang=<code> overrides ocr.lang",
         run = function(ctx)

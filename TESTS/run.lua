@@ -109,6 +109,7 @@ local specs = {
   "orphans_spec.lua",
   "keymaps_spec.lua",
   "usrcmds_spec.lua",
+  "usrcmds_help_spec.lua",
   "browse_spec.lua",
   "zen_spec.lua",
   "scale_spec.lua",
