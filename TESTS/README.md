@@ -22,9 +22,9 @@ not a test-only one). Each is looked up in `$<NAME>_DIR`
 `ui.nvim` and `gopath.nvim` are deliberately NOT dependencies of the suite:
 `compare_spec.lua` needs `ui.kit` unreachable, `menu_spec.lua` resolves ui.nvim
 on its own (a sibling checkout) and, without one, asserts nothing
-(`assertions = "warn"` in `.testing.lua`); with gopath.nvim on the runtimepath
-`paste_target_spec.lua`'s "without gopath" block really runs gopath's
-case-insensitive shortener and fails on Linux/macOS.
+(`assertions = "warn"` in `.testing.lua`). `paste_target_spec.lua`'s "without
+gopath" block stubs `package.preload` so the module is truly absent, whether or
+not gopath.nvim is on the runtimepath.
 
 `TESTS/run.lua` (the old aggregator) is kept for one reason: testing.nvim reads
 its `specs` list as the **run order** (`cell_spec.lua` must run before

@@ -304,6 +304,7 @@ return function(H)
     local config = require("images.config")
     local resolve_link_path = paste.resolve_link_path
     local saved_repos, saved_gopath = vim.env.REPOS_DIR, package.loaded["gopath.env_shorten"]
+    local saved_preload = package.preload["gopath.env_shorten"]
     local doc_rel = "assets/shot.png"
 
     -- aliases of the short mode words
@@ -313,7 +314,13 @@ return function(H)
     H.eq(paste.MODE_WORDS.nonsense, nil, "an ordinary word is not")
 
     -- without gopath: the built-in roots ($REPOS_DIR's value, stdpath('config'))
-    package.loaded["gopath.env_shorten"] = false -- makes `pcall(require, ...)` fail
+    -- `loaded = false` would NOT do: require treats it as "not loaded" and
+    -- finds a real gopath.nvim on the runtimepath. A failing preload loader
+    -- (consulted before any path searcher) makes the module truly absent.
+    package.loaded["gopath.env_shorten"] = nil
+    package.preload["gopath.env_shorten"] = function()
+      error("gopath.nvim is absent (stubbed by paste_target_spec)")
+    end
     config.setup(nil)
     vim.env.REPOS_DIR = "/work/repos"
     H.eq(
@@ -363,6 +370,7 @@ return function(H)
     H.eq(resolve_link_path("/dyn/a/b.png", doc_rel, "env"), "$DYN_DIR/a/b.png", "env_roots: a function root")
 
     -- gopath.nvim settles what the custom roots do not
+    package.preload["gopath.env_shorten"] = saved_preload
     package.loaded["gopath.env_shorten"] = {
       shorten_path = function(abs)
         if abs:find("gopath-zone", 1, true) then return "$FROM_GOPATH/x" end
@@ -376,6 +384,7 @@ return function(H)
     )
 
     package.loaded["gopath.env_shorten"] = saved_gopath
+    package.preload["gopath.env_shorten"] = saved_preload
     vim.env.REPOS_DIR = saved_repos
     config.setup(nil)
   end
