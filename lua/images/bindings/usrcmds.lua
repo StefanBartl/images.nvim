@@ -24,6 +24,8 @@ local expand_path = require("lib.nvim.cross.fs.expand_path")
 -- past the argument at all, rather than being rejected in validation as "not a
 -- readable file".
 composer.register_type("IMAGE_TARGET", {
+  -- The line lib.nvim's option float shows for the `[path]` of `:Image show`.
+  desc = "Image file, or http(s) URL with display.remote.enabled",
   validate = function(raw)
     if require("images.remote").is_remote(raw) then return true, raw, nil end
     -- expand_path, not vim.fn.expand (SEC-34): `raw` is the raw
@@ -37,6 +39,14 @@ composer.register_type("IMAGE_TARGET", {
     return vim.fn.getcompletion(arg_lead, "file")
   end,
 })
+
+-- The three scope words of `:Image pickers` and `:Image compare` (see `images.browse.roots`), with
+-- the line the option float shows for each.
+local SCOPE_DESC = {
+  cwd = "Current working directory",
+  cfile = "Folder of the current buffer's file",
+  path = "The directory given next",
+}
 
 --- Whether `ctx.range` carries an actually specified range.
 ---@param ctx table
@@ -97,7 +107,14 @@ function M.register(cfg)
 
       {
         path = { "gallery" },
-        args = { { name = "columns", type = "NUMBER", optional = true } },
+        args = {
+          {
+            name = "columns",
+            type = "NUMBER",
+            optional = true,
+            desc = "Columns in the grid (default: picked from the image count)",
+          },
+        },
         -- A range narrows this to the images inside it rather than every
         -- image in the buffer -- the same scoping `list` uses, but rendered
         -- straight as a gallery instead of offered as a choice.
@@ -151,8 +168,20 @@ function M.register(cfg)
             type = "STRING",
             optional = true,
             values = { "env", "abs", "rel", "repos" },
+            desc = "Link path style; any other first word is the file name",
+            enum_desc = {
+              env = "Rooted at an env variable such as $REPOS_DIR",
+              abs = "Full path with forward slashes",
+              rel = "Relative to the document",
+              repos = "Relative to $REPOS_DIR",
+            },
           },
-          { name = "name", type = "STRING", optional = true },
+          {
+            name = "name",
+            type = "STRING",
+            optional = true,
+            desc = "File name for the image, saved as .png (skips the name prompt)",
+          },
         },
         -- Bare `key=value`, not a `--flag`: a path prefix is the common case
         -- (a custom one especially) and would just be noise behind a dash --
@@ -214,7 +243,17 @@ function M.register(cfg)
       {
         path = { "scale" },
         args = {
-          { name = "size", type = "STRING", values = { "50%", "25%", "800x600", "1280x", "x720" } },
+          {
+            name = "size",
+            type = "STRING",
+            values = { "50%", "25%", "800x600", "1280x", "x720" },
+            desc = "New size: percent (50%) or pixels (800x600, 800x, x600)",
+            enum_desc = {
+              ["800x600"] = "Fit inside 800 x 600 px, keeping the ratio",
+              ["1280x"] = "1280 px wide, the height follows",
+              ["x720"] = "720 px high, the width follows",
+            },
+          },
           { name = "path", type = "FILE", optional = true },
         },
         desc = "Write a resized copy next to the source (photo.png -> photo.scaled.png); needs ImageMagick",
@@ -246,7 +285,12 @@ function M.register(cfg)
           -- The enum is computed at registration time from the configured
           -- extensions, the same way `:Image draw` takes its positions from
           -- images.scale -- so adding a display format adds a target here too.
-          { name = "format", type = "STRING", enum = require("images.convert").target_formats() },
+          {
+            name = "format",
+            type = "STRING",
+            enum = require("images.convert").target_formats(),
+            desc = "Target format: pdf or one of the configured image types",
+          },
           { name = "path", type = "FILE", optional = true },
         },
         desc = "Write a copy in another format, same stem (photo.jpg -> photo.png); `pdf` takes the same route as :Image export",
@@ -287,8 +331,20 @@ function M.register(cfg)
       {
         path = { "pickers" },
         args = {
-          { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
-          { name = "dir", type = "DIR", optional = true },
+          {
+            name = "scope",
+            type = "STRING",
+            enum = { "cfile", "cwd", "path" },
+            optional = true,
+            desc = "Where to look for images (default: cwd)",
+            enum_desc = SCOPE_DESC,
+          },
+          {
+            name = "dir",
+            type = "DIR",
+            optional = true,
+            desc = "Directory to search (only used with scope path)",
+          },
         },
         desc = "Browse images below cfile/cwd/path (live preview with snacks.picker)",
         run = function(ctx)
@@ -315,7 +371,18 @@ function M.register(cfg)
       {
         path = { "debug" },
         args = {
-          { name = "mode", type = "STRING", enum = { "report", "columns", "float", "disarm" } },
+          {
+            name = "mode",
+            type = "STRING",
+            enum = { "report", "columns", "float", "disarm" },
+            desc = "Which placement measurement to run",
+            enum_desc = {
+              report = "Record every draw; run again to print the log",
+              columns = "Draw at four columns to tell offset from scale error",
+              float = "Draw into a float, marked at its reported corner",
+              disarm = "Undo report's instrumentation and drop its log",
+            },
+          },
           { name = "path", type = "FILE", optional = true },
         },
         desc = "Measure image placement: report (log draws), columns (constant vs. scaling offset), float (is a window where it says it is), disarm (undo report's instrumentation)",
@@ -337,8 +404,20 @@ function M.register(cfg)
       {
         path = { "compare" },
         args = {
-          { name = "scope", type = "STRING", enum = { "cfile", "cwd", "path" }, optional = true },
-          { name = "dir", type = "DIR", optional = true },
+          {
+            name = "scope",
+            type = "STRING",
+            enum = { "cfile", "cwd", "path" },
+            optional = true,
+            desc = "Where to look for images (default: cwd)",
+            enum_desc = SCOPE_DESC,
+          },
+          {
+            name = "dir",
+            type = "DIR",
+            optional = true,
+            desc = "Directory to search (only used with scope path)",
+          },
         },
         desc = "Pick two images below cfile/cwd/path and compare them side by side",
         run = function(ctx)
@@ -358,7 +437,13 @@ function M.register(cfg)
       {
         path = { "draw" },
         args = {
-          { name = "position", type = "STRING", enum = require("images.scale").POSITIONS },
+          {
+            name = "position",
+            type = "STRING",
+            enum = require("images.scale").POSITIONS,
+            desc = "Where in the current window the image goes",
+            enum_desc = { full = "Fill the whole window" },
+          },
           { name = "path", type = "FILE", optional = true },
         },
         desc = "Draw an image at a named position in the current window (without a path: the one under the cursor)",
