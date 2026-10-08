@@ -137,6 +137,7 @@ local specs = {
   "pdf_spec.lua",
   "pixels_spec.lua",
   "blocks_spec.lua",
+  "testing_config_spec.lua",
 }
 
 -- No spec may read (or write) the developer's real calibration state.
