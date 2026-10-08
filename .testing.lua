@@ -21,7 +21,7 @@ return {
     state = "error",
     scheduled_error = "error",
     prompt = "error",
-    deprecation = "warn",
+    deprecation = "error",
     process_net = "error",
   },
   guard_allow = {
