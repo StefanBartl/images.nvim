@@ -3,7 +3,7 @@
   "runtime.version": "LuaJIT",
   "runtime.path": ["lua/?.lua", "lua/?/init.lua"],
   "workspace.checkThirdParty": false,
-  "diagnostics.globals": ["vim"],
+  "diagnostics.globals": [],
   "diagnostics.disable": ["duplicate-doc-alias", "duplicate-doc-field"],
   "format.enable": false
 }
