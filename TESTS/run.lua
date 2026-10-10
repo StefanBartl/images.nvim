@@ -136,6 +136,7 @@ local specs = {
   "cell_spec.lua", -- before blocks_spec.lua: see that spec's own header
   "pdf_spec.lua",
   "pixels_spec.lua",
+  "ps_path_spec.lua",
   "blocks_spec.lua",
   "testing_config_spec.lua",
 }
