@@ -122,7 +122,7 @@ local function clipboard_to_file(out, callback)
       "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
       "$img = [System.Windows.Forms.Clipboard]::GetImage();",
       "if ($img -eq $null) { exit 3 };",
-      ("$img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png);"):format(out:gsub("'", "''")),
+      ("$img.Save(%s, [System.Drawing.Imaging.ImageFormat]::Png);"):format(require("images.ps_path").expr(out)),
     }, " ")
     cmd = { "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", ps }
   elseif require("lib.nvim.cross.platform.is_macos")() then

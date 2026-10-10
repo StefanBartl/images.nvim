@@ -30,6 +30,8 @@ return {
       "magick",
       -- ocr_spec.lua runs the real tesseract binary (the specs skip when it is absent).
       "tesseract",
+      -- ps_path_spec.lua runs one real powershell.exe (skipped where absent) to prove a hostile path stays inside its string.
+      "powershell",
     },
   },
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).

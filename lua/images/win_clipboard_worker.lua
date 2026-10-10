@@ -124,18 +124,17 @@ local function send_next(w)
     end)
   )
 
-  -- `req.out` is a tempname `paste.lua` itself creates, never user input --
-  -- still escaped the same way the previous one-shot command did, on
-  -- general principle (a single quote in a temp directory name is not
-  -- impossible, e.g. a OneDrive-synced profile path).
-  local escaped = req.out:gsub("'", "''")
+  -- `req.out` is a tempname `paste.lua` itself creates, but a Windows user
+  -- name such as D’Angelo puts a typographic quote (U+2019) into it, which
+  -- PowerShell reads as a string delimiter. The path therefore never appears
+  -- in the script text: `images.ps_path` hands it over as Base64.
   local line = (
     "try { Add-Type -AssemblyName System.Windows.Forms,System.Drawing -ErrorAction Stop;"
     .. " $img = [System.Windows.Forms.Clipboard]::GetImage();"
     .. " if ($img -eq $null) { Write-Output 'IMAGESNVIM:3:' }"
-    .. " else { $img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'IMAGESNVIM:0:' } }"
+    .. " else { $img.Save(%s, [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'IMAGESNVIM:0:' } }"
     .. " catch { Write-Output ('IMAGESNVIM:1:' + ($_.Exception.Message -replace \"`r`n|`n\", ' ')) }"
-  ):format(escaped)
+  ):format(require("images.ps_path").expr(req.out))
 
   local write_ok = pcall(function()
     w.proc:write(line .. "\n")
