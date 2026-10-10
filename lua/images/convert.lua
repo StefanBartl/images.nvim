@@ -56,7 +56,7 @@
 
 local M = {}
 
----@type fun(args: string[], out: string, label: string, on_done: fun(out_path: string|nil, err: string|nil)|nil)
+---@type fun(args: string[], out: string, label: string, on_done: fun(out_path: string|nil, err: string|nil)|nil, accept?: fun(size: integer): boolean)
 local run_magick
 
 ---@param path string
@@ -280,8 +280,9 @@ end
 ---@param out string expected output path
 ---@param label string verb for the error message ("resize", "optimise", …)
 ---@param on_done fun(out_path: string|nil, err: string|nil)|nil
+---@param accept? fun(size: integer): boolean  asked with the size of the finished temp file; `false` discards it and `out` stays as it was (`on_done(nil, nil)`)
 ---@return nil
-function run_magick(args, out, label, on_done)
+function run_magick(args, out, label, on_done, accept)
   local tmp = temp_sibling(out)
   local argv = vim.deepcopy(args)
   argv[#argv] = tmp
@@ -293,6 +294,12 @@ function run_magick(args, out, label, on_done)
         if not on_done then return end
         if result.code ~= 0 then return on_done(nil, label .. " failed: " .. vim.trim(result.stderr or "")) end
         return on_done(nil, label .. " produced no file")
+      end
+      local tmp_stat = vim.uv.fs_stat(tmp)
+      if accept and not accept(tmp_stat and tmp_stat.size or 0) then
+        discard_temp(tmp)
+        if on_done then on_done(nil, nil) end
+        return
       end
       local renamed, rename_err = vim.uv.fs_rename(tmp, out)
       if not renamed then
@@ -497,16 +504,15 @@ function M.optimise(path, opts, on_done)
   end
   args[#args + 1] = out
 
+  -- `accept` runs before the temp file replaces anything: a result that is not
+  -- smaller must not overwrite an earlier `.optimised.` file either.
+  local after = 0
   run_magick(args, out, "optimise", function(out_path, run_err)
-    if not out_path then return done(nil, run_err, before, nil) end
-
-    local after_stat = vim.uv.fs_stat(out_path)
-    local after = after_stat and after_stat.size or 0
-    if after >= before then
-      pcall(vim.uv.fs_unlink, out_path)
-      return done(nil, nil, before, after)
-    end
+    if run_err then return done(nil, run_err, before, nil) end
     done(out_path, nil, before, after)
+  end, function(size)
+    after = size
+    return size < before
   end)
 end
 

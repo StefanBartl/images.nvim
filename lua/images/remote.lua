@@ -267,13 +267,15 @@ end
 --- what it resolves to (a public-looking name such as `127.0.0.1.nip.io` or an
 --- attacker's own record pointing at 169.254.169.254).
 ---
---- What this does not close: the resolver is asked here and again by the
---- download tool, so a server that answers differently the second time
---- (DNS rebinding) is not caught, and neither is a proxy configured through
---- the environment.
+--- For a DNS name the checked address is handed back as `pin` (curl's
+--- `--resolve host:port:addr`), so the download connects to exactly what was
+--- judged here and a server answering differently the second time (DNS
+--- rebinding) gains nothing. wget has no such option and asks the resolver
+--- again; neither tool is pinned when a proxy from the environment decides
+--- where the connection goes.
 ---@param url string
 ---@param allow boolean `display.remote.allow_private_hosts`
----@param cb fun(err: string|nil)
+---@param cb fun(err: string|nil, pin: string|nil)
 ---@return nil
 local function check_host(url, allow, cb)
   if allow then return cb(nil) end
@@ -285,10 +287,17 @@ local function check_host(url, allow, cb)
     vim.schedule(function()
       -- A failed lookup is the download tool's to report.
       if err or not res then return cb(nil) end
+      local chosen
       for _, r in ipairs(res) do
-        if r.addr and addr_is_private(r.addr) then return cb(PRIVATE_ERR) end
+        if r.addr then
+          if addr_is_private(r.addr) then return cb(PRIVATE_ERR) end
+          chosen = chosen or r.addr
+        end
       end
-      cb(nil)
+      if not chosen then return cb(nil) end
+      local port = url:match("^https?://[^/?#]*:(%d+)[/?#]") or url:match("^https?://[^/?#]*:(%d+)$")
+      port = port or (url:match("^https:") and "443" or "80")
+      cb(nil, ("%s:%s:%s"):format(host, port, chosen:find(":", 1, true) and ("[" .. chosen .. "]") or chosen))
     end)
   end)
   if not started then cb(nil) end
@@ -329,10 +338,11 @@ end
 ---@param out string
 ---@param timeout_s integer
 ---@param max_bytes integer
+---@param pin string|nil curl `--resolve` value from `check_host`
 ---@return string[]
-function M.build_cmd(tool, url, out, timeout_s, max_bytes)
+function M.build_cmd(tool, url, out, timeout_s, max_bytes, pin)
   if tool == "curl" then
-    return {
+    local cmd = {
       "curl",
       "-fsS",
       "--globoff",
@@ -346,8 +356,13 @@ function M.build_cmd(tool, url, out, timeout_s, max_bytes)
       out,
       "-w",
       "%{http_code}\n%{redirect_url}",
-      url,
     }
+    if pin then
+      table.insert(cmd, "--resolve")
+      table.insert(cmd, pin)
+    end
+    table.insert(cmd, url)
+    return cmd
   end
   return { "wget", "-q", "-S", "--tries=1", "--timeout=" .. tostring(timeout_s), "--max-redirect=0", "-O", out, url }
 end
@@ -449,10 +464,10 @@ function M.fetch(url, on_done)
   ---@param current string
   ---@param hops integer redirects followed so far
   local function hop(current, hops)
-    check_host(current, allow_private, function(host_err)
+    check_host(current, allow_private, function(host_err, pin)
       if host_err then return fail(host_err) end
 
-      local cmd = M.build_cmd(tool, current, part, timeout_s, max_bytes)
+      local cmd = M.build_cmd(tool, current, part, timeout_s, max_bytes, pin)
       run(cmd, part, max_bytes, timeout_s, function(result, over_limit)
         -- vim.system callbacks run outside the main loop; the caller draws to
         -- the terminal and notifies afterwards.

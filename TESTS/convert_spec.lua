@@ -299,6 +299,29 @@ return function(H)
     )
   end
 
+  -- ── optimise: a result that is not smaller leaves an earlier one alone ───
+  do
+    local existing = vim.fn.fnamemodify(assert(png), ":r") .. ".optimised.png"
+    local ef = assert(io.open(existing, "wb"))
+    ef:write("earlier result")
+    ef:close()
+    local o_out, o_err, _, o_after = nil, nil, nil, nil
+    local o_done = false
+    convert.optimise(assert(png), nil, function(o, e, _, a)
+      o_out, o_err, o_after, o_done = o, e, a, true
+    end)
+    vim.wait(20000, function()
+      return o_done
+    end, 20)
+    H.falsy(o_err, "optimise reports no error: " .. tostring(o_err))
+    if not o_out then
+      local rf = assert(io.open(existing, "rb"))
+      H.eq(rf:read("*a"), "earlier result", "a not-smaller result (" .. tostring(o_after) .. " bytes) keeps the earlier file")
+      rf:close()
+    end
+    pcall(os.remove, existing)
+  end
+
   -- ── to_format: refuses to rewrite the source in place ────────────────────
   local conv, conv_err = await(function(cb)
     convert.to_format(assert(png), "png", cb)
