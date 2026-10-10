@@ -201,7 +201,9 @@ Calling |images.setup()| is optional when using `opts`.
                         repeat for more boxes, `u` removes the last one,
                         `w` burns them in (ImageMagick) and writes a new
                         file (`photo.png` -> `photo.redacted.png`); the
-                        source file is never touched. `q`/<Esc> cancels
+                        source file is never touched and the copy carries
+                        no metadata (`-strip`: EXIF thumbnail, PNG text
+                        chunks, profiles). `q`/<Esc> cancels
                         without writing. Selection happens entirely in
                         terminal cells (no pixel-precise mouse input exists
                         in a terminal), so each box is grown by a
@@ -446,6 +448,7 @@ under the same key).
           timeout_ms = 10000,
           max_bytes = 20 * 1024 * 1024,
           cache_ttl_s = 24 * 60 * 60,
+          allow_private_hosts = false,
         },
         screenshot = {
           windows_timeout_ms = 60000,
@@ -616,7 +619,10 @@ remote images". `display.remote.timeout_ms` and `.max_bytes` bound the
 download; results are cached by URL under
 `stdpath("cache")/images.nvim/remote` for `display.remote.cache_ttl_s`
 seconds (default a day) before a re-fetch is attempted, so a URL whose
-content changes is not served stale forever. Uses `curl` if found, else
+content changes is not served stale forever. URLs whose literal host
+is localhost or a private/link-local address are refused unless
+`display.remote.allow_private_hosts` is set; redirects stay within
+http(s), five hops at most. Uses `curl` if found, else
 `wget`; neither present is reported as an error, not a silent no-op.
 
 Only the single-image path resolves remote images — `:Image gallery`,

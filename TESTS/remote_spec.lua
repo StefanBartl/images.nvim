@@ -142,4 +142,127 @@ return function(H)
     executable.exists = real_exists
     config.setup(prev_conf)
   end
+  -- ── private hosts are refused, public ones are not ──────────────────────
+  for _, url in ipairs({
+    "http://localhost/a.png",
+    "http://foo.localhost:8080/a.png",
+    "http://127.0.0.1/a.png",
+    "http://user@10.1.2.3/a.png",
+    "http://172.16.0.1/a.png",
+    "http://172.31.255.1/a.png",
+    "http://192.168.1.1/a.png",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://100.64.0.1/a.png",
+    "http://0.0.0.0/a.png",
+    "http://[::1]/a.png",
+    "http://[fe80::1]/a.png",
+    "http://[fd00::1]/a.png",
+    "http://[::ffff:127.0.0.1]/a.png",
+    "http://2130706433/a.png",
+    "http://0x7f000001/a.png",
+    "http://127.1/a.png",
+  }) do
+    H.ok(remote.is_private_host(url), "private: " .. url)
+  end
+  for _, url in ipairs({
+    "https://example.com/a.png",
+    "http://8.8.8.8/a.png",
+    "http://172.32.0.1/a.png",
+    "http://172.15.0.1/a.png",
+    "http://100.128.0.1/a.png",
+    "https://localhost.example.com/a.png",
+    "https://deadbeef.cafe/a.png",
+  }) do
+    H.falsy(remote.is_private_host(url), "public: " .. url)
+  end
+
+  do
+    config.setup({ display = { remote = { enabled = true } } })
+    local blocked_path, blocked_err
+    remote.fetch("http://127.0.0.1:9/images-nvim-private.png", function(p, e)
+      blocked_path, blocked_err = p, e
+    end)
+    H.falsy(blocked_path, "a loopback URL is not fetched")
+    H.contains(blocked_err or "", "allow_private_hosts", "…and the error names the switch")
+    config.setup(nil)
+  end
+
+  -- ── download argv: protocol and redirect limits, both tools ──────────────
+  do
+    local curl_cmd = remote.build_cmd("curl", "https://example.com/a.png", "/tmp/out.png", 10, 1234)
+    local joined = " " .. table.concat(curl_cmd, " ") .. " "
+    H.contains(joined, " --proto =http,https ", "curl restricts the protocols")
+    H.contains(joined, " --proto-redir =http,https ", "…and the protocols a redirect may switch to")
+    H.contains(joined, " --max-redirs 5 ", "…and the number of redirects")
+    H.contains(joined, " --max-filesize 1234 ", "…keeps the size limit")
+    H.eq(curl_cmd[#curl_cmd], "https://example.com/a.png", "…the URL stays one argv element, last")
+
+    local wget_cmd = remote.build_cmd("wget", "https://example.com/a.png", "/tmp/out.png", 10, 1234)
+    local wjoined = " " .. table.concat(wget_cmd, " ") .. " "
+    H.contains(wjoined, " --max-redirect=5 ", "wget limits redirects")
+    H.falsy(wjoined:find(" -Q", 1, true), "…and no longer pretends -Q is a size limit")
+    H.eq(wget_cmd[#wget_cmd], "https://example.com/a.png", "…the URL stays one argv element, last")
+  end
+
+  -- ── private hosts are refused, public ones are not ──────────────────────
+  for _, url in ipairs({
+    "http://localhost/a.png",
+    "http://foo.localhost:8080/a.png",
+    "http://127.0.0.1/a.png",
+    "http://user@10.1.2.3/a.png",
+    "http://172.16.0.1/a.png",
+    "http://172.31.255.1/a.png",
+    "http://192.168.1.1/a.png",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://100.64.0.1/a.png",
+    "http://0.0.0.0/a.png",
+    "http://[::1]/a.png",
+    "http://[fe80::1]/a.png",
+    "http://[fd00::1]/a.png",
+    "http://[::ffff:127.0.0.1]/a.png",
+    "http://2130706433/a.png",
+    "http://0x7f000001/a.png",
+    "http://127.1/a.png",
+  }) do
+    H.ok(remote.is_private_host(url), "private: " .. url)
+  end
+  for _, url in ipairs({
+    "https://example.com/a.png",
+    "http://8.8.8.8/a.png",
+    "http://172.32.0.1/a.png",
+    "http://172.15.0.1/a.png",
+    "http://100.128.0.1/a.png",
+    "https://localhost.example.com/a.png",
+    "https://deadbeef.cafe/a.png",
+  }) do
+    H.falsy(remote.is_private_host(url), "public: " .. url)
+  end
+
+  do
+    config.setup({ display = { remote = { enabled = true } } })
+    local blocked_path, blocked_err
+    remote.fetch("http://127.0.0.1:9/images-nvim-private.png", function(p, e)
+      blocked_path, blocked_err = p, e
+    end)
+    H.falsy(blocked_path, "a loopback URL is not fetched")
+    H.contains(blocked_err or "", "allow_private_hosts", "…and the error names the switch")
+    config.setup(nil)
+  end
+
+  -- ── download argv: protocol and redirect limits, both tools ──────────────
+  do
+    local curl_cmd = remote.build_cmd("curl", "https://example.com/a.png", "/tmp/out.png", 10, 1234)
+    local joined = " " .. table.concat(curl_cmd, " ") .. " "
+    H.contains(joined, " --proto =http,https ", "curl restricts the protocols")
+    H.contains(joined, " --proto-redir =http,https ", "…and the protocols a redirect may switch to")
+    H.contains(joined, " --max-redirs 5 ", "…and the number of redirects")
+    H.contains(joined, " --max-filesize 1234 ", "…keeps the size limit")
+    H.eq(curl_cmd[#curl_cmd], "https://example.com/a.png", "…the URL stays one argv element, last")
+
+    local wget_cmd = remote.build_cmd("wget", "https://example.com/a.png", "/tmp/out.png", 10, 1234)
+    local wjoined = " " .. table.concat(wget_cmd, " ") .. " "
+    H.contains(wjoined, " --max-redirect=5 ", "wget limits redirects")
+    H.falsy(wjoined:find(" -Q", 1, true), "…and no longer pretends -Q is a size limit")
+    H.eq(wget_cmd[#wget_cmd], "https://example.com/a.png", "…the URL stays one argv element, last")
+  end
 end
