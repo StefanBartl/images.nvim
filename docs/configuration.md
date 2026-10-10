@@ -164,10 +164,13 @@ each of the two.
 | `timeout_ms` | `10000` | Download timeout |
 | `max_bytes` | `20 * 1024 * 1024` | Largest download accepted |
 | `cache_ttl_s` | `86400` (a day) | How long a downloaded image is served from disk before a re-fetch is attempted |
+| `allow_private_hosts` | `false` | Allow URLs whose literal host is `localhost`, a loopback/RFC1918/link-local address or a numeric spelling of one. Blocked by default so a document cannot make the editor probe internal services; a DNS name that resolves to a private address, or a redirect to one, is not caught |
 
 Downloads are cached by URL under `stdpath("cache")/images.nvim/remote`, for
 `cache_ttl_s` seconds — past that, the same URL is fetched again rather than
-served stale forever. Only the single-image path resolves remote targets;
+served stale forever. Redirects are followed only within `http(s)` and at most
+five hops; a download larger than `max_bytes` is discarded after the fact
+(neither curl nor wget can cut off a response of unannounced length). Only the single-image path resolves remote targets;
 `:Image gallery`, `compare`, `pickers` and `zen` do not.
 
 ### display.screenshot

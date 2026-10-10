@@ -62,6 +62,7 @@
 ---@field timeout_ms integer download timeout
 ---@field max_bytes integer maximum download size
 ---@field cache_ttl_s integer seconds a downloaded image is served from disk before a re-fetch is attempted
+---@field allow_private_hosts boolean fetch from localhost / private-network addresses too; default false
 
 ---@class ImagesNvim.ScreenshotConfig : ImagesNvim.ScreenshotOpts
 ---@field windows_timeout_ms integer how long to wait for a new clipboard image
@@ -172,6 +173,7 @@
 ---@field timeout_ms?   integer download timeout
 ---@field max_bytes?    integer maximum download size
 ---@field cache_ttl_s?  integer seconds a downloaded image is served from disk before a re-fetch is attempted
+---@field allow_private_hosts? boolean fetch from localhost / private-network addresses too; default false
 
 ---@class ImagesNvim.ScreenshotOpts
 ---@field windows_timeout_ms?       integer how long to wait for a new clipboard image

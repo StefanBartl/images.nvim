@@ -74,6 +74,10 @@ return {
       -- modes -- a badge/avatar URL going stale for a session vs. every
       -- hover of the same link re-downloading it.
       cache_ttl_s = 24 * 60 * 60,
+      -- SSRF-style guard: a document must not be able to make the editor
+      -- request localhost, a router or a cloud metadata endpoint. Literal
+      -- hosts only, see images.remote.is_private_host.
+      allow_private_hosts = false,
     },
     -- Windows only, see images.screenshot: the one platform where `:Image
     -- screenshot` polls instead of waiting on the target file directly.

@@ -66,6 +66,99 @@ local function valid_positive(value, default)
   return default
 end
 
+--- The host part of an http(s) URL, lower-cased, without userinfo and port;
+--- IPv6 literals come back without their brackets.
+---@param url string
+---@return string|nil
+local function url_host(url)
+  local authority = url:match("^https?://([^/?#]*)")
+  if not authority then return nil end
+  authority = authority:gsub("^.*@", "")
+  local bracketed = authority:match("^%[([^%]]*)%]")
+  local host = bracketed or authority:gsub(":%d*$", "")
+  return host:lower()
+end
+
+--- Whether `url` points at this machine or a private network by its literal
+--- host: `localhost`, loopback, RFC1918, link-local (cloud metadata lives at
+--- 169.254.169.254), CGNAT, unique-local/link-local IPv6, and the numeric
+--- spellings (`2130706433`, `0x7f.1`) curl would still resolve to those.
+---
+--- Literal hosts only: a DNS name that resolves to a private address, or a
+--- redirect to one, is not caught -- that needs the resolver's answer, which
+--- neither curl nor wget exposes before connecting.
+---@param url string
+---@return boolean
+function M.is_private_host(url)
+  local host = url_host(url)
+  if not host or host == "" then return true end
+  if host == "localhost" or host:match("%.localhost$") then return true end
+
+  if host:find(":", 1, true) then -- IPv6 literal
+    local v4 = host:match("^::ffff:(%d+%.%d+%.%d+%.%d+)$")
+    if v4 then return M.is_private_host("http://" .. v4) end
+    return host == "::" or host == "::1" or host:match("^fe[89ab]") ~= nil or host:match("^f[cd]") ~= nil
+  end
+
+  local a, b = host:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+  if a then
+    a, b = tonumber(a), tonumber(b)
+    return a == 0
+      or a == 10
+      or a == 127
+      or (a == 169 and b == 254)
+      or (a == 172 and b >= 16 and b <= 31)
+      or (a == 192 and b == 168)
+      or (a == 100 and b >= 64 and b <= 127)
+  end
+
+  -- Not a dotted quad but made of digits/hex/dots only: an obfuscated IPv4
+  -- ("2130706433", "0x7f000001", "127.1") that curl still resolves.
+  if host:match("^[%d%.]+$") or host:match("^0x%x*[%x%.x]*$") then return true end
+  return false
+end
+
+--- The download command for `tool`.
+---
+--- Redirects are followed, but only within http(s) and at most 5 hops --
+--- without `--proto-redir` a redirect may switch to another scheme (`file://`,
+--- `ftp://`, `gopher://`).
+---
+--- curl's `--max-filesize` is only enforced when the server announces the size
+--- up front; a chunked response is not cut off. wget's `-Q` quota never limits
+--- a single file fetched with `-O`. Neither is therefore a real limit on its
+--- own: `M.fetch` checks the size of what arrived and discards an oversized
+--- file, and `--max-time` bounds how long a streaming response can keep
+--- writing.
+---@param tool "curl"|"wget"
+---@param url string
+---@param out string
+---@param timeout_s integer
+---@param max_bytes integer
+---@return string[]
+function M.build_cmd(tool, url, out, timeout_s, max_bytes)
+  if tool == "curl" then
+    return {
+      "curl",
+      "-fsSL",
+      "--proto",
+      "=http,https",
+      "--proto-redir",
+      "=http,https",
+      "--max-redirs",
+      "5",
+      "--max-time",
+      tostring(timeout_s),
+      "--max-filesize",
+      tostring(max_bytes),
+      "-o",
+      out,
+      url,
+    }
+  end
+  return { "wget", "-q", "--timeout=" .. tostring(timeout_s), "--max-redirect=5", "-O", out, url }
+end
+
 --- Download the image at `url`, cached — a second call with the same URL does
 --- not download again but hits the cache.
 ---
@@ -92,26 +185,20 @@ function M.fetch(url, on_done)
   local timeout_s = math.max(1, math.floor(valid_positive(c.timeout_ms, 10000) / 1000))
   local max_bytes = valid_positive(c.max_bytes, 20 * 1024 * 1024)
 
+  if not c.allow_private_hosts and M.is_private_host(url) then
+    return on_done(nil, "refusing to fetch a local/private address (`display.remote.allow_private_hosts = true` to allow)")
+  end
+
   local executable = require("lib.nvim.cross.executable")
-  local cmd
+  local tool
   if executable.exists("curl") then
-    cmd = {
-      "curl",
-      "-fsSL",
-      "--max-time",
-      tostring(timeout_s),
-      "--max-filesize",
-      tostring(max_bytes),
-      "-o",
-      out,
-      url,
-    }
+    tool = "curl"
   elseif executable.exists("wget") then
-    -- -Q<bytes>: a quota, the closest equivalent to curl's --max-filesize.
-    cmd = { "wget", "-q", "--timeout=" .. tostring(timeout_s), "-Q" .. tostring(max_bytes), "-O", out, url }
+    tool = "wget"
   else
     return on_done(nil, "neither `curl` nor `wget` found")
   end
+  local cmd = M.build_cmd(tool, url, out, timeout_s, max_bytes)
 
   vim.system(cmd, { text = true }, function(result)
     -- vim.system callbacks run outside the main loop; the caller draws to the
@@ -127,6 +214,12 @@ function M.fetch(url, on_done)
       if not stat or stat.size == 0 then
         pcall(vim.uv.fs_unlink, out)
         on_done(nil, "download produced no file")
+        return
+      end
+
+      if stat.size > max_bytes then
+        pcall(vim.uv.fs_unlink, out)
+        on_done(nil, ("download exceeds the %d byte limit (`display.remote.max_bytes`)"):format(max_bytes))
         return
       end
 

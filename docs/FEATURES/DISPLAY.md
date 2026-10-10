@@ -76,7 +76,9 @@ zen do not resolve remote images yet — only the single-image path does.
 - **Module:** `images/remote.lua` (`M.is_remote`, `M.fetch`)
 - **Config:** `opts.display.remote.enabled` (default `false`),
   `opts.display.remote.timeout_ms`, `opts.display.remote.max_bytes`,
-  `opts.display.remote.cache_ttl_s`
+  `opts.display.remote.cache_ttl_s`,
+  `opts.display.remote.allow_private_hosts` (default `false`: URLs to
+  localhost / private networks are refused)
 
 ## Zen: full-screen single image
 

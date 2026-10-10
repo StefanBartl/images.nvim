@@ -92,8 +92,9 @@ Everything else with real branching logic has an assertion-based spec.
 | `paste.lua` | `paste_target_spec.lua` | Filename sanitising and target-path resolution |
 | `pdf.lua` | `pdf_spec.lua` | Page/DPI config reading |
 | `pixels.lua` | `pixels_spec.lua` | Raw pixel sampling arithmetic |
+| `ps_path.lua` | `ps_path_spec.lua` | A path in a PowerShell script stays inside its string (hostile quotes, real `powershell.exe` round trip) |
 | `redact.lua` | `redact_spec.lua` | `is_open`/`close` only — box-marking is interactive |
-| `remote.lua` | `remote_spec.lua` | URL detection |
+| `remote.lua` | `remote_spec.lua` | URL detection, private-host refusal, download argv |
 | `resolve.lua` | `resolve_spec.lua` | Link scanning, extension checks, path resolution, the `vim.fn.expand` shell-injection regression |
 | `scale.lua` | `scale_spec.lua` | Fit/compute arithmetic |
 | `scan.lua` | `scan_spec.lua` | Buffer scanning, line-range restriction, found/missing split |
