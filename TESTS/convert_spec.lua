@@ -325,4 +325,59 @@ return function(H)
   end)
   H.ok(conv, "pdf as a target yields a path: " .. tostring(conv_err))
   H.contains(conv or "", ".pdf", "…a PDF")
+  -- ── to_format: a failed run leaves an existing target alone ──────────────
+  -- A text file posing as a jpg makes magick fail; the png that already sits at
+  -- the target is somebody's file and must survive, error reported.
+  do
+    local bad = root .. "/bad.jpg"
+    local target = root .. "/bad.png"
+    local bf = assert(io.open(bad, "wb"))
+    bf:write("this is not an image")
+    bf:close()
+    local tf = assert(io.open(target, "wb"))
+    tf:write("precious original")
+    tf:close()
+
+    local c_out, c_err = await(function(cb)
+      convert.to_format(bad, "png", cb)
+    end)
+    H.falsy(c_out, "a broken source yields no file")
+    H.contains(c_err or "", "failed", "…and the failure is reported")
+    local rf = assert(io.open(target, "rb"))
+    local kept = rf:read("*a")
+    rf:close()
+    H.eq(kept, "precious original", "…while the file already at the target is untouched")
+    H.eq(#vim.fn.glob(root .. "/bad.*imgnvim*", false, true), 0, "…and no temp file is left behind")
+
+    -- A successful run still replaces the target.
+    c_out, c_err = await(function(cb)
+      convert.to_format(assert(png), "jpg", cb)
+    end)
+    H.ok(c_out, "a good source converts again over its earlier result: " .. tostring(c_err))
+    H.ok(vim.uv.fs_stat(assert(c_out)).size > 0, "…replacing the target")
+  end
+
+  -- ── redact: the argv strips metadata ─────────────────────────────────────
+  -- Painting pixels leaves a JPEG's EXIF thumbnail and a PNG's text chunks
+  -- behind; the result itself is not checkable without reading metadata, so
+  -- this pins the argv instead.
+  do
+    local original_system = vim.system
+    local captured
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function(argv, _, on_exit)
+      captured = argv
+      on_exit({ code = 1, stderr = "stubbed", stdout = "" })
+      return { wait = function() end }
+    end
+    local ok_call, call_err = pcall(function()
+      await(function(cb)
+        convert.redact(assert(png), { { x1 = 0, y1 = 0, x2 = 5, y2 = 5 } }, cb)
+      end)
+    end)
+    vim.system = original_system
+    H.ok(ok_call, "redact runs against the stubbed vim.system: " .. tostring(call_err))
+    H.ok(vim.tbl_contains(captured or {}, "-strip"), "redact passes -strip to magick")
+    H.eq(captured and captured[#captured]:match("%.imgnvim%-") ~= nil, true, "…and writes to a temp sibling first")
+  end
 end

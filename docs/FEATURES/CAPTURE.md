@@ -88,7 +88,10 @@ Opens a full-screen censor mode over an image: enter Visual mode
 `<CR>` marks the box — repeat for as many boxes as needed, `u` undoes the
 last one, `w` burns every marked box in via ImageMagick and writes a new
 file (`photo.png` → `photo.redacted.png`). The source file is never
-touched.
+touched. The result carries no metadata: `-strip` removes EXIF (including an
+embedded JPEG thumbnail, which would otherwise still show the unredacted
+image), PNG text chunks, colour profiles and anything else ImageMagick
+treats as a profile or property. Only the pixels remain.
 
 - **Tab:** true
 - **Module:** `images/redact.lua` (`M.open`, `confirm_box`, `undo_box`,
