@@ -619,10 +619,11 @@ remote images". `display.remote.timeout_ms` and `.max_bytes` bound the
 download; results are cached by URL under
 `stdpath("cache")/images.nvim/remote` for `display.remote.cache_ttl_s`
 seconds (default a day) before a re-fetch is attempted, so a URL whose
-content changes is not served stale forever. URLs whose literal host
-is localhost or a private/link-local address are refused unless
-`display.remote.allow_private_hosts` is set; redirects stay within
-http(s), five hops at most. Uses `curl` if found, else
+content changes is not served stale forever. URLs that point at
+localhost or a private/link-local address (by spelling, by DNS answer, and
+after every redirect) are refused unless
+`display.remote.allow_private_hosts` is set; redirects are followed by the
+plugin itself, within http(s), five hops at most. Uses `curl` if found, else
 `wget`; neither present is reported as an error, not a silent no-op.
 
 Only the single-image path resolves remote images — `:Image gallery`,
