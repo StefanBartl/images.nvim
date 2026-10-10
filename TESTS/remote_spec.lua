@@ -221,8 +221,21 @@ return function(H)
     local executable = require("lib.nvim.cross.executable")
     local real_exists, real_system, real_getaddrinfo = executable.exists, vim.system, vim.uv.getaddrinfo
 
+    -- The proxy variables of whoever runs the suite must not steer it.
+    local PROXY_VARS = { "http_proxy", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY" }
+    local saved_env = {}
+    for _, name in ipairs(PROXY_VARS) do
+      saved_env[name] = vim.uv.os_getenv(name)
+    end
+    local function clear_proxy_env()
+      for _, name in ipairs(PROXY_VARS) do
+        vim.uv.os_unsetenv(name)
+      end
+    end
+
     local calls, resolver, behave
     local function install()
+      clear_proxy_env()
       calls = {}
       resolver = function()
         return { { addr = "93.184.216.34", family = "inet" } }
@@ -249,6 +262,10 @@ return function(H)
     end
     local function restore()
       executable.exists, vim.system, vim.uv.getaddrinfo = real_exists, real_system, real_getaddrinfo
+      clear_proxy_env()
+      for name, value in pairs(saved_env) do
+        vim.uv.os_setenv(name, value)
+      end
       config.setup(nil)
     end
 
@@ -323,6 +340,47 @@ return function(H)
       path, err = fetch(url, { allow_private_hosts = true })
       H.ok(path, "allow_private_hosts lets it through: " .. tostring(err))
       if path then pcall(os.remove, path) end
+
+      -- Behind an environment proxy the proxy resolves the name: the local
+      -- resolver is not asked, nothing is pinned, the spelling checks stay.
+      install()
+      local lookups = 0
+      vim.uv.getaddrinfo = function(_, _, _, cb)
+        lookups = lookups + 1
+        vim.schedule(function()
+          cb(nil, { { addr = "10.0.0.5", family = "inet" } })
+        end)
+        return {}
+      end
+      vim.uv.os_setenv("https_proxy", "http://proxy.example:3128")
+      behave = respond("200\n", "abc")
+      path, err = fetch("https://via-proxy.example.com/images-nvim-proxy.png")
+      H.ok(path, "behind a proxy the download goes ahead: " .. tostring(err))
+      H.eq(lookups, 0, "…without asking the local resolver")
+      H.falsy(vim.tbl_contains(calls[1].cmd, "--resolve"), "…and without pinning an address")
+      if path then pcall(os.remove, path) end
+      path, err = fetch("http://169.254.169.254/images-nvim-proxy-literal.png")
+      H.falsy(path, "a private literal is still refused behind a proxy")
+      H.eq(#calls, 1, "…before any request")
+
+      -- no_proxy hosts bypass the proxy, so they are checked and pinned again.
+      install()
+      vim.uv.os_setenv("https_proxy", "http://proxy.example:3128")
+      vim.uv.os_setenv("no_proxy", "corp.example, .direct.example")
+      H.falsy(remote.proxy_applies("https://a.corp.example/x.png"), "no_proxy: a domain suffix")
+      H.falsy(remote.proxy_applies("https://direct.example/x.png"), "no_proxy: a leading-dot entry matches the domain itself")
+      H.ok(
+        remote.proxy_applies("https://notcorp.example/x.png"),
+        "no_proxy: a longer name that merely ends the same way is proxied"
+      )
+      H.falsy(remote.proxy_applies("http://a.example/x.png"), "http is not covered by https_proxy")
+      vim.uv.os_setenv("no_proxy", "*")
+      H.falsy(remote.proxy_applies("https://a.example/x.png"), "no_proxy=* turns the proxy off")
+      install()
+      vim.uv.os_setenv("all_proxy", "http://proxy.example:3128")
+      H.ok(remote.proxy_applies("http://a.example/x.png"), "all_proxy covers http")
+      install()
+      H.falsy(remote.proxy_applies("https://a.example/x.png"), "no variables: no proxy")
 
       -- A relative redirect is followed (one hop more), the result is stored
       -- only at the end, and nothing named *.part stays behind.

@@ -263,6 +263,37 @@ local function addr_is_private(addr)
   return n == nil or v4_is_private(n)
 end
 
+--- Whether curl/wget will send `url` through a proxy from the environment:
+--- `http_proxy` / `https_proxy` / `all_proxy` for the URL's scheme, unless the
+--- host is listed in `no_proxy`. curl reads `http_proxy` in lower case only
+--- (a CGI server sets `HTTP_PROXY` from a request header). Mistakes are meant
+--- to go towards "no proxy", i.e. towards checking more.
+---@param url string
+---@return boolean
+function M.proxy_applies(url)
+  local function env(name)
+    local v = vim.uv.os_getenv(name)
+    if v and v ~= "" then return v end
+    return nil
+  end
+  local scheme = url:match("^(https?):")
+  if not scheme then return false end
+  local proxy = env(scheme .. "_proxy") or (scheme == "https" and env("HTTPS_PROXY")) or env("all_proxy") or env("ALL_PROXY")
+  if not proxy then return false end
+
+  local host = url_host(url)
+  local no_proxy = env("no_proxy") or env("NO_PROXY")
+  if no_proxy and host then
+    for entry in no_proxy:gmatch("[^,%s]+") do
+      entry = entry:lower()
+      if entry == "*" then return false end
+      entry = entry:gsub("^%*?%.", "")
+      if host == entry or host:sub(-#entry - 1) == "." .. entry then return false end
+    end
+  end
+  return true
+end
+
 --- Judge `url`'s host, hop by hop: by its spelling, and for a DNS name also by
 --- what it resolves to (a public-looking name such as `127.0.0.1.nip.io` or an
 --- attacker's own record pointing at 169.254.169.254).
@@ -271,8 +302,12 @@ end
 --- `--resolve host:port:addr`), so the download connects to exactly what was
 --- judged here and a server answering differently the second time (DNS
 --- rebinding) gains nothing. wget has no such option and asks the resolver
---- again; neither tool is pinned when a proxy from the environment decides
---- where the connection goes.
+--- again.
+---
+--- When an environment proxy carries the request (`M.proxy_applies`), the
+--- proxy resolves the name, so asking the local resolver would judge the wrong
+--- answer and `--resolve` would not apply: only the spelling checks remain.
+--- What the proxy can reach from its own network is then up to the proxy.
 ---@param url string
 ---@param allow boolean `display.remote.allow_private_hosts`
 ---@param cb fun(err: string|nil, pin: string|nil)
@@ -282,6 +317,7 @@ local function check_host(url, allow, cb)
   local host = url_host(url)
   if not host or host_is_private(host) then return cb(PRIVATE_ERR) end
   if host:find(":", 1, true) or parse_v4(host) then return cb(nil) end -- a public literal: nothing to resolve
+  if M.proxy_applies(url) then return cb(nil) end
 
   local started = vim.uv.getaddrinfo(host, nil, { socktype = "stream" }, function(err, res)
     vim.schedule(function()
