@@ -248,6 +248,27 @@ local function temp_sibling(out)
   return ("%s.imgnvim-%d-%d%s"):format(stem, vim.uv.os_getpid(), vim.uv.hrtime() % 1e9, ext ~= "" and ("." .. ext) or "")
 end
 
+--- Remove `tmp` and the numbered files `magick` writes instead of it when the
+--- source has several frames or pages (`name-0.png`, `name-1.png`, …), so a
+--- failed or file-less run leaves no `*.imgnvim-*` litter next to the source.
+---@param tmp string a path from `temp_sibling`
+---@return nil
+local function discard_temp(tmp)
+  pcall(vim.uv.fs_unlink, tmp)
+  local dir = vim.fs.dirname(tmp)
+  local stem = vim.fn.fnamemodify(tmp, ":t:r")
+  local ext = vim.fn.fnamemodify(tmp, ":e")
+  local handle = vim.uv.fs_scandir(dir)
+  if not handle then return end
+  while true do
+    local name = vim.uv.fs_scandir_next(handle)
+    if not name then break end
+    if vim.startswith(name, stem .. "-") and (ext == "" or vim.endswith(name, "." .. ext)) then
+      pcall(vim.uv.fs_unlink, dir .. "/" .. name)
+    end
+  end
+end
+
 --- Run `magick` and report the resulting file, or why there is none.
 ---
 --- `magick` writes to a temp sibling of `out`, which replaces `out` only
@@ -268,14 +289,14 @@ function run_magick(args, out, label, on_done)
     -- vim.system callbacks run outside the main loop; callers notify.
     vim.schedule(function()
       if result.code ~= 0 or not vim.uv.fs_stat(tmp) then
-        pcall(vim.uv.fs_unlink, tmp)
+        discard_temp(tmp)
         if not on_done then return end
         if result.code ~= 0 then return on_done(nil, label .. " failed: " .. vim.trim(result.stderr or "")) end
         return on_done(nil, label .. " produced no file")
       end
       local renamed, rename_err = vim.uv.fs_rename(tmp, out)
       if not renamed then
-        pcall(vim.uv.fs_unlink, tmp)
+        discard_temp(tmp)
         if on_done then on_done(nil, label .. " failed: " .. tostring(rename_err)) end
         return
       end
