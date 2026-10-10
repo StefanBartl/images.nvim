@@ -56,6 +56,9 @@
 
 local M = {}
 
+---@type fun(args: string[], out: string, label: string, on_done: fun(out_path: string|nil, err: string|nil)|nil)
+local run_magick
+
 ---@param path string
 ---@return boolean
 function M.is_svg(path)
@@ -176,6 +179,9 @@ end
 --- source ("image.png" -> "image.redacted.png"); the original stays untouched.
 --- An existing target file is overwritten — the same stance as `M.to_pdf`.
 ---
+--- Metadata (EXIF, text chunks, embedded thumbnails) is stripped: see the
+--- comment at the `-strip` below.
+---
 --- `on_done` is the route to the result: `magick` used to run here through
 --- `vim.system(...):wait()`, blocking the UI thread for the whole conversion.
 --- With several boxes on a large screenshot that is seconds — and redaction
@@ -201,28 +207,18 @@ function M.redact(path, boxes, on_done)
   local ext = vim.fn.fnamemodify(path, ":e")
   local out = vim.fn.fnamemodify(path, ":r") .. ".redacted." .. (ext ~= "" and ext or "png")
 
-  local args = { "magick", path, "-fill", "black" }
+  -- `-strip`: the pixels are painted over, but the source's metadata is not --
+  -- a JPEG's EXIF thumbnail and a PNG's text chunks (a screenshot tool's
+  -- window title) still carry the unredacted content. Measured with
+  -- ImageMagick 7.1: without it both survive into the result.
+  local args = { "magick", path, "-strip", "-fill", "black" }
   for _, box in ipairs(boxes) do
     table.insert(args, "-draw")
     table.insert(args, ("rectangle %d,%d %d,%d"):format(box.x1, box.y1, box.x2, box.y2))
   end
   table.insert(args, out)
 
-  vim.system(args, { text = true }, function(result)
-    -- vim.system callbacks run outside the main loop; the caller notifies and
-    -- closes a window.
-    vim.schedule(function()
-      if result.code ~= 0 then
-        done(nil, "redaction failed: " .. vim.trim(result.stderr or ""))
-        return
-      end
-      if not vim.uv.fs_stat(out) then
-        done(nil, "redaction produced no file")
-        return
-      end
-      done(out, nil)
-    end)
-  end)
+  run_magick(args, out, "redaction", on_done)
 end
 
 -- ── Image operations as file operations ─────────────────────────────────────
@@ -241,23 +237,49 @@ local function precheck(path)
   return true, nil
 end
 
+--- A sibling path of `out` for `magick` to write to first: same directory, so
+--- the final rename never crosses a filesystem, and the same extension, since
+--- `magick` picks the output format from it.
+---@param out string
+---@return string
+local function temp_sibling(out)
+  local ext = vim.fn.fnamemodify(out, ":e")
+  local stem = vim.fn.fnamemodify(out, ":r")
+  return ("%s.imgnvim-%d-%d%s"):format(stem, vim.uv.os_getpid(), vim.uv.hrtime() % 1e9, ext ~= "" and ("." .. ext) or "")
+end
+
 --- Run `magick` and report the resulting file, or why there is none.
----@param args string[] full argv, `magick` included
+---
+--- `magick` writes to a temp sibling of `out`, which replaces `out` only
+--- after a successful run. A failed run therefore never touches a file that
+--- already sat at `out` (`photo.jpg` -> `photo.png` with a `photo.png` that is
+--- somebody's original); a successful one still overwrites, like every other
+--- write in this plugin.
+---@param args string[] full argv, `magick` included; the last element is `out`
 ---@param out string expected output path
 ---@param label string verb for the error message ("resize", "optimise", …)
 ---@param on_done fun(out_path: string|nil, err: string|nil)|nil
 ---@return nil
-local function run_magick(args, out, label, on_done)
-  vim.system(args, { text = true }, function(result)
+function run_magick(args, out, label, on_done)
+  local tmp = temp_sibling(out)
+  local argv = vim.deepcopy(args)
+  argv[#argv] = tmp
+  vim.system(argv, { text = true }, function(result)
     -- vim.system callbacks run outside the main loop; callers notify.
     vim.schedule(function()
-      if not on_done then return end
-      if result.code ~= 0 then
-        pcall(vim.uv.fs_unlink, out)
-        return on_done(nil, label .. " failed: " .. vim.trim(result.stderr or ""))
+      if result.code ~= 0 or not vim.uv.fs_stat(tmp) then
+        pcall(vim.uv.fs_unlink, tmp)
+        if not on_done then return end
+        if result.code ~= 0 then return on_done(nil, label .. " failed: " .. vim.trim(result.stderr or "")) end
+        return on_done(nil, label .. " produced no file")
       end
-      if not vim.uv.fs_stat(out) then return on_done(nil, label .. " produced no file") end
-      on_done(out, nil)
+      local renamed, rename_err = vim.uv.fs_rename(tmp, out)
+      if not renamed then
+        pcall(vim.uv.fs_unlink, tmp)
+        if on_done then on_done(nil, label .. " failed: " .. tostring(rename_err)) end
+        return
+      end
+      if on_done then on_done(out, nil) end
     end)
   end)
 end
