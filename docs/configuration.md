@@ -164,13 +164,15 @@ each of the two.
 | `timeout_ms` | `10000` | Download timeout |
 | `max_bytes` | `20 * 1024 * 1024` | Largest download accepted |
 | `cache_ttl_s` | `86400` (a day) | How long a downloaded image is served from disk before a re-fetch is attempted |
-| `allow_private_hosts` | `false` | Allow URLs whose literal host is `localhost`, a loopback/RFC1918/link-local address or a numeric spelling of one. Blocked by default so a document cannot make the editor probe internal services; a DNS name that resolves to a private address, or a redirect to one, is not caught |
+| `allow_private_hosts` | `false` | Allow URLs that point at `localhost`, a loopback/RFC1918/link-local/CGNAT address (IPv4 or IPv6, in any numeric spelling), a single-label or `.local`/`.internal`-style name, or a DNS name that resolves to one — also after a redirect. Blocked by default so a document cannot make the editor probe internal services or a cloud metadata endpoint. Not covered: DNS rebinding (an answer that changes between the check and the download) and an environment proxy |
 
 Downloads are cached by URL under `stdpath("cache")/images.nvim/remote`, for
 `cache_ttl_s` seconds — past that, the same URL is fetched again rather than
-served stale forever. Redirects are followed only within `http(s)` and at most
-five hops; a download larger than `max_bytes` is discarded after the fact
-(neither curl nor wget can cut off a response of unannounced length). Only the single-image path resolves remote targets;
+served stale forever. Redirects are followed by the plugin, not by curl/wget: at most five hops,
+only to `http(s)`, and every hop's host goes through the same private-address
+check as the first. A download that grows past `max_bytes` is stopped while it
+runs (wget's own quota does not limit a single file) and discarded; the file
+is written beside the cache entry and moved into place only when complete. Only the single-image path resolves remote targets;
 `:Image gallery`, `compare`, `pickers` and `zen` do not.
 
 ### display.screenshot
