@@ -357,6 +357,20 @@ return function(H)
     H.ok(vim.uv.fs_stat(assert(c_out)).size > 0, "…replacing the target")
   end
 
+  -- ── a multi-frame source leaves no numbered temp files behind ────────────
+  -- magick writes name-0.png, name-1.png, … instead of name.png for an
+  -- animation; with a temp name that would be litter next to the source.
+  do
+    local anim = root .. "/anim.gif"
+    local made = vim.system({ "magick", "-size", "4x4", "xc:red", "xc:blue", anim }):wait()
+    H.eq(made.code, 0, "sanity: a two-frame gif could be made")
+    local c_out = await(function(cb)
+      convert.to_format(anim, "png", cb)
+    end)
+    H.falsy(c_out, "a two-frame gif has no single png")
+    H.eq(#vim.fn.glob(root .. "/anim*imgnvim*", false, true), 0, "…and no temp file is left behind")
+  end
+
   -- ── redact: the argv strips metadata ─────────────────────────────────────
   -- Painting pixels leaves a JPEG's EXIF thumbnail and a PNG's text chunks
   -- behind; the result itself is not checkable without reading metadata, so
