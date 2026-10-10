@@ -164,7 +164,7 @@ each of the two.
 | `timeout_ms` | `10000` | Download timeout |
 | `max_bytes` | `20 * 1024 * 1024` | Largest download accepted |
 | `cache_ttl_s` | `86400` (a day) | How long a downloaded image is served from disk before a re-fetch is attempted |
-| `allow_private_hosts` | `false` | Allow URLs that point at `localhost`, a loopback/RFC1918/link-local/CGNAT address (IPv4 or IPv6, in any numeric spelling), a single-label or `.local`/`.internal`-style name, or a DNS name that resolves to one — also after a redirect. Blocked by default so a document cannot make the editor probe internal services or a cloud metadata endpoint. Not covered: DNS rebinding (an answer that changes between the check and the download) and an environment proxy |
+| `allow_private_hosts` | `false` | Allow URLs that point at `localhost`, a loopback/RFC1918/link-local/CGNAT address (IPv4 or IPv6, in any numeric spelling), a single-label or `.local`/`.internal`-style name, or a DNS name that resolves to one — also after a redirect. Blocked by default so a document cannot make the editor probe internal services or a cloud metadata endpoint. With curl the download is pinned to the address that was checked (no DNS rebinding); wget has no such option and looks the name up again. Not covered: a proxy set through the environment, which does the connecting itself |
 
 Downloads are cached by URL under `stdpath("cache")/images.nvim/remote`, for
 `cache_ttl_s` seconds — past that, the same URL is fetched again rather than

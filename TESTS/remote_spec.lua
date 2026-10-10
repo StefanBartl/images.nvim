@@ -243,7 +243,7 @@ return function(H)
         for i, a in ipairs(cmd) do
           if a == "-o" then out = cmd[i + 1] end
         end
-        calls[#calls + 1] = { url = cmd[#cmd], out = out }
+        calls[#calls + 1] = { url = cmd[#cmd], out = out, cmd = cmd }
         return behave(#calls, out, on_exit)
       end
     end
@@ -296,6 +296,10 @@ return function(H)
       H.falsy(path, "a redirect to a private address is not followed")
       H.contains(perr or "", "allow_private_hosts", "…and says why")
       H.eq(#calls, 1, "…the private target is never requested")
+      H.ok(
+        vim.tbl_contains(calls[1].cmd, "img.example.com:443:93.184.216.34"),
+        "…and the first hop is pinned to the address that was checked (no second lookup)"
+      )
       H.falsy(vim.uv.fs_stat(calls[1].out), "…and no partial file is left behind")
 
       -- A public-looking name that resolves to a private address.
