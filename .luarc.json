@@ -6,5 +6,5 @@
   "diagnostics.globals": [],
   "diagnostics.disable": ["duplicate-doc-alias", "duplicate-doc-field"],
   "format.enable": false,
-  "workspace.ignoreDir": [".claude"]
+  "workspace.ignoreDir": [".claude", ".deps"]
 }
