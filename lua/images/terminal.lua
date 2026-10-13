@@ -74,32 +74,6 @@ end
 ---@type Images.Capability|nil
 local capability = nil
 
---- Terminals implementing the iTerm2 protocol, with the environment variable
---- they can be recognised by. Deliberately short: OSC 1337 has no capability
---- query, so a list of names is all there is.
----@type { name: string, detect: fun(): boolean }[]
-local KNOWN = {
-  {
-    name = "WezTerm",
-    detect = function()
-      return (vim.env.WEZTERM_EXECUTABLE or vim.env.WEZTERM_VERSION or vim.env.WEZTERM_PANE) ~= nil
-    end,
-  },
-  {
-    name = "iTerm2",
-    detect = function()
-      local tp = (vim.env.TERM_PROGRAM or ""):lower()
-      return tp:find("iterm", 1, true) ~= nil or (vim.env.LC_TERMINAL or ""):lower():find("iterm", 1, true) ~= nil
-    end,
-  },
-  {
-    name = "Konsole",
-    detect = function()
-      return vim.env.KONSOLE_VERSION ~= nil
-    end,
-  },
-}
-
 --- Check whether this terminal can display images.
 ---
 --- Deliberately *not* a hard block: detection is a heuristic over environment
@@ -123,14 +97,9 @@ function M.capability(force)
     return capability
   end
 
-  local detected
-  for _, term in ipairs(KNOWN) do
-    local ok_detect, hit = pcall(term.detect)
-    if ok_detect and hit then
-      detected = term.name
-      break
-    end
-  end
+  -- Detection lives in lib.nvim: OSC 1337 has no query, so it is a list of known terminals.
+  local host = require("lib.nvim.terminal.host").detect()
+  local detected = host.osc1337 and host.name or nil
 
   if detected then
     capability = { ok = true, terminal = detected }
@@ -148,9 +117,7 @@ function M.capability(force)
 
   -- tmux only forwards the sequences with allow-passthrough. That holds for a
   -- recognised terminal too, hence here rather than in the else branch.
-  if vim.env.TMUX and vim.env.TMUX ~= "" and capability.ok then
-    capability.hint = "under tmux: `set -g allow-passthrough on` is required, or nothing arrives"
-  end
+  if host.in_tmux and capability.ok then capability.hint = host.hint end
 
   return capability
 end
