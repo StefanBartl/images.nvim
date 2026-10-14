@@ -39,4 +39,15 @@ return {
   -- menu_spec.lua returns without a single assertion when no ui.nvim checkout exists (CI, by design);
   -- the old runner let that pass.
   assertions = "warn",
+  -- Findings the minimal conformance editor cannot avoid (docs/CONFORMANCE.md of testing.nvim); reviewed 2026-10-14.
+  conformance = {
+    waivers = {
+      {
+        check = "K1",
+        file = "lua/images/integrations/menu.lua",
+        reason = "a deliberate hard dependency on ui.contextmenu (TESTS/menu_spec.lua header): only a host that builds a ui.nvim menu loads it, and ui.nvim must stay off the suite's runtimepath for compare_spec.lua",
+        expires = "2027-04-14",
+      },
+    },
+  },
 }
