@@ -45,6 +45,13 @@ return {
     gate = true,
     waivers = {
       {
+        check = "K6",
+        level = "warn",
+        text = "terminal not recognised",
+        reason = "the minimal headless editor has no graphics-capable terminal (TERM_PROGRAM empty); the health check is right to warn about it, only the environment lacks one",
+        expires = "2027-04-14",
+      },
+      {
         check = "K1",
         file = "lua/images/integrations/menu.lua",
         reason = "a deliberate hard dependency on ui.contextmenu (TESTS/menu_spec.lua header): only a host that builds a ui.nvim menu loads it, and ui.nvim must stay off the suite's runtimepath for compare_spec.lua",
