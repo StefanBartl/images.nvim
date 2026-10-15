@@ -53,6 +53,41 @@ return function(H)
   H.falsy(terminal.capability(false).ok, "...and does not turn an unknown terminal into a supported one")
   terminal.reset_capability()
 
+  -- ── `:checkhealth` asks with the configured assume_supported, like the draw paths ──
+  do
+    local config = require("images.config")
+    local health = require("images.health")
+    local prev_cfg = config.get()
+    local real_health = vim.health
+    local seen
+    local function spy(level)
+      return function(msg)
+        seen[#seen + 1] = level .. ": " .. tostring(msg)
+      end
+    end
+    -- Not `vim.health.xxx = ...` on the real table: replace the whole field and restore it.
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.health = { ok = spy("ok"), warn = spy("warn"), info = spy("info"), error = spy("error") }
+
+    local function run(assume)
+      config.setup({ display = { assume_supported = assume } })
+      terminal.reset_capability()
+      seen = {}
+      health.check_terminal()
+      return table.concat(seen, "\n")
+    end
+
+    local out = run(true)
+    H.contains(out, "being assumed", "health reports assumed support when assume_supported is set")
+    H.falsy(out:find("not recognised", 1, true), "...and does not tell that user the terminal is unknown")
+    out = run(false)
+    H.contains(out, "not recognised", "without assume_supported the unknown terminal is still warned about")
+
+    vim.health = real_health
+    config.setup(prev_cfg)
+    terminal.reset_capability()
+  end
+
   -- ── WezTerm is detected by any of its variables ──────────────────────────
   for _, var in ipairs({ "WEZTERM_EXECUTABLE", "WEZTERM_VERSION", "WEZTERM_PANE" }) do
     vim.env[var] = "x"
