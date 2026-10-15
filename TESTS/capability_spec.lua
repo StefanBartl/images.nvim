@@ -44,6 +44,15 @@ return function(H)
   cap = fresh(true)
   H.ok(cap.ok, "assume_supported declares the terminal capable")
 
+  -- ── The first call does not decide for the others (`:checkhealth` asks with false) ──
+  terminal.reset_capability()
+  H.falsy(terminal.capability(false).ok, "health-style first call: unknown terminal is not ok")
+  H.ok(terminal.capability(true).ok, "...but assume_supported = true afterwards still counts")
+  terminal.reset_capability()
+  H.ok(terminal.capability(true).ok, "forced first call is ok")
+  H.falsy(terminal.capability(false).ok, "...and does not turn an unknown terminal into a supported one")
+  terminal.reset_capability()
+
   -- ── WezTerm is detected by any of its variables ──────────────────────────
   for _, var in ipairs({ "WEZTERM_EXECUTABLE", "WEZTERM_VERSION", "WEZTERM_PANE" }) do
     vim.env[var] = "x"

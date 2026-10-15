@@ -70,9 +70,11 @@ end
 ---@field reason string|nil why, when `ok` is false
 ---@field hint string|nil concrete next step for the user
 
---- Result of the capability check, determined once per session.
----@type Images.Capability|nil
-local capability = nil
+--- Results of the capability check, determined once per session and per `force`
+--- value: the first call must not decide for the others (`:checkhealth images` asks
+--- with `force = false`, the draw paths with `display.assume_supported`).
+---@type table<boolean, Images.Capability>
+local capability = {}
 
 --- Check whether this terminal can display images.
 ---
@@ -86,27 +88,29 @@ local capability = nil
 ---@param force boolean|nil skip detection and assume support
 ---@return Images.Capability
 function M.capability(force)
-  if capability then return capability end
+  force = force and true or false
+  if capability[force] then return capability[force] end
 
   if not M.available() then
-    capability = {
+    capability[force] = {
       ok = false,
       reason = "`nvim_ui_send` is missing (requires API level 14)",
       hint = "update Neovim -- without this API no image can be drawn",
     }
-    return capability
+    return capability[force]
   end
 
   -- Detection lives in lib.nvim: OSC 1337 has no query, so it is a list of known terminals.
   local host = require("lib.nvim.terminal.host").detect()
   local detected = host.osc1337 and host.name or nil
 
+  local result
   if detected then
-    capability = { ok = true, terminal = detected }
+    result = { ok = true, terminal = detected }
   elseif force then
-    capability = { ok = true, terminal = nil }
+    result = { ok = true, terminal = nil }
   else
-    capability = {
+    result = {
       ok = false,
       reason = "terminal not recognised (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "empty") .. ")",
       hint = "test with `imgcat image.png` or your terminal's own OSC 1337 tool "
@@ -117,16 +121,17 @@ function M.capability(force)
 
   -- tmux only forwards the sequences with allow-passthrough. That holds for a
   -- recognised terminal too, hence here rather than in the else branch.
-  if host.in_tmux and capability.ok then capability.hint = host.hint end
+  if host.in_tmux and result.ok then result.hint = host.hint end
 
-  return capability
+  capability[force] = result
+  return result
 end
 
---- Discard the memoized check result. For tests, and for the case where the
+--- Discard the memoized check results. For tests, and for the case where the
 --- configuration changed after the first check.
 ---@return nil
 function M.reset_capability()
-  capability = nil
+  capability = {}
 end
 
 --- Read a file's contents. SVG is converted to PNG first (see
