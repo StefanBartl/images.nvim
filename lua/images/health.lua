@@ -30,11 +30,14 @@ local function check_output()
   end
 end
 
+--- The terminal check, exported so a spec can drive it with a stubbed `vim.health`.
 ---@return nil
-local function check_terminal()
-  -- The same check that runs before drawing — a second heuristic here would
-  -- only drift apart from it.
-  local cap = require("images.terminal").capability(false)
+function M.check_terminal()
+  -- The same check, with the same `force`, that runs before drawing — a second
+  -- heuristic (or `false` here) would drift apart from it: a user who set
+  -- `display.assume_supported` would be told to set it, and the "being assumed"
+  -- branch below could never be reached.
+  local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
 
   if cap.ok and cap.terminal then
     vim.health.ok(("`%s` detected — OSC 1337 is supported"):format(cap.terminal))
@@ -298,7 +301,7 @@ end
 function M.check()
   vim.health.start("images.nvim")
   check_output()
-  check_terminal()
+  M.check_terminal()
   check_clipboard()
   check_screenshot()
   check_imagemagick()
