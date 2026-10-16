@@ -5,6 +5,8 @@
 -- The text checks run everywhere; the round trip through a real `powershell.exe`
 -- only where one exists.
 
+local PS_TIMEOUT_MS = 120000
+
 ---@param H table harness from TESTS/run.lua
 return function(H)
   local ps_path = require("images.ps_path")
@@ -25,9 +27,11 @@ return function(H)
   local target = dir .. "/" .. hostile .. ".txt"
   -- The ASCII quote, `;`, `$` and parentheses are legal in Windows file names.
   local script = ("Set-Content -LiteralPath (%s) -Value ok"):format(ps_path.expr(target))
+  -- A cold powershell.exe on a GitHub Windows runner can take well over 30 s
+  -- to start; the timeout only guards against a hang.
   local result = vim
     .system({ "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script }, { text = true })
-    :wait(30000)
+    :wait(PS_TIMEOUT_MS)
   H.eq(result.code, 0, "PowerShell accepts the hostile path: " .. tostring(result.stderr))
   H.eq(result.stdout or "", "", "…and runs no injected statement")
   H.ok(vim.uv.fs_stat(target) ~= nil, "…and the file lands exactly at the requested path")
@@ -42,7 +46,7 @@ return function(H)
   }, " ")
   local saved = vim
     .system({ "powershell.exe", "-NoProfile", "-NonInteractive", "-STA", "-Command", save }, { text = true })
-    :wait(30000)
+    :wait(PS_TIMEOUT_MS)
   H.eq(saved.code, 0, "$img.Save(<expr>, Png) accepts it: " .. tostring(saved.stderr))
   H.ok(vim.uv.fs_stat(png) ~= nil, "…and the PNG lands exactly at the requested path")
   vim.fn.delete(dir, "rf")
