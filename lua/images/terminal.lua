@@ -11,8 +11,9 @@
 ---
 --- Five peculiarities that cost time while building this:
 ---
---- * Output goes through `vim.api.nvim_ui_send`, not `io.stdout:write`. The
----   latter only draws the first time per terminal session.
+--- * Output goes through `vim.api.nvim_ui_send` (via
+---   `lib.nvim.terminal.osc.send`), not `io.stdout:write`. The latter only
+---   draws the first time per terminal session.
 --- * Without cursor positioning the image lands at the bottom edge and pushes
 ---   the status line up. Hence `ESC[s` / `ESC[<row>;<col>H` / payload /
 ---   `ESC[u`.
@@ -199,6 +200,12 @@ end
 --- module docs; the only addition here is `ESC[?7l`/`ESC[?7h`: autowrap off,
 --- so that a pixel of excess width cannot force a line break, which would in
 --- turn scroll at the bottom edge.
+---
+--- Under tmux only the OSC payload goes into the passthrough envelope
+--- (`lib.nvim.terminal.osc.wrap`): tmux forwards it to the outer terminal,
+--- while the cursor and autowrap sequences around it must act on tmux itself,
+--- which owns the pane's cursor. Wrapping those as well would position the
+--- outer terminal's cursor behind tmux's back.
 ---@param raw string raw file bytes
 ---@param row integer 1-based terminal row
 ---@param col integer 1-based terminal column
@@ -210,7 +217,7 @@ local function sequence_for(raw, row, col, cols, rows)
     ESC .. "[s", -- save cursor
     ESC .. "[?7l", -- autowrap off
     ("%s[%d;%dH"):format(ESC, row, col), -- position
-    payload_for(raw, cols, rows),
+    require("lib.nvim.terminal.osc").wrap(payload_for(raw, cols, rows)),
     ESC .. "[?7h", -- autowrap back on
     ESC .. "[u", -- restore cursor
   })
@@ -267,7 +274,8 @@ function M.draw(file, row, col, cols, rows)
 
   flush_pending_redraw()
 
-  vim.api.nvim_ui_send(sequence_for(raw, row, col, cols, rows))
+  local sent, send_err = require("lib.nvim.terminal.osc").send(sequence_for(raw, row, col, cols, rows))
+  if not sent then return false, send_err end
 
   showing = true
   return true
@@ -294,7 +302,7 @@ end
 function M.draw_many(placements)
   if not M.available() then return 0, { "terminal output unavailable (nvim_ui_send missing)" } end
 
-  local send = vim.api.nvim_ui_send
+  local send = require("lib.nvim.terminal.osc").send
   local drawn, errors = 0, {}
 
   flush_pending_redraw()
@@ -303,8 +311,12 @@ function M.draw_many(placements)
     local raw, err = read_file(p.file)
     if raw then
       local cols, rows = clamp_to_screen(p.row, p.col, p.cols, p.rows)
-      send(sequence_for(raw, p.row, p.col, cols, rows))
-      drawn = drawn + 1
+      local sent, send_err = send(sequence_for(raw, p.row, p.col, cols, rows))
+      if sent then
+        drawn = drawn + 1
+      else
+        errors[#errors + 1] = send_err or ("not sent: " .. tostring(p.file))
+      end
     else
       errors[#errors + 1] = err or ("skipped: " .. tostring(p.file))
     end

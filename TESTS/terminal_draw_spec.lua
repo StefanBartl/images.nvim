@@ -86,6 +86,49 @@ return function(H)
       H.ok(entry ~= "payload", "a missing file sends no payload")
     end
 
+    -- ── tmux: only the OSC payload goes into the passthrough envelope ───────
+    -- tmux forwards an image only inside `ESC P tmux; ... ESC \` with every ESC
+    -- doubled. The cursor sequences must stay outside: they act on tmux, which
+    -- owns the pane's cursor. Everything still goes out in ONE send.
+    local ESC = string.char(27)
+    ---@param tmux string|nil value for $TMUX during the draw
+    ---@return string[] sends every string handed to nvim_ui_send
+    local function sends_with(tmux)
+      local sends = {}
+      local real_send, real_cmd, real_tmux = vim.api.nvim_ui_send, vim.cmd, vim.env.TMUX
+      vim.env.TMUX = tmux
+      vim.api.nvim_ui_send = function(s)
+        sends[#sends + 1] = s
+      end
+      vim.cmd = function(c, ...)
+        if c == "redraw" then return end
+        return real_cmd(c, ...)
+      end
+      local ok, err = pcall(terminal.draw, img, 2, 3, 10, 5)
+      vim.api.nvim_ui_send, vim.cmd, vim.env.TMUX = real_send, real_cmd, real_tmux
+      if not ok then error(err, 0) end
+      return sends
+    end
+
+    local plain = sends_with(nil)
+    H.eq(#plain, 1, "outside tmux: one send")
+    H.falsy(plain[1]:find(ESC .. "Ptmux;", 1, true), "outside tmux: no passthrough envelope")
+    H.ok(plain[1]:find(ESC .. "]1337;File=", 1, true), "outside tmux: the OSC payload is sent as is")
+
+    local wrapped = sends_with("/tmp/tmux-1000/default,1234,0")
+    H.eq(#wrapped, 1, "in tmux: still one send for cursor sequences and payload")
+    local seq = wrapped[1]
+    local open = seq:find(ESC .. "Ptmux;", 1, true)
+    H.ok(open, "in tmux: the payload sits in the passthrough envelope")
+    H.ok(seq:find(ESC .. ESC .. "]1337;File=", 1, true), "in tmux: the ESC inside the envelope is doubled")
+    H.eq(seq:sub(1, 3), ESC .. "[s", "in tmux: save-cursor stays outside, first")
+    H.eq(seq:sub(-3), ESC .. "[u", "in tmux: restore-cursor stays outside, last")
+    local pos = seq:find(ESC .. "[2;3H", 1, true)
+    H.ok(pos and pos < open, "in tmux: the cursor position goes to tmux, before the envelope")
+    local close = seq:find(string.char(7) .. ESC .. "\\", 1, true)
+    H.ok(close and seq:find(ESC .. "[?7h", 1, true) > close, "in tmux: the envelope closes right after the payload")
+    H.eq(select(2, seq:gsub("Ptmux;", "")), 1, "in tmux: exactly one envelope, around the payload only")
+
     -- ── Window paths draw only in the next tick ─────────────────────────────
     -- The second half of the same cause: the flush above clears what was queued
     -- BEFORE sending -- not the repaint that opening the window itself causes.

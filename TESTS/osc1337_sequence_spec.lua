@@ -23,7 +23,9 @@ return function(H)
   ---@return string|nil sent
   local function sent_for(file, row, col, cols, rows)
     local sent
-    local real_send, real_cmd = vim.api.nvim_ui_send, vim.cmd
+    local real_send, real_cmd, real_tmux = vim.api.nvim_ui_send, vim.cmd, vim.env.TMUX
+    -- The bytes below are the unwrapped ones; the tmux envelope is pinned in terminal_draw_spec.lua.
+    vim.env.TMUX = nil
     vim.api.nvim_ui_send = function(s)
       sent = s
     end
@@ -32,7 +34,7 @@ return function(H)
       return real_cmd(c, ...)
     end
     local ok, err = pcall(terminal.draw, file, row, col, cols, rows)
-    vim.api.nvim_ui_send, vim.cmd = real_send, real_cmd
+    vim.api.nvim_ui_send, vim.cmd, vim.env.TMUX = real_send, real_cmd, real_tmux
     if not ok then error(err, 0) end
     return sent
   end
