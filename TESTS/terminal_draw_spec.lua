@@ -129,6 +129,31 @@ return function(H)
     H.ok(close and seq:find(ESC .. "[?7h", 1, true) > close, "in tmux: the envelope closes right after the payload")
     H.eq(select(2, seq:gsub("Ptmux;", "")), 1, "in tmux: exactly one envelope, around the payload only")
 
+    -- ── A failing send is reported, not raised ──────────────────────────────
+    -- `lib.nvim.terminal.osc.send` catches an error from `nvim_ui_send`; draw and
+    -- draw_many must pass that on instead of claiming success.
+    do
+      local real_send, real_cmd = vim.api.nvim_ui_send, vim.cmd
+      vim.api.nvim_ui_send = function()
+        error("ui gone")
+      end
+      vim.cmd = function(c, ...)
+        if c == "redraw" then return end
+        return real_cmd(c, ...)
+      end
+      local ok, res = pcall(function()
+        local d_ok, d_err = terminal.draw(img, 1, 1, 10, 5)
+        local drawn, errors = terminal.draw_many({ { file = img, row = 1, col = 1, cols = 5, rows = 3 } })
+        return { d_ok = d_ok, d_err = d_err, drawn = drawn, errors = errors }
+      end)
+      vim.api.nvim_ui_send, vim.cmd = real_send, real_cmd
+      if not ok then error(res, 0) end
+      H.falsy(res.d_ok, "draw: a failing send reports failure")
+      H.ok(type(res.d_err) == "string" and res.d_err:find("ui gone", 1, true), "draw: the send error is passed on")
+      H.eq(res.drawn, 0, "draw_many: a failing send does not count as drawn")
+      H.eq(#res.errors, 1, "draw_many: a failing send lands in errors")
+    end
+
     -- ── Window paths draw only in the next tick ─────────────────────────────
     -- The second half of the same cause: the flush above clears what was queued
     -- BEFORE sending -- not the repaint that opening the window itself causes.
