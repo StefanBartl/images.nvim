@@ -122,8 +122,10 @@ OSC 1337 has **no capability query**. Before the first draw the terminal is
 checked against the small set known to implement it (WezTerm, iTerm2, Konsole),
 detected from environment variables. An unknown terminal produces a warning
 **once per session** and the image is still drawn — a false negative must not
-break a working setup. `display.assume_supported = true` silences the warning;
-`:Image check` re-runs the detection.
+break a working setup. `display.assume_supported = true` forces OSC 1337: it
+silences the warning and skips the block-graphics fallback. `:Image check`
+re-runs the detection — it re-reads the environment, it does not query the
+terminal.
 
 There is exactly one place where a failed check means *no*:
 `images.integrations.picker.available()`. Taking a foreign preview window over

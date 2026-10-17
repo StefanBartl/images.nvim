@@ -20,7 +20,8 @@ require("images").setup({})
 ```
 
 You need a terminal that speaks OSC 1337 — WezTerm, iTerm2 or Konsole — to see
-anything. `:Image check` is the fastest way to find out whether yours does.
+anything. `:Image check` shows whether yours is recognised (an environment
+heuristic); an image appearing is the only proof that it does.
 
 ## Local commands
 
@@ -50,8 +51,9 @@ git config core.hooksPath scripts/hooks         # once per clone
   nothing else, and `:checkhealth` says which and what it would buy. Declare new
   ones in [`install.json`](install.json) with the reasoning.
 - **Terminal support is guessed, and the guess is admitted.** The protocol has no
-  capability query. Where the code assumes, `:Image check` has to be able to
-  contradict it.
+  capability query. Where the code assumes, it says so: `:Image check` and
+  `:checkhealth` report what the environment heuristic concluded, never a
+  verified fact, and `display.assume_supported` is the user's override.
 - Commands are registered through `lib.nvim.bindings.usercmd.composer`.
 - Descriptive commit messages.
 

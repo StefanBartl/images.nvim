@@ -27,10 +27,11 @@ running on:
 `:checkhealth images` answers **is everything present**. Two narrower
 questions need a different command:
 
-- `:Image check` — re-runs the terminal capability probe and says whether
-  OSC 1337 is actually getting through *right now*, which is the one thing
-  `:checkhealth` cannot answer from inside Neovim (the protocol has no
-  capability query).
+- `:Image check` — re-reads the environment and reports what the detection
+  heuristic concludes from it, after a configuration change such as
+  `display.assume_supported`. It sends nothing to the terminal: the protocol
+  has no capability query, so whether OSC 1337 actually gets through is only
+  proven by an image appearing.
 - `:Image debug <mode>` — measures where a draw actually landed, when an
   image appears but not where it was asked to be.
 

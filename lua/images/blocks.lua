@@ -21,7 +21,7 @@
 --- the thing that makes the approach bounded: `levels` steps per channel caps
 --- the group count at `levels³` no matter how many frames are drawn.
 ---
---- The default of 16 levels caps it at **4 096** — a fifth of the ceiling,
+--- The default of 8 levels caps it at **512** — a small share of the ceiling,
 --- leaving the rest of the session's groups to the colourscheme and every
 --- other plugin. In a picture made of 2 880 cells, the banding that costs is
 --- not visible at cell resolution; a still that wants more can ask for it.

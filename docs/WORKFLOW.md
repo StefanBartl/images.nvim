@@ -131,7 +131,8 @@ default) and ImageMagick present; with neither, you get the old
 silent-no-op-with-a-warning. If a known-good terminal (one whose OSC 1337
 probe from [troubleshooting.md](troubleshooting.md#nothing-is-drawn-at-all)
 draws from a raw shell) is still misdetected, set
-`display.assume_supported = true` rather than fighting the heuristic —
+`display.assume_supported = true` (it forces OSC 1337 and skips the block
+fallback) rather than fighting the heuristic —
 there is no capability query for OSC 1337, so detection is inherently a
 best guess from environment variables.
 

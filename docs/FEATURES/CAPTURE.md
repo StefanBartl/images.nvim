@@ -76,7 +76,8 @@ keeping the markdown link that already points at it unchanged.
 Exports an image as a PDF next to the source file. Routes through
 `pdfport.nvim`'s `create()` API when that plugin is installed
 (asynchronous, lossless via `img2pdf` if available, else `magick`);
-otherwise requires ImageMagick directly and runs synchronously.
+otherwise requires ImageMagick directly, also asynchronous. Either way the
+result arrives via notify once the conversion finishes.
 
 - **Module:** `images/convert.lua` (`M.to_pdf`)
 - **Usercmds:** `:Image export [path]` ([usercmds](../BINDINGS.md#user-commands))

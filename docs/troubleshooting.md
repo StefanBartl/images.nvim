@@ -10,7 +10,7 @@ Three probes, three different questions:
 | | Answers |
 | --- | --- |
 | `:checkhealth images` | is everything this plugin needs present |
-| `:Image check` | is OSC 1337 actually getting through to *this* terminal |
+| `:Image check` | which terminal the environment heuristic detects, re-read now (sends nothing; only a drawn image proves OSC 1337 gets through) |
 | `:Image debug <mode>` | where did that draw go, and why is it not where it was asked to be |
 
 ## Nothing is drawn at all
@@ -48,9 +48,10 @@ A multiplexer is the other common cause — tmux needs
 ## A coloured block grid appears instead of the real image
 
 That is the ASCII fallback, not a bug: the terminal was not detected as
-OSC-1337-capable. `:Image check` confirms the detection. If the terminal *does*
+OSC-1337-capable. `:Image check` shows what the detection concluded. If the terminal *does*
 work (the probe above draws) and is only misdetected, set
-`display.assume_supported = true` rather than fighting the heuristic — the
+`display.assume_supported = true` (it forces OSC 1337 and skips the block
+fallback) rather than fighting the heuristic — the
 protocol has no capability query, so detection is a best guess from environment
 variables. See
 [architecture.md](architecture.md#detection-is-a-heuristic-and-stays-one).

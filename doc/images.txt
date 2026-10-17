@@ -376,9 +376,10 @@ Calling |images.setup()| is optional when using `opts`.
                         `images.terminal.draw` to log every draw, and the
                         wrapper stays in place until `disarm` removes it.
 
-:Image check            Report whether this terminal can display images, and
-                        re-run the detection (useful after setting
-                        `display.assume_supported`).
+:Image check            Re-run the terminal detection and report its
+                        result (useful after setting
+                        `display.assume_supported`). It re-reads the
+                        environment; nothing is sent to the terminal.
 
 :Image clear            Remove displayed images and release a pin. Also
                         closes an open `:Image zen` window.
@@ -587,8 +588,9 @@ image is drawn anyway.
 
 Deliberately not a hard block: the protocol has no capability query, so the
 detection is a heuristic, and a false negative would break a working setup.
-Set `display.assume_supported = true` to silence the warning on a terminal
-that works but is not on the list. `:Image check` re-runs the detection.
+Set `display.assume_supported = true` on a terminal that works but is not on
+the list: it forces OSC 1337, silencing the warning and skipping the block
+fallback. `:Image check` re-runs the detection (environment only).
 
                                                         *images-ascii-config*
 When the capability check fails (and only then), `:Image show`/hover try
@@ -723,8 +725,9 @@ images.pin({on})                                               *images.pin()*
                 Returns the new state.
 
 images.recheck()                                           *images.recheck()*
-                Re-run the terminal capability detection and report the
-                result. Returns the capability table.
+                Re-run the terminal capability detection (re-reads the
+                environment, sends nothing) and report the result. Returns
+                the capability table.
 
 images.paste({name}, {force_ask}, {path_mode})                *images.paste()*
                 Save the clipboard image and insert the link. With {name},
@@ -914,7 +917,7 @@ Nothing is drawn ~
 
 A colored block grid appears instead of the real image ~
     Expected on a terminal without OSC 1337 — that is the ASCII fallback
-    (|images-ascii-config|), not a bug. `:Image check` confirms whether the
+    (|images-ascii-config|), not a bug. `:Image check` shows whether the
     terminal was detected as OSC-1337-capable.
 
 The image appears below the statusline ~

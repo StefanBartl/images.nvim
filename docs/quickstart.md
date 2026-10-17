@@ -7,7 +7,7 @@ Then, if nothing appears, the two checks answer why:
 
 ```vim
 :checkhealth images        " terminal, clipboard tool and dependencies
-:Image check                " specifically: is OSC 1337 getting through
+:Image check                " re-run the terminal detection (environment heuristic)
 ```
 
 And the command that earns its place fastest:
