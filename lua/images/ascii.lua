@@ -30,7 +30,7 @@
 --- a session-wide cache, and Neovim stops at 19 602 groups (measured
 --- 2026-09-08). Enough images and `E849` ends the session's colouring for
 --- good. `blocks` quantises to `levels` steps per channel, which caps the
---- count at `levels³` — 4 096 by default.
+--- count at `levels³` — 512 by default (8 levels).
 ---
 --- Deliberately the single-image path only (`images.init.M.show`) — the same
 --- scope boundary as remote images (see images.remote): gallery, compare,

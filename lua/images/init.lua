@@ -755,7 +755,12 @@ function M.recheck()
   require("images.terminal").reset_capability()
   local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
   if cap.ok then
-    notify().info("image output available" .. (cap.terminal and (" (" .. cap.terminal .. ")") or ""))
+    -- A guess from environment variables (or the user's override), never a
+    -- verified fact: OSC 1337 has no capability query and nothing is sent.
+    notify().info(
+      cap.terminal and ("`%s` detected from the environment — OSC 1337 assumed to work"):format(cap.terminal)
+        or "OSC 1337 assumed to work (`display.assume_supported`), terminal not detected"
+    )
   else
     notify().warn(table.concat({ cap.reason or "", cap.hint or "" }, "\n"))
   end

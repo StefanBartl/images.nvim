@@ -35,7 +35,7 @@
 --- available producer, the export runs through it (asynchronously, losslessly
 --- via `img2pdf`, otherwise `magick` — which producer applies is pdfport's
 --- own `create_chain` to decide, not this plugin's). Without pdfport the
---- existing synchronous `magick` path remains the only option, unchanged. A
+--- plain `magick` path is the only option, also asynchronous (see `M.to_pdf`). A
 --- soft dependency via `pcall`, as everywhere in this repo.
 ---
 --- `M.redact` — paint rectangles (pixel coordinates, see `images.scale`) black
