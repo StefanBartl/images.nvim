@@ -92,6 +92,34 @@ return function(H)
     H.falsy(out:find("OSC 1337 is supported", 1, true), "...and does not claim support as a fact")
 
     vim.health = real_health
+
+    -- `:Image check` (images.recheck) words its verdict the same way: it only
+    -- re-reads the environment, so it must not claim output as a fact either.
+    local real_notify = package.loaded["lib.nvim.notify"]
+    local said
+    package.loaded["lib.nvim.notify"] = {
+      create = function()
+        local function rec(msg)
+          said[#said + 1] = tostring(msg)
+        end
+        return { info = rec, warn = rec, error = rec, debug = rec }
+      end,
+    }
+    local function recheck(assume)
+      config.setup({ display = { assume_supported = assume } })
+      said = {}
+      require("images").recheck()
+      return table.concat(said, "\n")
+    end
+    vim.env.WEZTERM_PANE = "x"
+    out = recheck(false)
+    vim.env.WEZTERM_PANE = nil
+    H.contains(out, "detected from the environment", ":Image check names the source of the detection")
+    H.falsy(out:find("output available", 1, true), "...and does not claim image output as a fact")
+    out = recheck(true)
+    H.contains(out, "assume_supported", ":Image check under assume_supported names the override")
+    package.loaded["lib.nvim.notify"] = real_notify
+
     config.setup(prev_cfg)
     terminal.reset_capability()
   end

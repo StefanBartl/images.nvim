@@ -35,7 +35,7 @@ requirement in others; the full split is in
 | **ImageMagick** (`magick`) | `:Image info` dimensions, `:Image compare`'s relative scaling | SVG display, the block-graphics fallback, `:Image redact`, `:Image export` (unless pdfport.nvim is installed), and `:Image scale` / `optimise` / `convert` |
 | **`tesseract`** | — | `:Image ocr` |
 | **`pdftoppm`** (poppler) | a `.pdf` entry in a host's picker previewing as its first page | — |
-| [**pdfport.nvim**](https://github.com/StefanBartl/pdfport.nvim) | makes `:Image export` asynchronous and lossless via `img2pdf`; and, with `pdftoppm`, the PDF preview above | — |
+| [**pdfport.nvim**](https://github.com/StefanBartl/pdfport.nvim) | makes `:Image export` lossless via `img2pdf` (the export is asynchronous either way); and, with `pdftoppm`, the PDF preview above | — |
 
 `tesseract`'s language data installs separately, per language
 (`tesseract-ocr-deu` and friends) — `:checkhealth images` lists what you have.
