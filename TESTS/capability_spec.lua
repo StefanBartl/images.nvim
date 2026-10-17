@@ -83,6 +83,14 @@ return function(H)
     out = run(false)
     H.contains(out, "not recognised", "without assume_supported the unknown terminal is still warned about")
 
+    -- A recognised terminal is a guess from environment variables, not a
+    -- verified fact (OSC 1337 has no capability query) — the message says so.
+    vim.env.WEZTERM_PANE = "x"
+    out = run(false)
+    vim.env.WEZTERM_PANE = nil
+    H.contains(out, "detected from the environment", "health names the source of the detection")
+    H.falsy(out:find("OSC 1337 is supported", 1, true), "...and does not claim support as a fact")
+
     vim.health = real_health
     config.setup(prev_cfg)
     terminal.reset_capability()

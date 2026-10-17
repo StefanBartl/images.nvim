@@ -252,8 +252,8 @@ The two plugins meet twice, and the traffic runs opposite ways.
 **Making a PDF.** `:Image export` routes through `pdfport.nvim`'s `create()`
 API when that plugin is installed (asynchronous, lossless via `img2pdf` if
 available, otherwise `magick` through pdfport's own fallback chain). Soft
-dependency, `pcall`'d — without pdfport.nvim, the previous synchronous
-ImageMagick-only export path is unchanged.
+dependency, `pcall`'d — without pdfport.nvim, the ImageMagick-only export
+path runs instead, also asynchronous.
 
 **Reading one.** `images.pdf` asks `pdfport.render_page()` for a page as a PNG
 and caches it, which is what lets a PDF entry be previewed as a picture (see
@@ -264,7 +264,7 @@ PNG-to-screen, and this module is the whole of the seam.
 - **Module:** `images/convert.lua` (export), `images/pdf.lua` (pages)
 - **Usercmds:** `:Image export`
 - **Dependency:** pdfport.nvim, soft and `pcall`'d in both directions — export
-  falls back to the synchronous ImageMagick path, and a page is simply not
+  falls back to the (asynchronous) ImageMagick path, and a page is simply not
   offered. The page half additionally needs poppler's `pdftoppm`, which is what
   pdfport shells out to
 

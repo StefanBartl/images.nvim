@@ -96,6 +96,7 @@ lua require("images").setup()
 :Image check
 ```
 
-`:Image check` is the terminal-capability probe specifically: it says whether
-OSC 1337 is getting through, which is the one thing `:checkhealth` cannot
-answer from inside Neovim.
+`:Image check` re-runs the terminal detection specifically: it re-reads the
+environment variables and reports what the heuristic concludes. It does not
+send anything to the terminal — OSC 1337 has no capability query, so whether
+images really get through only shows when one is drawn.

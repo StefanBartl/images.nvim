@@ -47,8 +47,9 @@ setup.
 - **Module:** `images/terminal.lua` (`M.capability`,
   `M.reset_capability`), `images/guard.lua` (`M.check`, `M.reset`)
 - **Usercmds:** `:Image check` ([usercmds](../BINDINGS.md#user-commands))
-- **Config:** `opts.display.assume_supported` (default `false`, silences
-  the warning without changing draw behavior)
+- **Config:** `opts.display.assume_supported` (default `false`; `true`
+  forces OSC 1337 — silences the warning and skips the block-graphics
+  fallback)
 
 ## ASCII / block-character fallback
 

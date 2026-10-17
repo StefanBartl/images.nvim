@@ -40,7 +40,7 @@ function M.check_terminal()
   local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
 
   if cap.ok and cap.terminal then
-    vim.health.ok(("`%s` detected — OSC 1337 is supported"):format(cap.terminal))
+    vim.health.ok(("`%s` detected from the environment — OSC 1337 assumed to work"):format(cap.terminal))
   elseif cap.ok then
     vim.health.warn("support is being assumed (`display.assume_supported`)", {
       "Unset `display.assume_supported` if images fail to render — your terminal may not speak OSC 1337.",

@@ -225,7 +225,7 @@ ImageMagick.
 Export as PDF next to the source. Routes through
 [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)'s `create()` API
 when that plugin is installed — asynchronous, lossless via `img2pdf` if
-available. Without it, the synchronous ImageMagick-only path.
+available. Without it, the ImageMagick-only path, also asynchronous.
 
 ### `:Image ocr [path] [--lang=<code>]`
 
@@ -275,9 +275,11 @@ the pixel dimensions of the other.
 
 ### `:Image check`
 
-Re-run the terminal capability probe and report whether OSC 1337 is getting
-through. This is the one question `:checkhealth images` cannot answer from
-inside Neovim.
+Re-run the terminal detection and report its result: the cached capability is
+dropped and the same environment variables are read again, so a changed
+`display.assume_supported` takes effect. Nothing is sent to the terminal —
+OSC 1337 has no capability query, so whether images really get through only
+shows when one is drawn.
 
 ### `:Image calibrate`
 
