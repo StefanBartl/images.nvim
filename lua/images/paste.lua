@@ -248,69 +248,25 @@ M.find_existing_resource_dir = find_existing_resource_dir
 M.MODE_ALIASES = { rel = "relative", abs = "absolute" }
 M.MODE_WORDS = { env = true, repos = true, rel = true, abs = true, relative = true, absolute = true }
 
----@param p string
----@return string
-local function to_fwd(p)
-  return (p:gsub("\\", "/"):gsub("/+$", ""))
-end
-
---- `abs` rewritten as `$VAR/rest` for the longest of `roots` that contains it,
---- compared case- and separator-insensitively (Windows paths). nil when none does.
----@param abs string
----@param roots table<string, string|fun(): string|nil> variable name -> directory (or a function returning it)
----@return string|nil
-local function shorten_by_roots(abs, roots)
-  local fwd = to_fwd(abs)
-  -- Case-insensitive only where the file system is (Windows): on Linux/macOS
-  -- `/Repos` and `/repos` are different directories.
-  local fold = vim.fn.has("win32") == 1 and string.lower or function(s)
-    return s
-  end
-  local lower = fold(fwd)
-  local best_var, best_len
-  for var, dir in pairs(roots) do
-    if type(dir) == "function" then
-      local ok, value = pcall(dir)
-      dir = ok and value or nil
-    end
-    if type(dir) == "string" and dir ~= "" then
-      local d = fold(to_fwd(dir))
-      local inside = lower == d or lower:sub(1, #d + 1) == d .. "/"
-      if inside and (not best_len or #d > best_len) then
-        best_var, best_len = var, #d
-      end
-    end
-  end
-  if not best_var then return nil end
-  return "$" .. best_var .. fwd:sub(best_len + 1)
-end
-M.shorten_by_roots = shorten_by_roots
-
---- Directories every machine of this setup knows, used when `paste.env_roots`
---- and gopath.nvim do not settle a path: the real values of `$REPOS_DIR` and
---- of Neovim's config directory.
----@return table<string, string|fun(): string|nil>
-local function builtin_env_roots()
-  return {
-    REPOS_DIR = function()
-      return vim.env.REPOS_DIR
-    end,
-    NVIM_CONFIG_DIR = function()
-      return vim.fn.stdpath("config")
-    end,
-  }
-end
-
 --- `abs` spelled with an environment variable, or nil when it lies under no
---- known root. Order: the user's own `paste.env_roots` (most explicit), then
---- gopath.nvim's `shorten_path` -- the logic behind `:Gopath to-repos-dir` /
---- `to-nvim-dir`, which also recognises a repos root by folder name across
---- machines -- then the built-in roots above for a setup without gopath.
+--- known root. Roots come from the named-roots registry of lib.nvim
+--- (`lib.nvim.fs.roots`: `$REPOS_DIR`, `$NVIM_CONFIG_DIR`, the user's own and
+--- the ones other plugins registered, deepest wins); `paste.env_roots` is this
+--- plugin's own addition and goes in per call (`extra`), never into the
+--- registry's `setup`. Order: the roots the user named (`paste.env_roots` and
+--- the registry's non-environment roots, so no variable can shadow them), then
+--- gopath.nvim's `shorten_path` -- which also recognises a repos root by folder
+--- name across machines -- then the full registry for a setup without gopath.
 ---@param abs string
 ---@return string|nil
 function M.env_link_path(abs)
-  local custom = shorten_by_roots(abs, cfg().paste.env_roots or {})
-  if custom then return custom end
+  local roots = require("lib.nvim.fs.roots")
+  -- `force`: the user asked for the env spelling by choosing this mode, so
+  -- the registry's global `enable` switch does not apply.
+  local opts = { extra = cfg().paste.env_roots or {}, force = true }
+
+  local explicit, explicit_name = roots.fold(abs, { extra = opts.extra, vars = {}, nvim_config = false, force = true })
+  if explicit_name then return explicit end
 
   local ok, gopath = pcall(require, "gopath.env_shorten")
   if ok and type(gopath.shorten_path) == "function" then
@@ -318,7 +274,9 @@ function M.env_link_path(abs)
     if shortened then return shortened end
   end
 
-  return shorten_by_roots(abs, builtin_env_roots())
+  local folded, name = roots.fold(abs, opts)
+  if name then return folded end
+  return nil
 end
 
 --- Turn the doc-relative link path `doc_rel` into whatever `mode` asks for.

@@ -306,6 +306,8 @@ return function(H)
     local saved_repos, saved_gopath = vim.env.REPOS_DIR, package.loaded["gopath.env_shorten"]
     local saved_preload = package.preload["gopath.env_shorten"]
     local doc_rel = "assets/shot.png"
+    -- a root must be absolute: on Windows that needs a drive letter
+    local D = vim.fn.has("win32") == 1 and "C:" or ""
 
     -- aliases of the short mode words
     H.eq(resolve_link_path("/x/assets/shot.png", doc_rel, "rel"), doc_rel, "rel is an alias of relative")
@@ -322,9 +324,9 @@ return function(H)
       error("gopath.nvim is absent (stubbed by paste_target_spec)")
     end
     config.setup(nil)
-    vim.env.REPOS_DIR = "/work/repos"
+    vim.env.REPOS_DIR = D .. "/work/repos"
     H.eq(
-      resolve_link_path("/work/repos/notes/assets/shot.png", doc_rel, "env"),
+      resolve_link_path(D .. "/work/repos/notes/assets/shot.png", doc_rel, "env"),
       "$REPOS_DIR/notes/assets/shot.png",
       "env: under $REPOS_DIR -> $REPOS_DIR/..."
     )
@@ -341,12 +343,12 @@ return function(H)
       "env: case-insensitive on Windows only"
     )
     H.eq(
-      resolve_link_path("/home/me/elsewhere/assets/shot.png", doc_rel, "env"),
+      resolve_link_path(D .. "/home/me/elsewhere/assets/shot.png", doc_rel, "env"),
       doc_rel,
       "env: outside every known root falls back to the doc-relative path"
     )
     H.eq(
-      resolve_link_path("/work/repos-archive/x/shot.png", doc_rel, "env"),
+      resolve_link_path(D .. "/work/repos-archive/x/shot.png", doc_rel, "env"),
       doc_rel,
       "env: a sibling folder sharing the root's prefix is not inside it"
     )
@@ -355,19 +357,19 @@ return function(H)
     config.setup({
       paste = {
         env_roots = {
-          WIKI_DIR = "/work/repos/wiki",
+          WIKI_DIR = D .. "/work/repos/wiki",
           DYN_DIR = function()
-            return "/dyn"
+            return D .. "/dyn"
           end,
         },
       },
     })
     H.eq(
-      resolve_link_path("/work/repos/wiki/n/assets/shot.png", doc_rel, "env"),
+      resolve_link_path(D .. "/work/repos/wiki/n/assets/shot.png", doc_rel, "env"),
       "$WIKI_DIR/n/assets/shot.png",
       "env_roots: a custom root beats $REPOS_DIR (longest directory wins)"
     )
-    H.eq(resolve_link_path("/dyn/a/b.png", doc_rel, "env"), "$DYN_DIR/a/b.png", "env_roots: a function root")
+    H.eq(resolve_link_path(D .. "/dyn/a/b.png", doc_rel, "env"), "$DYN_DIR/a/b.png", "env_roots: a function root")
 
     -- gopath.nvim settles what the custom roots do not
     package.preload["gopath.env_shorten"] = saved_preload
@@ -376,11 +378,32 @@ return function(H)
         if abs:find("gopath-zone", 1, true) then return "$FROM_GOPATH/x" end
       end,
     }
-    H.eq(resolve_link_path("/gopath-zone/a.png", doc_rel, "env"), "$FROM_GOPATH/x", "gopath.shorten_path is consulted")
+    H.eq(resolve_link_path(D .. "/gopath-zone/a.png", doc_rel, "env"), "$FROM_GOPATH/x", "gopath.shorten_path is consulted")
     H.eq(
-      resolve_link_path("/work/repos/notes/a.png", doc_rel, "env"),
+      resolve_link_path(D .. "/work/repos/notes/a.png", doc_rel, "env"),
       "$REPOS_DIR/notes/a.png",
       "…and the built-in roots still apply when gopath has no answer"
+    )
+
+    -- the roots come from lib.nvim's registry: a root another plugin registered
+    -- is spelled too (and goes away with its unregister function). Fails when
+    -- the built-in $REPOS_DIR/$NVIM_CONFIG_DIR pair is hard-coded again.
+    package.loaded["gopath.env_shorten"] = nil
+    package.preload["gopath.env_shorten"] = function()
+      error("gopath.nvim is absent (stubbed by paste_target_spec)")
+    end
+    config.setup(nil)
+    local unregister = require("lib.nvim.fs.roots").register("IMAGES_SPEC_ROOT", D .. "/work/registered")
+    H.eq(
+      resolve_link_path(D .. "/work/registered/a/shot.png", doc_rel, "env"),
+      "$IMAGES_SPEC_ROOT/a/shot.png",
+      "env: a root registered in lib.nvim.fs.roots is used"
+    )
+    unregister()
+    H.eq(
+      resolve_link_path(D .. "/work/registered/a/shot.png", doc_rel, "env"),
+      doc_rel,
+      "env: …and is gone after its unregister function ran"
     )
 
     package.loaded["gopath.env_shorten"] = saved_gopath

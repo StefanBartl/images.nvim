@@ -183,7 +183,9 @@ return {
     -- `$NAME/rest`, e.g. { WIKI_DIR = "E:/wiki" } gives `$WIKI_DIR/notes/assets/x.png`.
     -- The longest matching directory wins. These come FIRST; after them
     -- gopath.nvim's own `shorten_path` (the logic of `:Gopath to-repos-dir` /
-    -- `to-nvim-dir`), then the built-in `$REPOS_DIR` and `$NVIM_CONFIG_DIR`.
+    -- `to-nvim-dir`), then the named roots of lib.nvim (`lib.nvim.fs.roots`:
+    -- `$REPOS_DIR`, `$NVIM_CONFIG_DIR`, the roots of your `setup` and those other
+    -- plugins registered). The variable name must be letters, digits, `_`.
     -- A file under none of them falls back to the "relative" spelling.
     env_roots = {},
     -- Where the cursor goes after the link is inserted (lib.nvim.markdown.
