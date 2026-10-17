@@ -136,8 +136,8 @@ never where the file itself is written, only the link text:
 - `path=relative` (default) — relative to the document, unchanged from before this argument existed
 - `path=absolute` — the full filesystem path (short word: `abs`)
 - `path=env` — rooted at an environment variable when the file sits under a
-  known root — `$NVIM_CONFIG_DIR/…`, `$REPOS_DIR/…` or one of your
-  `paste.env_roots` — and the relative path otherwise. With gopath.nvim
+  known root — `$NVIM_CONFIG_DIR/…`, `$REPOS_DIR/…`, one of your
+  `paste.env_roots` or any other root of lib.nvim's `fs.roots` registry — and the relative path otherwise. With gopath.nvim
   installed this is exactly what `:Gopath to-nvim-dir` / `to-repos-dir` would
   produce. Combine it with `paste.default_path_mode = "env"` to make it the
   default.
