@@ -51,7 +51,8 @@ return function(H)
   -- ── The open window grows and shrinks ────────────────────────────────────
   -- Drawing stays unchecked as everywhere here: anchor/terminal/guard/info are
   -- stand-ins, the window itself is real.
-  local stubbed = { "images.anchor", "images.terminal", "images.guard", "images.info", "lib.nvim.notify" }
+  local stubbed =
+    { "images.anchor", "images.terminal", "images.guard", "images.info", "lib.nvim.notify", "images.ascii", "images" }
   local saved = {}
   for _, name in ipairs(stubbed) do
     saved[name] = package.loaded[name]
@@ -75,11 +76,32 @@ return function(H)
       }, { __index = n })
     end,
   }, { __index = real_notify })
+  local cap_ok, ascii_ok, shown = true, false, {}
   package.loaded["images.terminal"] = {
     clear = function()
       clears = clears + 1
     end,
+    capability = function()
+      return { ok = cap_ok }
+    end,
   }
+  package.loaded["images.ascii"] = {
+    available = function()
+      return ascii_ok
+    end,
+  }
+  package.loaded["images"] = {
+    show = function(path)
+      shown[#shown + 1] = path
+      return true
+    end,
+  }
+  -- Lets the scheduled release of zen's draw slot run.
+  local function settle()
+    vim.wait(20, function()
+      return false
+    end, 5)
+  end
   package.loaded["images.guard"] = { check = function() end }
   package.loaded["images.info"] = {
     collect = function()
@@ -112,6 +134,7 @@ return function(H)
     end
     H.ok(mapped["<S-Up>"] and mapped["<S-Down>"], "<S-Up>/<S-Down> are mapped in the zen buffer")
 
+    settle()
     local d0, c0 = draws, clears
     H.ok(zen.resize(1), "grow from 1/2: a step")
     eq_size(small, "grow lands on the 2/3 step")
@@ -119,7 +142,17 @@ return function(H)
     local cfg = vim.api.nvim_win_get_config(vim.api.nvim_get_current_win())
     H.eq(cfg.col, math.max(0, math.floor((vim.o.columns - cfg.width) / 2)), "a resized window is re-centred")
 
+    -- The resize's own WinResized arrives before the queued draw has run:
+    -- one picture sent, not two.
+    settle()
+    local d1 = draws
     zen.resize(1)
+    vim.api.nvim_exec_autocmds("WinResized", {})
+    H.eq(draws - d1, 1, "a resize and its own WinResized draw the picture once")
+    settle()
+    vim.api.nvim_exec_autocmds("WinResized", {})
+    H.eq(draws - d1, 2, "a WinResized after the draw has run draws again")
+
     zen.resize(1)
     eq_size(full, "the full-screen step keeps the make_scratch caps")
     H.falsy(zen.resize(1), "grow at full screen: no step")
@@ -136,6 +169,40 @@ return function(H)
     pending(false, "window is no longer valid")
     H.eq(#errors, 1, "a draw settling after the window closed reports nothing")
     H.falsy(zen.resize(1), "resize without an open window is a no-op")
+
+    -- A terminal that probably cannot draw: the block fallback via
+    -- images.show, as `:Image show` does, instead of an empty window.
+    local function floats()
+      local n = 0
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_config(win).relative ~= "" then n = n + 1 end
+      end
+      return n
+    end
+    cap_ok, ascii_ok = false, true
+    local before = floats()
+    H.ok(zen.open(file), "no capability, fallback there: zen reports success")
+    H.eq(shown[1], file, "... and hands the image to images.show")
+    H.eq(floats(), before, "... without opening a zen window")
+    ascii_ok = false
+    H.ok(zen.open(file), "no capability, no fallback: zen draws anyway")
+    H.ok(zen.is_open(), "... in its window (detection is a heuristic)")
+    zen.close()
+    cap_ok = true
+
+    -- An empty or non-string key is skipped instead of failing the open.
+    local zen_cfg = require("images.config").get().display.zen
+    local saved_keys = zen_cfg.keys
+    zen_cfg.keys = { grow = "", shrink = { 5, "<S-Down>" } }
+    local ok_open, opened = pcall(zen.open, file)
+    H.ok(ok_open and opened, "a bad key in display.zen.keys does not break the open")
+    local mapped2 = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), "n")) do
+      mapped2[m.lhs] = true
+    end
+    H.ok(mapped2["<S-Down>"], "... and the valid key is still mapped")
+    zen.close()
+    zen_cfg.keys = saved_keys
   end)
 
   for _, name in ipairs(stubbed) do

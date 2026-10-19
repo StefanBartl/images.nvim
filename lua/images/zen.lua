@@ -59,24 +59,42 @@ local DEFAULT_SIZES = {
   { width = 1, height = 1 },
 }
 
+--- The window a deferred draw is queued for, until that draw has settled.
+---@type integer|nil
+local queued_for = nil
+
 --- Redraw the image at the zen window's current geometry. Runs initially and
 --- again on every resize, so the image follows the window. `defer = true`
 --- because on the first call the window has only just been opened — see
 --- `images.anchor`'s module docs for the reasoning.
+---
+--- At most one draw is queued per window: `M.resize` redraws, and the
+--- `WinResized` its own size change fires asks again before the queued draw
+--- has run. That second call would send the whole picture to the terminal a
+--- second time for the same geometry; the queued draw reads the geometry when
+--- it runs, so skipping it loses nothing.
 ---@param file string
 ---@return nil
 local function redraw(file)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+  if queued_for == winid then return end
   local target = winid
+  queued_for = target
   require("images.anchor").draw(target, "full", file, {
     defer = true,
     on_done = function(ok, err)
+      if queued_for == target then queued_for = nil end
       -- A deferred draw whose window was closed in the meantime (`q` right
       -- after a resize) has nothing left to draw into: not an error.
       if ok or winid ~= target or not vim.api.nvim_win_is_valid(target) then return end
       notify().error(err or "could not display the image")
     end,
   })
+  -- Queued after anchor's own deferred draw (vim.schedule is FIFO): releases
+  -- the slot even when that draw raised and never reached on_done.
+  vim.schedule(function()
+    if queued_for == target then queued_for = nil end
+  end)
 end
 
 --- Compute the window size from the configured fractions. A pure function (no
@@ -211,9 +229,13 @@ local function map_resize_keys(buf, keys)
     if type(lhs) == "string" then lhs = { lhs } end
     if type(lhs) == "table" then
       for _, k in ipairs(lhs) do
-        vim.keymap.set("n", k, function()
-          M.resize(dir)
-        end, { buffer = buf, nowait = true, desc = "images.zen: " .. name .. " the window" })
+        -- An empty or non-string entry would make keymap.set raise here,
+        -- halfway through `M.open`, with the window already open.
+        if type(k) == "string" and k ~= "" then
+          vim.keymap.set("n", k, function()
+            M.resize(dir)
+          end, { buffer = buf, nowait = true, desc = "images.zen: " .. name .. " the window" })
+        end
       end
     end
   end
@@ -232,6 +254,15 @@ function M.open(path, opts)
   if not file then
     notify().warn("no image found")
     return false
+  end
+
+  -- The same rule as `images.show`: where the terminal probably cannot draw
+  -- and the block-graphics fallback is there, show that instead of an empty
+  -- window. Otherwise draw anyway (`images.guard`: detection is a heuristic).
+  local display = cfg().display
+  if not require("images.terminal").capability(display.assume_supported).ok then
+    local ascii_cfg = display.ascii_fallback or {}
+    if ascii_cfg.enabled ~= false and require("images.ascii").available() then return require("images").show(file) end
   end
 
   require("images.guard").check()
