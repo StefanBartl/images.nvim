@@ -35,7 +35,7 @@ local KNOWN = {
     clear_events = true,
     browse_exclude = true,
     browse_max_entries = true,
-    zen = { width = true, height = true },
+    zen = { width = true, height = true, sizes = true, keys = { grow = true, shrink = true } },
     remote = { enabled = true, timeout_ms = true, max_bytes = true, cache_ttl_s = true, allow_private_hosts = true },
     screenshot = { windows_timeout_ms = true, windows_poll_interval_ms = true },
     redact = { padding_cells = true },

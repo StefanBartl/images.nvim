@@ -37,4 +37,87 @@ return function(H)
   local fw, fh = zen.dimensions_for("/path/that/does/not/exist.png", nil)
   H.eq(fw, max_w, "without discoverable pixel dimensions: the width stays the maximum box")
   H.eq(fh, max_h, "without discoverable pixel dimensions: the height stays the maximum box")
+
+  -- ── `next_size`: the step after a box, by area ───────────────────────────
+  local small, mid, full = { width = 0.66, height = 0.66 }, { width = 0.9, height = 0.85 }, { width = 1, height = 1 }
+  local unsorted = { full, small, mid }
+  H.eq(zen.next_size({ width = 0.5, height = 0.5 }, unsorted, 1), small, "grow from below the list: the smallest step")
+  H.eq(zen.next_size(small, unsorted, 1), mid, "grow: the next larger step, whatever the list order")
+  H.eq(zen.next_size(mid, unsorted, 1), full, "grow: up to full screen")
+  H.eq(zen.next_size(full, unsorted, 1), nil, "grow at the largest step: none")
+  H.eq(zen.next_size(full, unsorted, -1), mid, "shrink: the next smaller step")
+  H.eq(zen.next_size(small, unsorted, -1), nil, "shrink at the smallest step: none")
+
+  -- ── The open window grows and shrinks ────────────────────────────────────
+  -- Drawing stays unchecked as everywhere here: anchor/terminal/guard/info are
+  -- stand-ins, the window itself is real.
+  local stubbed = { "images.anchor", "images.terminal", "images.guard", "images.info" }
+  local saved = {}
+  for _, name in ipairs(stubbed) do
+    saved[name] = package.loaded[name]
+  end
+  local draws, clears = 0, 0
+  package.loaded["images.anchor"] = {
+    draw = function()
+      draws = draws + 1
+    end,
+  }
+  package.loaded["images.terminal"] = {
+    clear = function()
+      clears = clears + 1
+    end,
+  }
+  package.loaded["images.guard"] = { check = function() end }
+  package.loaded["images.info"] = {
+    collect = function()
+      return nil
+    end,
+  }
+
+  H.tmpdir(function(dir)
+    local file = dir .. "/pic.png"
+    H.write(file, "not really a png")
+    local max_fw = require("lib.nvim.window.max_float_width")()
+    local function expect(box)
+      return math.min(math.floor(vim.o.columns * box.width), max_fw),
+        math.min(math.floor(vim.o.lines * box.height), math.max(1, vim.o.lines - 4))
+    end
+    local function eq_size(box, msg)
+      local c = vim.api.nvim_win_get_config(vim.api.nvim_get_current_win())
+      local ew, eh = expect(box)
+      H.eq(c.width, ew, msg .. " (width)")
+      H.eq(c.height, eh, msg .. " (height)")
+    end
+
+    H.ok(zen.open(file, { width = 0.5, height = 0.5 }), "zen opens at a size given by the caller")
+    local buf = vim.api.nvim_get_current_buf()
+    eq_size({ width = 0.5, height = 0.5 }, "opts.width/height size the window")
+
+    local mapped = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+      mapped[m.lhs] = true
+    end
+    H.ok(mapped["<S-Up>"] and mapped["<S-Down>"], "<S-Up>/<S-Down> are mapped in the zen buffer")
+
+    local d0, c0 = draws, clears
+    H.ok(zen.resize(1), "grow from 1/2: a step")
+    eq_size(small, "grow lands on the 2/3 step")
+    H.ok(draws > d0 and clears > c0, "a resize clears the old picture and draws again")
+    local cfg = vim.api.nvim_win_get_config(vim.api.nvim_get_current_win())
+    H.eq(cfg.col, math.max(0, math.floor((vim.o.columns - cfg.width) / 2)), "a resized window is re-centred")
+
+    zen.resize(1)
+    zen.resize(1)
+    eq_size(full, "the full-screen step keeps the make_scratch caps")
+    H.falsy(zen.resize(1), "grow at full screen: no step")
+    H.ok(zen.resize(-1), "shrink from full screen: a step")
+    eq_size(mid, "shrink lands on the 90% step")
+
+    zen.close()
+    H.falsy(zen.resize(1), "resize without an open window is a no-op")
+  end)
+
+  for _, name in ipairs(stubbed) do
+    package.loaded[name] = saved[name]
+  end
 end

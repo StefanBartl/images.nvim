@@ -327,7 +327,9 @@ Calling |images.setup()| is optional when using `opts`.
                         screen, in a real editable window rather than a
                         transient preview float. Stays open next to a
                         snacks hover popup, since it is not wired to close
-                        on focus loss like one.
+                        on focus loss like one. <S-Up>/<S-Down> in the
+                        window step it through `display.zen.sizes` (2/3,
+                        90%, full screen by default).
 
 :Image draw {position} [{path}]
                         Draw {path} — or the image under the cursor — at a
@@ -443,7 +445,16 @@ under the same key).
         browse_exclude = { ".deps", "node_modules" },
         browse_max_entries = 20000,
         gopath_fallback = true,
-        zen = { width = 0.9, height = 0.85 },
+        zen = {
+          width = 0.9,
+          height = 0.85,
+          sizes = {
+            { width = 0.66, height = 0.66 },
+            { width = 0.9, height = 0.85 },
+            { width = 1, height = 1 },
+          },
+          keys = { grow = "<S-Up>", shrink = "<S-Down>" },
+        },
         remote = {
           enabled = false,
           timeout_ms = 10000,
@@ -579,6 +590,14 @@ is shrunk to the image's own aspect ratio inside it (when ImageMagick can
 read the image's pixel size; otherwise the fraction alone decides, as
 before), so the image fills its window instead of leaving empty space on
 one side.
+
+In the open window `display.zen.keys.grow`/`shrink` (default `<S-Up>`/
+`<S-Down>`) step it to the next larger/smaller box of `display.zen.sizes`,
+re-centred, and draw the image again. A step is chosen by area, so the list
+need not be sorted and the window may start at a size that is not in it.
+The full-screen step `{ width = 1, height = 1 }` still leaves the border and
+the command line visible. A key may be a list of keys; `false` leaves that
+direction unmapped.
 
                                                     *images-capability-config*
 Before the first draw, images.nvim checks whether the terminal is one that
@@ -801,9 +820,11 @@ images.compare({scope}, {arg})                               *images.compare()*
                 Same scan as |images.browse()|, but for picking two images to
                 view side by side. See `:Image compare`.
 
-images.zen({path})                                                *images.zen()*
+images.zen({path}, {opts})                                        *images.zen()*
                 Show {path} — or the image under the cursor when nil — full
                 screen in a real editable window. Returns boolean.
+                {opts}: `width`/`height` (fractions) open it at a size of
+                its own instead of `display.zen.width`/`height`.
 
 images.draw({target}, {position}, {path}, {opts})                *images.draw()*
                 Draw {path} — or the image under the cursor when nil —

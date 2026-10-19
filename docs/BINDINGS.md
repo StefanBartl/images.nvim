@@ -30,7 +30,7 @@ completion and this table all come from the same spec.
 | `:Image debug <mode> [path]` | — | Measure a misplaced draw: `report` logs the coordinates sent, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is, `disarm` undoes `report`'s instrumentation |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
-| `:Image zen [path]` | — | Show one image full-screen in a real editable window |
+| `:Image zen [path]` | — | Show one image full-screen in a real editable window; `<S-Up>`/`<S-Down>` in it step through `display.zen.sizes` |
 | `:Image draw <position> [path]` | — | Draw an image at a named position in the current window (`full`/9 anchors); the primitive zen/hover/redact/the picker preview build on, also `images.draw()` |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | — | Report whether this terminal can display images |

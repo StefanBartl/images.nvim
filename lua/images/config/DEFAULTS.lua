@@ -59,7 +59,18 @@ return {
     -- results found so far are still shown.
     browse_max_entries = 20000,
     -- Size of the `:Image zen` window, as a fraction of the editor.
-    zen = { width = 0.9, height = 0.85 },
+    -- `sizes` are the steps `keys.grow`/`keys.shrink` cycle through in the
+    -- open window (a key may be a list of keys, `false` leaves it unmapped).
+    zen = {
+      width = 0.9,
+      height = 0.85,
+      sizes = {
+        { width = 0.66, height = 0.66 },
+        { width = 0.9, height = 0.85 },
+        { width = 1, height = 1 },
+      },
+      keys = { grow = "<S-Up>", shrink = "<S-Down>" },
+    },
     remote = {
       -- Off by default: hovering a remote image link should not fire a network
       -- request without consent -- the same principle as "load external

@@ -49,6 +49,8 @@
 ---@class ImagesNvim.ZenConfig : ImagesNvim.ZenOpts
 ---@field width number fraction of the editor width (0-1)
 ---@field height number fraction of the editor height (0-1)
+---@field sizes { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
+---@field keys { grow: string|string[]|false, shrink: string|string[]|false } grow/shrink the open window
 
 ---@class ImagesNvim.RedactConfig : ImagesNvim.RedactOpts
 ---@field padding_cells integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
@@ -160,6 +162,8 @@
 ---@class ImagesNvim.ZenOpts
 ---@field width?  number fraction of the editor width (0-1)
 ---@field height? number fraction of the editor height (0-1)
+---@field sizes?  { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
+---@field keys?   { grow?: string|string[]|false, shrink?: string|string[]|false } grow/shrink the open window
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

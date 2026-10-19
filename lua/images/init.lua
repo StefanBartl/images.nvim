@@ -646,11 +646,13 @@ end
 
 --- Show the image under the cursor (or at `path`) in a large, editable window —
 --- it survives a hover popup (from snacks, say) opening alongside it, see
---- `images.zen`.
+--- `images.zen`. `opts.width`/`opts.height` (fractions) open it at a size of
+--- its own; `display.zen.keys` grow/shrink it from there.
 ---@param path string|nil nil = the image under the cursor
+---@param opts { width?: number, height?: number }|nil
 ---@return boolean ok
-function M.zen(path)
-  return require("images.zen").open(path)
+function M.zen(path, opts)
+  return require("images.zen").open(path, opts)
 end
 
 --- Reliably draw an image — or the one under the cursor — in a window (or the
