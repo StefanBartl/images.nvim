@@ -51,17 +51,30 @@ return function(H)
   -- ── The open window grows and shrinks ────────────────────────────────────
   -- Drawing stays unchecked as everywhere here: anchor/terminal/guard/info are
   -- stand-ins, the window itself is real.
-  local stubbed = { "images.anchor", "images.terminal", "images.guard", "images.info" }
+  local stubbed = { "images.anchor", "images.terminal", "images.guard", "images.info", "lib.nvim.notify" }
   local saved = {}
   for _, name in ipairs(stubbed) do
     saved[name] = package.loaded[name]
   end
-  local draws, clears = 0, 0
+  local draws, clears, errors = 0, 0, {}
+  local last_on_done
   package.loaded["images.anchor"] = {
-    draw = function()
+    draw = function(_, _, _, opts)
       draws = draws + 1
+      last_on_done = opts and opts.on_done
     end,
   }
+  local real_notify = saved["lib.nvim.notify"] or require("lib.nvim.notify")
+  package.loaded["lib.nvim.notify"] = setmetatable({
+    create = function(...)
+      local n = real_notify.create(...)
+      return setmetatable({
+        error = function(msg)
+          errors[#errors + 1] = msg
+        end,
+      }, { __index = n })
+    end,
+  }, { __index = real_notify })
   package.loaded["images.terminal"] = {
     clear = function()
       clears = clears + 1
@@ -113,7 +126,15 @@ return function(H)
     H.ok(zen.resize(-1), "shrink from full screen: a step")
     eq_size(mid, "shrink lands on the 90% step")
 
+    -- A draw still pending while the window is open reports its failure ...
+    H.ok(type(last_on_done) == "function", "the draw got an on_done")
+    last_on_done(false, "boom")
+    H.eq(#errors, 1, "a failed draw into the open window is reported")
+    -- ... one that settles after `q` closed the window is not an error.
+    local pending = last_on_done
     zen.close()
+    pending(false, "window is no longer valid")
+    H.eq(#errors, 1, "a draw settling after the window closed reports nothing")
     H.falsy(zen.resize(1), "resize without an open window is a no-op")
   end)
 

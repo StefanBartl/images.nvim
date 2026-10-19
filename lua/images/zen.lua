@@ -67,10 +67,14 @@ local DEFAULT_SIZES = {
 ---@return nil
 local function redraw(file)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  require("images.anchor").draw(winid, "full", file, {
+  local target = winid
+  require("images.anchor").draw(target, "full", file, {
     defer = true,
     on_done = function(ok, err)
-      if not ok then notify().error(err or "could not display the image") end
+      -- A deferred draw whose window was closed in the meantime (`q` right
+      -- after a resize) has nothing left to draw into: not an error.
+      if ok or winid ~= target or not vim.api.nvim_win_is_valid(target) then return end
+      notify().error(err or "could not display the image")
     end,
   })
 end
