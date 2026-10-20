@@ -97,6 +97,26 @@ return function(H)
     for _, lhs in ipairs({ "<M-ScrollWheelUp>", "<M-ScrollWheelDown>", "<MiddleMouse>", "<MiddleDrag>", "<MiddleRelease>" }) do
       H.ok(mapped[lhs] ~= nil, "bound in the zen buffer: " .. lhs)
     end
+    -- A press within 'mousetime' of the last is a multi-click: <2-MiddleMouse> and its
+    -- <2-MiddleDrag>/<2-MiddleRelease>. Unbound, every second quick stroke pasted the register.
+    for _, lhs in ipairs({ "<2-MiddleMouse>", "<2-MiddleDrag>", "<2-MiddleRelease>", "<4-MiddleMouse>", "<4-MiddleRelease>" }) do
+      H.ok(mapped[lhs] ~= nil, "the multi-click variant is bound too: " .. lhs)
+    end
+    local function presses(lhs)
+      local out = {}
+      for _, v in ipairs(zen.drag_variants(lhs)) do
+        out[#out + 1] = v.press .. " " .. v.drag .. " " .. v.release
+      end
+      return table.concat(out, " | ")
+    end
+    H.eq(
+      presses("<M-2-LeftMouse>"),
+      presses("<M-LeftMouse>"),
+      "drag_variants: a click count in the configured key is not doubled"
+    )
+    H.eq(presses("<2-M-LeftMouse>"), presses("<M-LeftMouse>"), "drag_variants: in either order")
+    H.eq(#zen.drag_variants("<middlemouse>"), 4, "drag_variants: the Mouse suffix in any case")
+    H.eq(#zen.drag_variants("<M-ScrollWheelUp>"), 0, "drag_variants: nothing for a key that is not a press")
     local sheet = table.concat(zen.cheatsheet().lines, "\n")
     H.ok(sheet:find("Mouse", 1, true) ~= nil, "the key list has a Mouse group")
     H.ok(sheet:find("Alt + wheel up", 1, true) ~= nil, "... saying in words what the wheel does")
@@ -137,6 +157,21 @@ return function(H)
     H.eq(show(zen.viewport()), show(vp.drag(px, start, dbox, 3, 2)), "measured from where the drag began, not step by step")
     zen.drag_end(row + 2, col + 3)
     H.falsy(zen.drag_to(row + 5, col + 5), "after the release nothing follows the pointer")
+
+    -- A release that never arrived (the key list opened mid-drag, ...): the next press ends
+    -- the old drag even when it is not over the window (headless, the pointer never is).
+    H.ok(zen.drag_begin(row, col), "a drag starts and its release gets lost")
+    mapped["<MiddleMouse>"].callback()
+    H.falsy(zen.drag_to(row + 2, col + 2), "a press elsewhere ended it: nothing resumes")
+
+    -- A zoom with the button still held ends the drag, rather than being undone by it.
+    H.ok(zen.drag_begin(row, col), "a drag starts")
+    zen.zoom(2)
+    local zoomed = show(zen.viewport())
+    H.falsy(zen.drag_to(row, col + 1), "the zoom ended the drag")
+    H.eq(show(zen.viewport()), zoomed, "and the zoom stays")
+    zen.zoom_reset()
+    zen.zoom(2)
 
     zen.zoom_reset()
     H.ok(zen.drag_begin(row, col), "a drag can start on the whole picture")

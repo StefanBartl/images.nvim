@@ -424,6 +424,8 @@ end
 function M.resize(dir)
   local view = active()
   if not view then return false end
+  -- The drag's picture box is the old window's; it would map the pointer wrongly.
+  view.drag = nil
   local box = M.next_size(view.box, valid_sizes(cfg().display.zen), dir)
   if not box then return false end
   local width, height = M.dimensions_for(view.file, box)
@@ -473,7 +475,11 @@ end
 ---@param view ImagesNvim.ZenView
 ---@param rect Images.Viewport.Rect
 ---@return boolean changed
-local function move_to(view, rect)
+local function move_to(view, rect, by_drag)
+  -- Anything but the drag itself that moves the view ends a drag in progress:
+  -- the drag pans from the rectangle it started on, and would otherwise undo
+  -- a zoom made with the button still held on its next event.
+  if not by_drag then view.drag = nil end
   if rect == view.rect then return false end
   view.rect = rect
   show(view)
@@ -586,7 +592,7 @@ function M.drag_to(screenrow, screencol)
   if not drag then return false end
   local vp = require("images.viewport")
   if vp.is_full(view.px, drag.rect) then return false end
-  return move_to(view, vp.drag(view.px, drag.rect, drag.box, screencol - drag.col, screenrow - drag.row))
+  return move_to(view, vp.drag(view.px, drag.rect, drag.box, screencol - drag.col, screenrow - drag.row), true)
 end
 
 --- End the drag at a screen cell.
@@ -815,6 +821,10 @@ local ACTIONS = {
     desc = "hold the middle button and drag: move the picture",
     rhs = function()
       local view = active()
+      -- Every press ends the drag before it, over the window or not: a release
+      -- that never arrived (the key list opened mid-drag, Alt let go first on
+      -- an <M-LeftMouse> remap) must not let a later press elsewhere resume it.
+      if view then view.drag = nil end
       local pos, over = mouse(view)
       if pos and over then M.drag_begin(pos.screenrow, pos.screencol) end
     end,
@@ -841,6 +851,38 @@ local ORDER = {
   "wheel_out",
   "drag",
 }
+
+--- The press, drag and release keys of a drag key, plain and as 2- to 4-clicks:
+--- `<M-LeftMouse>` gives `<M-LeftMouse>`/`<M-LeftDrag>`/`<M-LeftRelease>` and
+--- `<M-2-LeftMouse>`/... (Neovim writes modifiers before the click count).
+--- Empty for a key that does not end in `Mouse>` (any case).
+---@param lhs string
+---@return { press: string, drag: string, release: string }[]
+local function drag_variants(lhs)
+  local inner = lhs:match("^<(.*)>$")
+  if not inner or inner:sub(-5):lower() ~= "mouse" then return {} end
+  -- "Middle", "M-Left", "2-Middle", "2-M-Left": take the one-letter modifiers
+  -- and a click count off the front, in whatever order they were written.
+  local button, mods = inner:sub(1, -6), ""
+  while true do
+    local mod = button:match("^(%a%-)")
+    local count = button:match("^(%d%-)")
+    if mod then
+      mods, button = mods .. mod, button:sub(3)
+    elseif count then
+      button = button:sub(3)
+    else
+      break
+    end
+  end
+  local out = {}
+  for _, count in ipairs({ "", "2-", "3-", "4-" }) do
+    local base = "<" .. mods .. count .. button
+    out[#out + 1] = { press = base .. "Mouse>", drag = base .. "Drag>", release = base .. "Release>" }
+  end
+  return out
+end
+M.drag_variants = drag_variants
 
 local defaults_applied = false
 
@@ -880,20 +922,25 @@ local function map_keys(buf, keys)
   -- A drag is three events, and only the first is the configurable key: the
   -- other two follow from it (`<MiddleMouse>` -> `<MiddleDrag>`,
   -- `<MiddleRelease>`; a `<M-LeftMouse>` remap gets `<M-LeftDrag>` ...).
+  -- And each comes in multi-click variants: a press within 'mousetime' of the
+  -- last one arrives as `<2-MiddleMouse>` (up to `<4-…>`) with `<2-MiddleDrag>`
+  -- / `<2-MiddleRelease>` after it. Unbound, every second quick stroke of a
+  -- long pan moved nothing and Neovim's own middle click pasted the register
+  -- into the zen buffer instead.
   for _, e in ipairs(bound) do
-    if e.name == "drag" and e.bound and e.lhs then
-      local drag_lhs, n1 = e.lhs:gsub("Mouse>$", "Drag>")
-      local release_lhs, n2 = e.lhs:gsub("Mouse>$", "Release>")
-      if n1 == 1 and n2 == 1 then
-        keymap("n", drag_lhs, function()
-          local pos = mouse(active())
-          if pos then M.drag_to(pos.screenrow, pos.screencol) end
-        end, { buffer = buf, nowait = true }, "images: zen: drag the picture")
-        keymap("n", release_lhs, function()
-          local pos = mouse(active())
-          if pos then M.drag_end(pos.screenrow, pos.screencol) end
-        end, { buffer = buf, nowait = true }, "images: zen: end the drag")
+    local variants = e.name == "drag" and e.bound and e.lhs and drag_variants(e.lhs) or {}
+    for _, v in ipairs(variants) do
+      if v.press ~= e.lhs then
+        keymap("n", v.press, ACTIONS.drag.rhs, { buffer = buf, nowait = true }, "images: zen: start dragging the picture")
       end
+      keymap("n", v.drag, function()
+        local pos = mouse(active())
+        if pos then M.drag_to(pos.screenrow, pos.screencol) end
+      end, { buffer = buf, nowait = true }, "images: zen: drag the picture")
+      keymap("n", v.release, function()
+        local pos = mouse(active())
+        if pos then M.drag_end(pos.screenrow, pos.screencol) end
+      end, { buffer = buf, nowait = true }, "images: zen: end the drag")
     end
   end
 end
