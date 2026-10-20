@@ -112,6 +112,11 @@ end
 
 -- ── Crops ──────────────────────────────────────────────────────────────────
 
+--- Every crop reads only the first frame: an animated GIF has no single picture
+--- to cut otherwise (`magick` writes one file per frame and none under the name
+--- asked for).
+local FIRST_FRAME = { first_frame = true }
+
 --- Cropped views already on disk, keyed by file, mtime and rectangle; swept at
 --- exit. Stepping back to a rectangle already seen costs no second `magick`.
 ---@type table<string, string>
@@ -323,7 +328,7 @@ local function show(view)
 
   view.cropping = true
   local out = ("%s/%s.png"):format(crop_dir(), vim.fn.sha256(key or view.file))
-  require("images.convert").crop(view.file, vp.geometry(rect), out, nil, function(path, err)
+  require("images.convert").crop(view.file, vp.geometry(rect), out, FIRST_FRAME, function(path, err)
     view.cropping = false
     -- Recorded before anything else, so a crop finishing after its window
     -- closed is still swept at exit rather than left on disk.
@@ -1332,7 +1337,7 @@ function M.open_selection(view, rect)
   local key = crop_key(origin.file, in_original)
   local out = ("%s/sel-%s.png"):format(crop_dir(), vim.fn.sha256(key or (origin.file .. vp.geometry(in_original))))
   pcall(vim.api.nvim_echo, { { "cutting the selection …" } }, false, {})
-  require("images.convert").crop(origin.file, vp.geometry(in_original), out, nil, function(path, err)
+  require("images.convert").crop(origin.file, vp.geometry(in_original), out, FIRST_FRAME, function(path, err)
     view.cutting = false
     if path and key then
       crops["sel\0" .. key] = path
@@ -1562,6 +1567,17 @@ local function visible_in_original(view)
   return { x = o.x + view.rect.x, y = o.y + view.rect.y, w = view.rect.w, h = view.rect.h }
 end
 
+--- Whether `path` starts with the PNG signature.
+---@param path string
+---@return boolean
+local function is_png(path)
+  local fd = io.open(path, "rb")
+  if not fd then return false end
+  local head = fd:read(8)
+  fd:close()
+  return head == string.char(137, 80, 78, 71, 13, 10, 26, 10)
+end
+
 --- Whether `view` shows the whole original (the first window, not zoomed).
 ---@param view ImagesNvim.ZenView
 ---@return boolean
@@ -1578,15 +1594,46 @@ end
 ---@param dir string|nil
 ---@return string path
 function M.save_target(original, rect, dir)
-  local folder = (type(dir) == "string" and dir ~= "") and vim.fs.normalize(vim.fn.expand(dir)) or vim.fs.dirname(original)
+  local folder = vim.fs.dirname(original)
+  if type(dir) == "string" and dir ~= "" then folder = M.resolve_name(vim.fn.expand(dir), original) end
   local stem = vim.fn.fnamemodify(original, ":t:r")
-  local base = ("%s/%s.crop-%d-%d-%dx%d"):format(folder, stem, rect.x, rect.y, rect.w, rect.h)
-  local path, n = base .. ".png", 1
-  while vim.uv.fs_stat(path) do
+  return M.free_name(("%s/%s.crop-%d-%d-%dx%d.png"):format(folder, stem, rect.x, rect.y, rect.w, rect.h))
+end
+
+--- Names a save has claimed but not written yet: the cut is asynchronous, and
+--- two saves of the same rectangle (or of two originals into one `save.dir`)
+--- would otherwise both pick the same free name.
+---@type table<string, true>
+local reserved = {}
+
+--- `path` if neither on disk nor claimed by a save in flight, else the first
+--- free `-2`, `-3`, ... next to it.
+---@param path string
+---@return string
+function M.free_name(path)
+  -- Counted from the bare name: `x-5.png` taken goes on to `x-6.png`, not
+  -- `x-5-2.png`. A generated name ends in `x<h>`, never in `-<digits>`.
+  local base = path:gsub("%.png$", ""):gsub("%-%d+$", "")
+  local candidate, n = path, 1
+  while vim.uv.fs_stat(candidate) or reserved[candidate] do
     n = n + 1
-    path = ("%s-%d.png"):format(base, n)
+    candidate = ("%s-%d.png"):format(base, n)
   end
-  return path
+  return candidate
+end
+
+--- A file name as typed: a leading `~` is the home directory, nothing else is
+--- expanded (`$`, `*`, `<cword>` are taken literally -- they occur in real file
+--- names), and a relative name lives next to `original`, not in Neovim's cwd.
+---@param name string
+---@param original string
+---@return string
+function M.resolve_name(name, original)
+  if name:sub(1, 1) == "~" then name = vim.fn.expand("~") .. name:sub(2) end
+  local absolute = name:match("^%a:[/\\]") or name:match("^[/\\]")
+  if not absolute then name = vim.fs.dirname(original) .. "/" .. name end
+  -- `expand_env = false`: normalize would otherwise turn `$HOME` in a name into a path.
+  return vim.fs.normalize(name, { expand_env = false })
 end
 
 ---@return { dir?: string, ask?: boolean }
@@ -1595,17 +1642,22 @@ local function save_cfg()
   return type(s) == "table" and s or {}
 end
 
---- Cut `rect` of `original` into `out` and call `done(path)` on success.
+--- Cut `rect` of `original` into `out`; `done(path)` on success, `done(nil)`
+--- after reporting a failure (so a caller can release what it held).
 ---@param original string
 ---@param rect Images.Viewport.Rect
 ---@param out string
----@param done fun(path: string)
+---@param done fun(path: string|nil)
 local function cut(original, rect, out, done)
-  vim.fn.mkdir(vim.fs.dirname(out), "p")
-  require("images.convert").crop(original, require("images.viewport").geometry(rect), out, nil, function(path, err)
+  local made, mkdir_err = pcall(vim.fn.mkdir, vim.fs.dirname(out), "p")
+  if not made then
+    notify().error("cannot create the folder for " .. out .. ": " .. tostring(mkdir_err))
+    return done(nil)
+  end
+  require("images.convert").crop(original, require("images.viewport").geometry(rect), out, FIRST_FRAME, function(path, err)
     if not path then
       notify().error(err or "could not cut the picture")
-      return
+      return done(nil)
     end
     done(path)
   end)
@@ -1634,22 +1686,54 @@ function M.save()
   local s = save_cfg()
   local target = M.save_target(original, rect, s.dir)
 
-  local function write(path)
-    if vim.uv.fs_stat(path) then
+  -- Cut into the cache first and move the result into place only at the end,
+  -- after looking again: the name is reserved meanwhile, and a file that
+  -- appeared under it anyway is never replaced. A name the user typed is
+  -- refused then; a generated one moves on to the next free number.
+  local function write(path, typed)
+    if vim.uv.fs_stat(path) or reserved[path] then
       notify().warn("exists, not overwritten: " .. path)
       return
     end
-    cut(original, rect, path, function(written)
-      notify().info("saved " .. written)
+    reserved[path] = true
+    local tmp = ("%s/save-%s.png"):format(crop_dir(), vim.fn.sha256(path .. tostring(vim.uv.hrtime())))
+    cut(original, rect, tmp, function(written)
+      reserved[path] = nil
+      if not written then return end
+      local final = path
+      if vim.uv.fs_stat(final) then
+        if typed then
+          pcall(vim.uv.fs_unlink, written)
+          notify().warn("exists, not overwritten: " .. final)
+          return
+        end
+        final = M.free_name(final)
+      end
+      local made, mkdir_err = pcall(vim.fn.mkdir, vim.fs.dirname(final), "p")
+      local moved, move_err = false, mkdir_err
+      if made then
+        moved, move_err = vim.uv.fs_rename(written, final)
+        if not moved then
+          -- Another drive than the cache: copy, then drop the cache file.
+          moved, move_err = vim.uv.fs_copyfile(written, final, { excl = true })
+          pcall(vim.uv.fs_unlink, written)
+        end
+      end
+      if moved then
+        notify().info("saved " .. final)
+      else
+        pcall(vim.uv.fs_unlink, written)
+        notify().error("could not save " .. final .. ": " .. tostring(move_err))
+      end
     end)
   end
 
   if s.ask then
     vim.ui.input({ prompt = "save the part as: ", default = target }, function(answer)
-      if answer and answer ~= "" then write(vim.fs.normalize(vim.fn.expand(answer))) end
+      if answer and answer ~= "" then write(M.resolve_name(answer, original), true) end
     end)
   else
-    write(target)
+    write(target, false)
   end
   return true
 end
@@ -1676,11 +1760,14 @@ function M.yank()
   end
 
   local original = view.origin.file
-  if shows_whole_original(view) and original:lower():match("%.png$") then
+  -- The whole original goes as it is when it really is a PNG (by its
+  -- signature, not its name: a JPEG called .png would be refused by the
+  -- clipboard helper); anything else is cut to one first.
+  if shows_whole_original(view) and is_png(original) then
     to_clipboard(original)
     return true
   end
-  local rect = visible_in_original(view) or (view.px and { x = 0, y = 0, w = view.px.width, h = view.px.height })
+  local rect = visible_in_original(view)
   if not rect then
     tell_once("copy: this image does not say how large it is")
     return false
@@ -1697,6 +1784,7 @@ function M.yank()
     return true
   end
   cut(original, rect, out, function(path)
+    if not path then return end
     if key then
       crops["yank\0" .. key] = path
       arm_cleanup()

@@ -38,18 +38,37 @@ return function(H)
       return nil
     end,
   }
-  local crops = {}
+  -- Synchronous by default; with `defer_crops` the cut finishes only when the spec calls
+  -- `finish_all()` -- the real one is asynchronous, which is where overlapping saves race.
+  local crops, pending, defer_crops = {}, {}, false
+  local function write_png(out, spec)
+    local w, h = spec:match("^(%d+)x(%d+)")
+    vim.fn.mkdir(vim.fs.dirname(out), "p")
+    local fd = assert(io.open(out, "wb"))
+    fd:write(require("images.testcard").build(tonumber(w), tonumber(h)))
+    fd:close()
+  end
   package.loaded["images.convert"] = {
-    crop = function(src, spec, out, _, on_done)
-      crops[#crops + 1] = { src = src, spec = spec, out = out }
-      local w, h = spec:match("^(%d+)x(%d+)")
-      vim.fn.mkdir(vim.fs.dirname(out), "p")
-      local fd = assert(io.open(out, "wb"))
-      fd:write(require("images.testcard").build(tonumber(w), tonumber(h)))
-      fd:close()
+    crop = function(src, spec, out, opts, on_done)
+      crops[#crops + 1] = { src = src, spec = spec, out = out, opts = opts }
+      if defer_crops then
+        pending[#pending + 1] = function()
+          write_png(out, spec)
+          on_done(out, nil)
+        end
+        return
+      end
+      write_png(out, spec)
       on_done(out, nil)
     end,
   }
+  local function finish_all()
+    local now = pending
+    pending = {}
+    for _, f in ipairs(now) do
+      f()
+    end
+  end
   local has_magick = true
   package.loaded["lib.nvim.cross.executable"] = {
     exists = function(bin)
@@ -115,19 +134,48 @@ return function(H)
     local cut = crops[#crops]
     H.eq(cut.src, file, "it is cut from the original")
     H.eq(cut.spec, "300x150+150+75", "exactly the visible rectangle")
+    H.ok(cut.opts and cut.opts.first_frame, "only the first frame is read (animated GIFs)")
     local target = dir .. "/shot.crop-150-75-300x150.png"
-    H.eq(cut.out, target, "written next to the original, named after the rectangle")
-    H.ok(vim.uv.fs_stat(target) ~= nil, "the file exists")
+    H.ok(cut.out:find("save%-") ~= nil, "it is cut into the cache first")
+    H.ok(vim.uv.fs_stat(target) ~= nil, "then moved next to the original, named after the rectangle")
+    H.falsy(vim.uv.fs_stat(cut.out), "... leaving nothing in the cache")
     H.ok(tostring(infos[#infos]):find(target, 1, true) ~= nil, "the message names the file")
 
     zen.save()
-    H.eq(crops[#crops].out, dir .. "/shot.crop-150-75-300x150-2.png", "a second save never overwrites: -2")
+    H.ok(vim.uv.fs_stat(dir .. "/shot.crop-150-75-300x150-2.png") ~= nil, "a second save never overwrites: -2")
     H.eq(#crops, before + 2, "two cuts")
+
+    -- Two saves before either cut has finished: two files, not one overwritten.
+    defer_crops = true
+    zen.save()
+    zen.save()
+    finish_all()
+    defer_crops = false
+    H.ok(vim.uv.fs_stat(dir .. "/shot.crop-150-75-300x150-3.png") ~= nil, "overlapping saves: the first gets -3")
+    H.ok(vim.uv.fs_stat(dir .. "/shot.crop-150-75-300x150-4.png") ~= nil, "... and the second -4")
+
+    -- A file that appears under the chosen name while the cut runs is not replaced.
+    defer_crops = true
+    zen.save()
+    local squatter = dir .. "/shot.crop-150-75-300x150-5.png"
+    H.write(squatter, "someone else's")
+    finish_all()
+    defer_crops = false
+    local sf = assert(io.open(squatter, "rb"))
+    H.eq(sf:read("*a"), "someone else's", "a file that appeared meanwhile is left alone")
+    sf:close()
+    H.ok(vim.uv.fs_stat(dir .. "/shot.crop-150-75-300x150-6.png") ~= nil, "... the save moves on to the next number")
 
     -- save.dir
     zen_cfg.save = { dir = dir .. "/parts" }
     zen.save()
-    H.eq(crops[#crops].out, dir .. "/parts/shot.crop-150-75-300x150.png", "save.dir puts it there")
+    H.ok(vim.uv.fs_stat(dir .. "/parts/shot.crop-150-75-300x150.png") ~= nil, "save.dir puts it there")
+    -- a save.dir that cannot be created is reported, not thrown
+    local blocker = dir .. "/not-a-dir"
+    H.write(blocker, "file")
+    zen_cfg.save = { dir = blocker .. "/sub" }
+    local ok_call = pcall(zen.save)
+    H.ok(ok_call, "a save.dir that cannot be made does not throw")
     -- save.ask: the name is offered, an existing one is refused
     local real_input = vim.ui.input
     local offered
@@ -137,8 +185,8 @@ return function(H)
     end
     zen_cfg.save = { ask = true }
     zen.save()
-    H.eq(offered, dir .. "/shot.crop-150-75-300x150-3.png", "ask offers the free default name")
-    H.eq(crops[#crops].out, dir .. "/named.png", "and writes the name given")
+    H.eq(offered, dir .. "/shot.crop-150-75-300x150-7.png", "ask offers the free default name")
+    H.ok(vim.uv.fs_stat(dir .. "/named.png") ~= nil, "and writes the name given")
     local n = #crops
     zen.save()
     H.eq(#crops, n, "a name that exists is not overwritten")
@@ -190,6 +238,12 @@ return function(H)
       dir .. "/a.crop-1-2-3x4.png",
       "save_target: always a PNG next to the original"
     )
+    -- resolve_name: a typed name is taken literally, relative to the original
+    local orig = dir .. "/pic.png"
+    H.eq(zen.resolve_name("price$HOME.png", orig), dir .. "/price$HOME.png", "resolve_name: $ is literal")
+    H.eq(zen.resolve_name("a*.png", orig), dir .. "/a*.png", "resolve_name: * is literal")
+    H.eq(zen.resolve_name("sub/x.png", orig), dir .. "/sub/x.png", "resolve_name: relative to the original")
+    H.eq(zen.resolve_name("~/x.png", orig), vim.fs.normalize(vim.fn.expand("~") .. "/x.png"), "resolve_name: a leading ~ is home")
   end)
 
   zen_cfg.save = saved_save

@@ -109,6 +109,13 @@ keys, and `false` drops it.
 | `<BS>` | From a selection back to the window it was cut from | `back` |
 | `gs` | Save what is shown as a PNG next to the original: `shot.crop-<x>-<y>-<w>x<h>.png` (pixels of the original), `-2`, `-3` … rather than overwriting; nothing for the whole original | `save` |
 | `gy` | Copy what is shown to the clipboard as an image (Windows drops transparency) | `yank` |
+
+Saving cuts into the cache and moves the file into place last, looking again
+first: two quick saves get two files, and a file that appeared under the name
+meanwhile is never replaced (a generated name moves on to the next number, a
+typed one is refused). A typed name is taken literally (`$`, `*` stay) except a
+leading `~`, and a relative one lands next to the original. Zoom, selections and
+saves of an animated GIF use its first frame.
 | `?` | List the keys bound in this window; `?`, `q` or `<Esc>` close the list | `help` |
 | `<Esc>` | Drop a selection in progress; otherwise close | — |
 | `q` | Close — the whole stack of selections with it | — |

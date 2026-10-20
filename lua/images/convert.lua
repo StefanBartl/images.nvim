@@ -364,10 +364,15 @@ end
 --- the same process. That is the whole reason it exists here rather than as a
 --- second call: two `magick` invocations cost two process starts, measured at
 --- ~71 ms each on Windows, for an operation whose total is ~250 ms.
+---
+--- `opts.first_frame` reads only the first frame (`path[0]`). An animation --
+--- a GIF, an animated WebP -- otherwise comes out as `out-0.png`, `out-1.png`
+--- ... and nothing under `out`, which is "crop produced no file" for a
+--- caller that wanted one picture.
 ---@param path string absolute path to an image file
 ---@param spec string crop geometry `WIDTHxHEIGHT+X+Y`, validated first
 ---@param out string absolute destination path
----@param opts { fit?: string }|nil `fit` is a `-resize` geometry applied after the crop
+---@param opts { fit?: string, first_frame?: boolean }|nil `fit` is a `-resize` geometry applied after the crop
 ---@param on_done fun(out_path: string|nil, err: string|nil)|nil
 ---@return nil
 function M.crop(path, spec, out, opts, on_done)
@@ -385,7 +390,7 @@ function M.crop(path, spec, out, opts, on_done)
 
   vim.fn.mkdir(vim.fs.dirname(out), "p")
 
-  local args = { "magick", path, "-crop", spec, "+repage" }
+  local args = { "magick", opts.first_frame and (path .. "[0]") or path, "-crop", spec, "+repage" }
   if opts.fit then
     args[#args + 1] = "-resize"
     args[#args + 1] = opts.fit

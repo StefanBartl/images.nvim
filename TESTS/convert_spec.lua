@@ -392,6 +392,18 @@ return function(H)
     end)
     H.falsy(c_out, "a two-frame gif has no single png")
     H.eq(#vim.fn.glob(root .. "/anim*imgnvim*", false, true), 0, "…and no temp file is left behind")
+
+    -- crop with first_frame: one picture, the first frame (the zen window zooms
+    -- and cuts GIFs this way; without it every crop of one failed).
+    local cut_out = root .. "/anim-cut.png"
+    local crop_out, crop_err = await(function(cb)
+      convert.crop(anim, "2x2+1+1", cut_out, { first_frame = true }, cb)
+    end)
+    H.eq(crop_out, cut_out, "crop with first_frame writes one png from an animation: " .. tostring(crop_err))
+    local plain_out = await(function(cb)
+      convert.crop(anim, "2x2+1+1", root .. "/anim-plain.png", nil, cb)
+    end)
+    H.falsy(plain_out, "…which a crop without it cannot")
   end
 
   -- ── redact: the argv strips metadata ─────────────────────────────────────
