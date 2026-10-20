@@ -67,6 +67,7 @@ end
 ---@field footer string|nil the footer on the frame now
 ---@field depth integer|nil 1 for a window opened on a file; a selection opened from one is one deeper
 ---@field help integer|nil the cheatsheet window while it is open (no drawing then)
+---@field drag ImagesNvim.ZenDrag|nil a middle-button drag in progress
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -513,6 +514,116 @@ function M.pan(fx, fy)
   return move_to(view, require("images.viewport").pan_by(view.px, view.rect, fx, fy))
 end
 
+-- ── Mouse ──────────────────────────────────────────────────────────────────
+--
+-- The functions take SCREEN cells (1-based, as `getmousepos()` reports them),
+-- so the mappings below only read the mouse and everything else is testable
+-- headless, where `nvim_input_mouse` fires no mappings.
+
+---@class ImagesNvim.ZenDrag
+---@field row integer screen row the drag started on
+---@field col integer
+---@field rect Images.Viewport.Rect the visible rectangle when it started
+---@field box Images.Viewport.Box the picture box when it started
+
+---@param view ImagesNvim.ZenView
+---@return Images.Viewport.Box box the cells the picture covers, relative to the content
+---@return integer row0 screen row of the window's first content cell
+---@return integer col0
+local function picture_box(view)
+  local anchor = require("images.anchor")
+  local row0, col0 = anchor.content_origin(view.win)
+  local box = require("images.viewport").image_box(
+    vim.api.nvim_win_get_width(view.win),
+    vim.api.nvim_win_get_height(view.win),
+    anchor.inset(),
+    view.rect
+  )
+  return box, row0, col0
+end
+
+--- Zoom by `factor` around the picture point under the screen cell
+--- `screenrow`,`screencol`; around the centre when that cell is not on the
+--- picture (the margin, the border).
+---@param factor number
+---@param screenrow integer
+---@param screencol integer
+---@return boolean changed
+function M.zoom_at_screen(factor, screenrow, screencol)
+  local view = active()
+  if not view or not zoomable(view) then return false end
+  local box, row0, col0 = picture_box(view)
+  local fx, fy, inside = require("images.viewport").fraction_at(box, screenrow - row0 + 1, screencol - col0 + 1)
+  if not inside then
+    fx, fy = 0.5, 0.5
+  end
+  return M.zoom(factor, fx, fy)
+end
+
+--- Start a drag at a screen cell. Nothing to drag while the whole picture is
+--- visible, or without a known size.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean started
+function M.drag_begin(screenrow, screencol)
+  local view = active()
+  if not (view and view.px and view.rect) then return false end
+  local box = picture_box(view)
+  view.drag = { row = screenrow, col = screencol, rect = view.rect, box = box }
+  return true
+end
+
+--- Continue the drag to a screen cell: the picture follows the pointer, cell
+--- for cell, measured from where the drag began (not step by step, so rounding
+--- never accumulates). Latest wins applies as for every move: a crop in flight
+--- is followed by the rectangle the pointer has reached by then.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean changed
+function M.drag_to(screenrow, screencol)
+  local view = active()
+  local drag = view and view.drag
+  if not drag then return false end
+  local vp = require("images.viewport")
+  if vp.is_full(view.px, drag.rect) then return false end
+  return move_to(view, vp.drag(view.px, drag.rect, drag.box, screencol - drag.col, screenrow - drag.row))
+end
+
+--- End the drag at a screen cell.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean changed
+function M.drag_end(screenrow, screencol)
+  local changed = M.drag_to(screenrow, screencol)
+  local view = active()
+  if view then view.drag = nil end
+  return changed
+end
+
+--- The mouse position, and whether it is over `view`'s window. `getmousepos()`
+--- names the window under the pointer reliably here: the zen float is
+--- focusable (a non-focusable float is what that field cannot see).
+---@param view ImagesNvim.ZenView|nil
+---@return table|nil pos
+---@return boolean over
+local function mouse(view)
+  local ok, pos = pcall(vim.fn.getmousepos)
+  if not ok or type(pos) ~= "table" then return nil, false end
+  return pos, view ~= nil and pos.winid == view.win
+end
+
+---@param factor_of_step fun(step: number): number
+---@return fun()
+local function wheel_rhs(factor_of_step)
+  return function()
+    local view = active()
+    local pos, over = mouse(view)
+    -- A wheel points: it acts on what it is aimed at, and not at all elsewhere.
+    if not (pos and over) then return end
+    M.zoom_at_screen(factor_of_step(require("images.viewport").ZOOM_STEP), pos.screenrow, pos.screencol)
+  end
+end
+
 --- The visible rectangle of the active zen window, and the pixel size of its
 --- image; nil without an open window or known dimensions. For tests and the
 --- legend.
@@ -536,6 +647,7 @@ local HELP_GROUPS = {
     title = "Move",
     actions = { "pan_left", "pan_right", "pan_up", "pan_down", "edge_left", "edge_right", "edge_up", "edge_down" },
   },
+  { title = "Mouse", actions = { "wheel_in", "wheel_out", "drag" } },
   { title = "Window", actions = { "grow", "shrink", "help" } },
 }
 
@@ -687,6 +799,26 @@ local ACTIONS = {
       M.help()
     end,
   },
+  wheel_in = {
+    desc = "Alt + wheel up: zoom in at the pointer",
+    rhs = wheel_rhs(function(step)
+      return step
+    end),
+  },
+  wheel_out = {
+    desc = "Alt + wheel down: zoom out at the pointer",
+    rhs = wheel_rhs(function(step)
+      return 1 / step
+    end),
+  },
+  drag = {
+    desc = "hold the middle button and drag: move the picture",
+    rhs = function()
+      local view = active()
+      local pos, over = mouse(view)
+      if pos and over then M.drag_begin(pos.screenrow, pos.screencol) end
+    end,
+  },
 }
 
 ---@type string[]
@@ -705,6 +837,9 @@ local ORDER = {
   "edge_up",
   "edge_down",
   "help",
+  "wheel_in",
+  "wheel_out",
+  "drag",
 }
 
 local defaults_applied = false
@@ -739,12 +874,28 @@ local function map_keys(buf, keys)
   elseif type(keys) == "table" then
     user = keys
   end
-  require("lib.nvim.bindings.keymap").register(
-    "images",
-    { actions = ACTIONS, order = ORDER },
-    user,
-    { buffer = buf, surface = "zen" }
-  )
+  local keymap = require("lib.nvim.bindings.keymap")
+  local bound = keymap.register("images", { actions = ACTIONS, order = ORDER }, user, { buffer = buf, surface = "zen" })
+
+  -- A drag is three events, and only the first is the configurable key: the
+  -- other two follow from it (`<MiddleMouse>` -> `<MiddleDrag>`,
+  -- `<MiddleRelease>`; a `<M-LeftMouse>` remap gets `<M-LeftDrag>` ...).
+  for _, e in ipairs(bound) do
+    if e.name == "drag" and e.bound and e.lhs then
+      local drag_lhs, n1 = e.lhs:gsub("Mouse>$", "Drag>")
+      local release_lhs, n2 = e.lhs:gsub("Mouse>$", "Release>")
+      if n1 == 1 and n2 == 1 then
+        keymap("n", drag_lhs, function()
+          local pos = mouse(active())
+          if pos then M.drag_to(pos.screenrow, pos.screencol) end
+        end, { buffer = buf, nowait = true }, "images: zen: drag the picture")
+        keymap("n", release_lhs, function()
+          local pos = mouse(active())
+          if pos then M.drag_end(pos.screenrow, pos.screencol) end
+        end, { buffer = buf, nowait = true }, "images: zen: end the drag")
+      end
+    end
+  end
 end
 
 -- ── Open / close ───────────────────────────────────────────────────────────

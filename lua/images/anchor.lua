@@ -227,14 +227,10 @@ end
 local function draw_now(winid, position, file, scale, inset, padding)
   if not vim.api.nvim_win_is_valid(winid) then return false, "window is no longer valid" end
 
-  local pos = vim.api.nvim_win_get_position(winid)
   local width = vim.api.nvim_win_get_width(winid)
   local height = vim.api.nvim_win_get_height(winid)
-  local row_inset, col_inset, row_trail, col_trail = border_inset(winid)
   local pad_row, pad_col = terminal_padding(padding)
-
-  -- Where the window really sits, which is not always where it asked to sit.
-  local win_row, win_col = placed_position(winid, pos, height + row_inset + row_trail, width + col_inset + col_trail)
+  local content_row, content_col = M.content_origin(winid)
 
   -- Anchor box, `draw_inset` margin, then the box fitted to the picture's own
   -- aspect ratio: `scale.draw_box` explains each step. `clamp_to_screen` could
@@ -250,13 +246,33 @@ local function draw_now(winid, position, file, scale, inset, padding)
   if not (cols and rows and col_off and row_off) then return false, box_err end
 
   require("images.terminal").clear()
-  return require("images.terminal").draw(
-    file,
-    win_row + 1 + row_inset + row_off + pad_row,
-    win_col + 1 + col_inset + col_off + pad_col,
-    cols,
-    rows
-  )
+  return require("images.terminal").draw(file, content_row + row_off + pad_row, content_col + col_off + pad_col, cols, rows)
+end
+
+--- The screen cell (1-based, as `getmousepos()` reports it) of `winid`'s first
+--- content cell: where the window really sits (`placed_position`), plus one per
+--- border segment on the top/left (`border_inset`). What `draw_now` draws
+--- against, and what maps a mouse position back onto a window's content --
+--- without `display.terminal_padding`, which corrects where the terminal paints
+--- the picture, not Neovim's grid the mouse is measured in.
+---@param winid integer a valid window
+---@return integer row
+---@return integer col
+function M.content_origin(winid)
+  local pos = vim.api.nvim_win_get_position(winid)
+  local width = vim.api.nvim_win_get_width(winid)
+  local height = vim.api.nvim_win_get_height(winid)
+  local row_inset, col_inset, row_trail, col_trail = border_inset(winid)
+  -- Where the window really sits, which is not always where it asked to sit.
+  local win_row, win_col = placed_position(winid, pos, height + row_inset + row_trail, width + col_inset + col_trail)
+  return win_row + 1 + row_inset, win_col + 1 + col_inset
+end
+
+--- The `draw_inset` margin a draw without an explicit `inset` keeps: the
+--- configured `display.draw_inset`.
+---@return integer cells
+function M.inset()
+  return draw_inset(nil)
 end
 
 ---@class Images.Anchor.Opts

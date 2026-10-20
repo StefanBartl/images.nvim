@@ -297,6 +297,24 @@ local function check_blocks()
   )
 end
 
+--- The zen window's mouse keys (Alt+wheel zoom, middle-button drag) are only
+--- reachable when 'mouse' covers normal mode; with it empty no mouse event
+--- reaches Neovim at all, and the mappings look present but never fire.
+---@return nil
+local function check_mouse()
+  local mouse = vim.o.mouse or ""
+  if mouse:find("[na]") then
+    vim.health.ok(("'mouse' = %q — the zen window's mouse keys work"):format(mouse))
+  else
+    vim.health.warn(
+      ("'mouse' = %q — the zen window's mouse keys (Alt+wheel zoom, middle-button drag) never fire"):format(mouse),
+      {
+        "set mouse=a (or include `n`)",
+      }
+    )
+  end
+end
+
 ---@return nil
 function M.check()
   vim.health.start("images.nvim")
@@ -305,6 +323,7 @@ function M.check()
   check_clipboard()
   check_screenshot()
   check_imagemagick()
+  check_mouse()
   check_blocks()
   check_ocr()
   check_pdf()

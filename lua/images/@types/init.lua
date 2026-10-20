@@ -183,6 +183,9 @@
 ---@field edge_up?    string|string[]|false (default `K`)
 ---@field edge_down?  string|string[]|false (default `J`)
 ---@field help?       string|string[]|false list the keys bound in the window (default `?`)
+---@field wheel_in?   string|string[]|false zoom in at the pointer (default `<M-ScrollWheelUp>`; needs 'mouse')
+---@field wheel_out?  string|string[]|false zoom out at the pointer (default `<M-ScrollWheelDown>`)
+---@field drag?       string|string[]|false press that starts moving the picture with the mouse; its Drag/Release events are derived (default `<MiddleMouse>`)
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

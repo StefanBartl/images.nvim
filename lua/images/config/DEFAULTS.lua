@@ -92,6 +92,13 @@ return {
         edge_up = "K",
         edge_down = "J",
         help = "?",
+        -- The mouse (needs 'mouse' to include normal mode). Alt rather than
+        -- Ctrl: <C-ScrollWheel> is the terminal's own font zoom nearly
+        -- everywhere. `drag` names the press; its drag and release events are
+        -- derived from it (<MiddleMouse> -> <MiddleDrag>, <MiddleRelease>).
+        wheel_in = "<M-ScrollWheelUp>",
+        wheel_out = "<M-ScrollWheelDown>",
+        drag = "<MiddleMouse>",
       },
     },
     remote = {

@@ -114,6 +114,7 @@ local specs = {
   "zen_spec.lua",
   "zen_viewport_spec.lua",
   "zen_legend_spec.lua",
+  "zen_mouse_spec.lua",
   "scale_spec.lua",
   "viewport_spec.lua",
   "sanitize_filename_spec.lua",
