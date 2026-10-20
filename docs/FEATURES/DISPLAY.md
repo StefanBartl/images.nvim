@@ -88,10 +88,21 @@ overlay — survives a snacks hover popup opened alongside it. Redraws on
 `WinResized`/`VimResized` to follow the window's size, clears on
 `WinClosed`.
 
-- **Module:** `images/zen.lua` (`M.open`, `M.close`, `M.dimensions`)
+**Zoom and pan.** The window can show part of its picture: `+`/`-` zoom by
+1.5× per step, `hjkl` move the visible part by a quarter, `HJKL` to an edge,
+`0` back to the whole picture. OSC 1337 has no source rectangle, so each new
+view is a file — an ImageMagick crop, cached per rectangle; at most one crop
+runs per window, and when it finishes the rectangle you have reached by then is
+the next one cut, so holding a key never builds a queue. The arithmetic
+(rectangles, zoom around a point, the box a cell is measured against) is the
+pure module `images/viewport.lua`.
+
+- **Module:** `images/zen.lua` (`M.open`, `M.close`, `M.dimensions`, `M.zoom`,
+  `M.zoom_reset`, `M.pan`, `M.viewport`), `images/viewport.lua`
 - **Usercmds:** `:Image zen [path]` ([usercmds](../BINDINGS.md#user-commands))
+- **Keys:** [BINDINGS → Zen window](../BINDINGS.md#zen-window)
 - **Config:** `opts.display.zen.width`/`height` (fractions of the editor,
-  default `0.9`/`0.85`)
+  default `0.9`/`0.85`), `sizes`, `keys`
 
 ## Positioned draw primitive
 

@@ -50,7 +50,7 @@
 ---@field width number fraction of the editor width (0-1)
 ---@field height number fraction of the editor height (0-1)
 ---@field sizes { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
----@field keys { grow: string|string[]|false, shrink: string|string[]|false } grow/shrink the open window
+---@field keys ImagesNvim.ZenKeys keys of the open window
 
 ---@class ImagesNvim.RedactConfig : ImagesNvim.RedactOpts
 ---@field padding_cells integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
@@ -163,7 +163,23 @@
 ---@field width?  number fraction of the editor width (0-1)
 ---@field height? number fraction of the editor height (0-1)
 ---@field sizes?  { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
----@field keys?   { grow?: string|string[]|false, shrink?: string|string[]|false } grow/shrink the open window
+---@field keys?   ImagesNvim.ZenKeys keys of the open window
+
+---Keys of the `:Image zen` window; each a key, a list of keys, or `false` for none.
+---@class ImagesNvim.ZenKeys
+---@field grow?       string|string[]|false grow the window to the next `sizes` step (default `<S-Up>`)
+---@field shrink?     string|string[]|false shrink it (default `<S-Down>`)
+---@field zoom_in?    string|string[]|false show a smaller part of the picture, larger (default `+`; needs ImageMagick)
+---@field zoom_out?   string|string[]|false (default `-`)
+---@field zoom_reset? string|string[]|false back to the whole picture (default `0`, `=`)
+---@field pan_left?   string|string[]|false move the visible part a quarter left (default `h`, `<Left>`)
+---@field pan_right?  string|string[]|false (default `l`, `<Right>`)
+---@field pan_up?     string|string[]|false (default `k`, `<Up>`)
+---@field pan_down?   string|string[]|false (default `j`, `<Down>`)
+---@field edge_left?  string|string[]|false move it to the left edge (default `H`)
+---@field edge_right? string|string[]|false (default `L`)
+---@field edge_up?    string|string[]|false (default `K`)
+---@field edge_down?  string|string[]|false (default `J`)
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

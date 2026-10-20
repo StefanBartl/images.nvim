@@ -13,6 +13,19 @@
 --- The image itself remains a terminal overlay, as everywhere in images.nvim
 --- (see `images.terminal`) — the window only supplies the target coordinates,
 --- via window geometry rather than cursor position.
+---
+--- **A zen window can show part of its image.** `+`/`-` zoom, `hjkl` move the
+--- visible rectangle (`images.viewport` does the arithmetic). OSC 1337 has no
+--- source rectangle, so a zoomed view is a file: `images.convert.crop` cuts it
+--- (~250 ms for a 1080p screenshot on Windows), the result is cached per
+--- rectangle, and at most one `magick` runs per window -- when it finishes, the
+--- rectangle the user has arrived at by then is the one drawn next ("latest
+--- wins"), so holding a key never queues a backlog of crops. The crop is not
+--- resized: its pixel size is what `images.anchor` fits the draw box against,
+--- and a crop is never larger than its source anyway.
+---
+--- State is kept per window (`views`), not in module globals, so a later
+--- child window (a selection opened as its own zen) has somewhere to live.
 
 local M = {}
 
@@ -40,16 +53,23 @@ local function valid_fraction(value, default)
   return default
 end
 
---- The currently open zen window, if there is one.
----@type integer|nil
-local winid = nil
+---@class ImagesNvim.ZenView
+---@field win integer
+---@field buf integer
+---@field file string the image as opened
+---@field box { width: number, height: number } fractions the window was sized from; what `M.resize` steps away from
+---@field px Images.Scale.Dims|nil pixel size of `file`, nil when its header does not say (no zoom then)
+---@field rect Images.Viewport.Rect|nil the visible rectangle; nil without `px`
+---@field queued boolean a deferred draw is queued and has not settled yet
+---@field cropping boolean a `magick` crop for this view is running
 
---- The image in the open zen window and the fractions its box was sized from.
---- `current_box` is what `M.resize` steps away from.
----@type string|nil
-local current_file = nil
----@type { width: number, height: number }|nil
-local current_box = nil
+--- Every open zen window, by window id.
+---@type table<integer, ImagesNvim.ZenView>
+local views = {}
+
+--- The zen window `M.resize`/`M.is_open` mean when called from outside one.
+---@type integer|nil
+local current = nil
 
 --- The size steps `M.resize` cycles through when the user configured none.
 ---@type { width: number, height: number }[]
@@ -59,12 +79,59 @@ local DEFAULT_SIZES = {
   { width = 1, height = 1 },
 }
 
---- The window a deferred draw is queued for, until that draw has settled.
----@type integer|nil
-local queued_for = nil
+---@param view ImagesNvim.ZenView|nil
+---@return boolean
+local function alive(view)
+  return view ~= nil and views[view.win] == view and vim.api.nvim_win_is_valid(view.win)
+end
 
---- Redraw the image at the zen window's current geometry. Runs initially and
---- again on every resize, so the image follows the window. `defer = true`
+--- The view the user is acting on: the zen window they are in, else the one
+--- opened last.
+---@return ImagesNvim.ZenView|nil
+local function active()
+  local here = views[vim.api.nvim_get_current_win()]
+  if alive(here) then return here end
+  local last = current and views[current]
+  if alive(last) then return last end
+  return nil
+end
+
+-- ── Crops ──────────────────────────────────────────────────────────────────
+
+--- Cropped views already on disk, keyed by file, mtime and rectangle; swept at
+--- exit. Stepping back to a rectangle already seen costs no second `magick`.
+---@type table<string, string>
+local crops = {}
+
+local cleanup_armed = false
+
+local function arm_cleanup()
+  if cleanup_armed then return end
+  cleanup_armed = true
+  local autocmd = require("lib.nvim.bindings.autocmd")
+  autocmd.create("VimLeavePre", function()
+    for _, path in pairs(crops) do
+      pcall(vim.uv.fs_unlink, path)
+    end
+    crops = {}
+  end, {
+    group = autocmd.group("images.zen.crops", true),
+    desc = "images.zen: delete the cropped views at exit",
+  })
+end
+
+---@param file string
+---@param rect Images.Viewport.Rect
+---@return string|nil
+local function crop_key(file, rect)
+  local st = vim.uv.fs_stat(file)
+  if not st then return nil end
+  return table.concat({ file, tostring(st.mtime and st.mtime.sec or 0), require("images.viewport").geometry(rect) }, "\0")
+end
+
+-- ── Drawing ────────────────────────────────────────────────────────────────
+
+--- Draw `path` into `view`'s window at its current geometry. `defer = true`
 --- because on the first call the window has only just been opened — see
 --- `images.anchor`'s module docs for the reasoning.
 ---
@@ -73,29 +140,64 @@ local queued_for = nil
 --- has run. That second call would send the whole picture to the terminal a
 --- second time for the same geometry; the queued draw reads the geometry when
 --- it runs, so skipping it loses nothing.
----@param file string
+---@param view ImagesNvim.ZenView
+---@param path string
 ---@return nil
-local function redraw(file)
-  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  if queued_for == winid then return end
-  local target = winid
-  queued_for = target
-  require("images.anchor").draw(target, "full", file, {
+local function draw(view, path)
+  if not alive(view) or view.queued then return end
+  view.queued = true
+  require("images.anchor").draw(view.win, "full", path, {
     defer = true,
     on_done = function(ok, err)
-      if queued_for == target then queued_for = nil end
+      view.queued = false
       -- A deferred draw whose window was closed in the meantime (`q` right
       -- after a resize) has nothing left to draw into: not an error.
-      if ok or winid ~= target or not vim.api.nvim_win_is_valid(target) then return end
+      if ok or not alive(view) then return end
       notify().error(err or "could not display the image")
     end,
   })
   -- Queued after anchor's own deferred draw (vim.schedule is FIFO): releases
   -- the slot even when that draw raised and never reached on_done.
   vim.schedule(function()
-    if queued_for == target then queued_for = nil end
+    view.queued = false
   end)
 end
+
+--- Show `view.rect` of the image: the file itself when the whole picture is
+--- visible, else its crop -- cut first if it is not on disk yet.
+---@param view ImagesNvim.ZenView
+---@return nil
+local function show(view)
+  if not alive(view) then return end
+  local vp = require("images.viewport")
+  if not (view.px and view.rect) or vp.is_full(view.px, view.rect) then return draw(view, view.file) end
+
+  local rect = view.rect
+  local key = crop_key(view.file, rect)
+  local cached = key and crops[key]
+  if cached and vim.uv.fs_stat(cached) then return draw(view, cached) end
+  -- Latest wins: the running crop calls back into here, and reads the rectangle
+  -- the user has arrived at by then.
+  if view.cropping then return end
+
+  view.cropping = true
+  local out = ("%s/images.nvim/zoom/%s.png"):format(vim.fn.stdpath("cache"), vim.fn.sha256(key or view.file))
+  require("images.convert").crop(view.file, vp.geometry(rect), out, nil, function(path, err)
+    view.cropping = false
+    if not alive(view) then return end
+    if not path then
+      notify().error(err or "could not cut the zoomed view")
+      return
+    end
+    if key then
+      crops[key] = path
+      arm_cleanup()
+    end
+    show(view)
+  end)
+end
+
+-- ── Size ───────────────────────────────────────────────────────────────────
 
 --- Compute the window size from the configured fractions. A pure function (no
 --- window, no side effects) and therefore testable without a terminal, unlike
@@ -183,62 +285,247 @@ end
 ---@param dir integer
 ---@return boolean changed
 function M.resize(dir)
-  if not M.is_open() or not current_file or not current_box then return false end
-  local box = M.next_size(current_box, valid_sizes(cfg().display.zen), dir)
+  local view = active()
+  if not view then return false end
+  local box = M.next_size(view.box, valid_sizes(cfg().display.zen), dir)
   if not box then return false end
-  local width, height = M.dimensions_for(current_file, box)
+  local width, height = M.dimensions_for(view.file, box)
   -- The same caps `lib.nvim.window.make_scratch` applies on open, so the
   -- full-screen step still leaves the border and the command line visible.
   width = math.min(width, require("lib.nvim.window.max_float_width")())
   height = math.min(height, math.max(1, vim.o.lines - 4))
-  if not pcall(vim.api.nvim_win_set_config, winid, { width = width, height = height }) then return false end
-  current_box = box
-  require("lib.nvim.window.center")(winid)
+  if not pcall(vim.api.nvim_win_set_config, view.win, { width = width, height = height }) then return false end
+  view.box = box
+  require("lib.nvim.window.center")(view.win)
   -- The previous, larger picture is still on the terminal around the window.
   require("images.terminal").clear()
-  redraw(current_file)
+  show(view)
   return true
 end
+
+-- ── Zoom and pan ───────────────────────────────────────────────────────────
+
+--- Reasons already reported this session, so holding `+` on an image that
+--- cannot be zoomed says so once.
+---@type table<string, true>
+local told = {}
+
+---@param reason string
+local function tell_once(reason)
+  if told[reason] then return end
+  told[reason] = true
+  notify().warn(reason)
+end
+
+--- Whether `view` can show anything but the whole picture; says why not, once.
+---@param view ImagesNvim.ZenView
+---@return boolean
+local function zoomable(view)
+  if not (view.px and view.rect) then
+    tell_once("zoom: this image does not say how large it is")
+    return false
+  end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    tell_once("zoom needs ImageMagick (magick) on PATH")
+    return false
+  end
+  return true
+end
+
+---@param view ImagesNvim.ZenView
+---@param rect Images.Viewport.Rect
+---@return boolean changed
+local function move_to(view, rect)
+  if rect == view.rect then return false end
+  view.rect = rect
+  show(view)
+  return true
+end
+
+--- Zoom the active zen window by `factor` (> 1 in, < 1 out) around the point
+--- `fx`,`fy` of the visible rectangle (fractions 0..1, default the centre).
+---@param factor number
+---@param fx number|nil
+---@param fy number|nil
+---@return boolean changed
+function M.zoom(factor, fx, fy)
+  local view = active()
+  if not view or not zoomable(view) then return false end
+  local vp = require("images.viewport")
+  return move_to(view, vp.zoom_at(view.px, view.rect, factor, fx, fy))
+end
+
+--- Back to the whole picture.
+---@return boolean changed
+function M.zoom_reset()
+  local view = active()
+  if not (view and view.px and view.rect) then return false end
+  local vp = require("images.viewport")
+  if vp.is_full(view.px, view.rect) then return false end
+  return move_to(view, vp.full(view.px))
+end
+
+--- Move the visible rectangle by `fx`,`fy` of its own size (`math.huge` = to
+--- the edge). Nothing to move while the whole picture is visible.
+---@param fx number
+---@param fy number
+---@return boolean changed
+function M.pan(fx, fy)
+  local view = active()
+  if not (view and view.px and view.rect) then return false end
+  return move_to(view, require("images.viewport").pan_by(view.px, view.rect, fx, fy))
+end
+
+--- The visible rectangle of the active zen window, and the pixel size of its
+--- image; nil without an open window or known dimensions. For tests and the
+--- legend.
+---@return Images.Viewport.Rect|nil rect
+---@return Images.Scale.Dims|nil px
+function M.viewport()
+  local view = active()
+  if not view then return nil end
+  return view.rect, view.px
+end
+
+-- ── Keys ───────────────────────────────────────────────────────────────────
+
+--- A pan step: a quarter of the visible rectangle per press, times the count.
+local PAN_STEP = 0.25
+
+---@param fx number
+---@param fy number
+---@return fun()
+local function pan_rhs(fx, fy)
+  return function()
+    local n = vim.v.count1
+    local function scaled(f)
+      if f == math.huge or f == -math.huge then return f end
+      return f * n
+    end
+    M.pan(scaled(fx), scaled(fy))
+  end
+end
+
+--- The zen window's actions. Their default keys are `display.zen.keys` in
+--- `images.config.DEFAULTS`, read from there so the two cannot disagree.
+---@type table<string, Lib.Keymap.Action>
+local ACTIONS = {
+  grow = {
+    desc = "zen: grow the window",
+    rhs = function()
+      M.resize(1)
+    end,
+  },
+  shrink = {
+    desc = "zen: shrink the window",
+    rhs = function()
+      M.resize(-1)
+    end,
+  },
+  zoom_in = {
+    desc = "zen: zoom in",
+    rhs = function()
+      M.zoom(require("images.viewport").ZOOM_STEP ^ vim.v.count1)
+    end,
+  },
+  zoom_out = {
+    desc = "zen: zoom out",
+    rhs = function()
+      M.zoom(1 / require("images.viewport").ZOOM_STEP ^ vim.v.count1)
+    end,
+  },
+  zoom_reset = {
+    desc = "zen: whole picture",
+    rhs = function()
+      M.zoom_reset()
+    end,
+  },
+  pan_left = { desc = "zen: move the view left", rhs = pan_rhs(-PAN_STEP, 0) },
+  pan_right = { desc = "zen: move the view right", rhs = pan_rhs(PAN_STEP, 0) },
+  pan_up = { desc = "zen: move the view up", rhs = pan_rhs(0, -PAN_STEP) },
+  pan_down = { desc = "zen: move the view down", rhs = pan_rhs(0, PAN_STEP) },
+  edge_left = { desc = "zen: move the view to the left edge", rhs = pan_rhs(-math.huge, 0) },
+  edge_right = { desc = "zen: move the view to the right edge", rhs = pan_rhs(math.huge, 0) },
+  edge_up = { desc = "zen: move the view to the top edge", rhs = pan_rhs(0, -math.huge) },
+  edge_down = { desc = "zen: move the view to the bottom edge", rhs = pan_rhs(0, math.huge) },
+}
+
+---@type string[]
+local ORDER = {
+  "grow",
+  "shrink",
+  "zoom_in",
+  "zoom_out",
+  "zoom_reset",
+  "pan_left",
+  "pan_right",
+  "pan_up",
+  "pan_down",
+  "edge_left",
+  "edge_right",
+  "edge_up",
+  "edge_down",
+}
+
+local defaults_applied = false
+
+--- Fill each action's `default` from `DEFAULTS` once: a `display.zen.keys`
+--- that names only some actions (or an old config with just grow/shrink)
+--- still binds the rest.
+local function apply_defaults()
+  if defaults_applied then return end
+  defaults_applied = true
+  local keys = require("images.config.DEFAULTS").display.zen.keys or {}
+  for name, action in pairs(ACTIONS) do
+    action.default = vim.deepcopy(keys[name])
+    action.opts = { nowait = true }
+  end
+end
+
+--- Bind the zen actions in `buf`. Through the keymap registry (surface `zen`,
+--- so the markdown preset's record is not replaced), which is what lets a
+--- cheatsheet list exactly what is bound. A pan key is bound even while the
+--- whole picture is shown -- the zen buffer is empty, so `h` there moves
+--- nothing anyway, and binding on zoom would mean rebinding on every step.
+---@param buf integer
+---@param keys table|false|nil `display.zen.keys`
+---@return nil
+local function map_keys(buf, keys)
+  apply_defaults()
+  -- `false` binds nothing; anything that is not a table means "the defaults".
+  local user = nil
+  if keys == false then
+    user = false
+  elseif type(keys) == "table" then
+    user = keys
+  end
+  require("lib.nvim.bindings.keymap").register(
+    "images",
+    { actions = ACTIONS, order = ORDER },
+    user,
+    { buffer = buf, surface = "zen" }
+  )
+end
+
+-- ── Open / close ───────────────────────────────────────────────────────────
 
 --- Whether a zen window is currently open.
 ---@return boolean
 function M.is_open()
-  return winid ~= nil and vim.api.nvim_win_is_valid(winid)
+  return active() ~= nil
 end
 
---- Close the zen window (a no-op when none is open).
+--- Close every zen window (a no-op when none is open).
 ---@return nil
 function M.close()
-  if winid and vim.api.nvim_win_is_valid(winid) then pcall(vim.api.nvim_win_close, winid, true) end
-  current_file, current_box = nil, nil
-  if winid then
-    winid = nil
-    require("images.terminal").clear()
+  local any = false
+  for win, view in pairs(views) do
+    any = true
+    views[win] = nil
+    if vim.api.nvim_win_is_valid(view.win) then pcall(vim.api.nvim_win_close, view.win, true) end
   end
-end
-
---- Map the grow/shrink keys (`display.zen.keys`) in the zen buffer; `false`
---- or an empty list leaves a direction unmapped.
----@param buf integer
----@param keys table|nil
----@return nil
-local function map_resize_keys(buf, keys)
-  keys = type(keys) == "table" and keys or {}
-  for name, dir in pairs({ grow = 1, shrink = -1 }) do
-    local lhs = keys[name]
-    if type(lhs) == "string" then lhs = { lhs } end
-    if type(lhs) == "table" then
-      for _, k in ipairs(lhs) do
-        -- An empty or non-string entry would make keymap.set raise here,
-        -- halfway through `M.open`, with the window already open.
-        if type(k) == "string" and k ~= "" then
-          vim.keymap.set("n", k, function()
-            M.resize(dir)
-          end, { buffer = buf, nowait = true, desc = "images.zen: " .. name .. " the window" })
-        end
-      end
-    end
-  end
+  current = nil
+  if any then require("images.terminal").clear() end
 end
 
 --- Show the image under the cursor (or at `path`) full-screen.
@@ -289,30 +576,43 @@ function M.open(path, opts)
     notify().error("could not open the zen window")
     return false
   end
-  winid = win
-  current_file, current_box = file, box
-  map_resize_keys(buf, zen_cfg.keys)
+
+  local px = require("images.pixels").read(file)
+  ---@type ImagesNvim.ZenView
+  local view = {
+    win = win,
+    buf = buf,
+    file = file,
+    box = box,
+    px = px,
+    rect = px and require("images.viewport").full(px) or nil,
+    queued = false,
+    cropping = false,
+  }
+  views[win] = view
+  current = win
+  map_keys(buf, zen_cfg.keys)
 
   local autocmd = require("lib.nvim.bindings.autocmd")
   local group = autocmd.group("images.zen", true)
   autocmd.create({ "WinResized", "VimResized" }, function()
-    redraw(file)
+    show(view)
   end, {
     group = group,
     desc = "images.zen: image follows the window size",
   })
   autocmd.create("WinClosed", function()
-    winid = nil
-    current_file, current_box = nil, nil
+    views[win] = nil
+    if current == win then current = nil end
     require("images.terminal").clear()
   end, {
     group = group,
-    pattern = tostring(winid),
+    pattern = tostring(win),
     once = true,
     desc = "images.zen: clean up on close",
   })
 
-  redraw(file)
+  show(view)
   return true
 end
 

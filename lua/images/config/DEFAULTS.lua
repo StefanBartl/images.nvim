@@ -60,7 +60,12 @@ return {
     browse_max_entries = 20000,
     -- Size of the `:Image zen` window, as a fraction of the editor.
     -- `sizes` are the steps `keys.grow`/`keys.shrink` cycle through in the
-    -- open window (a key may be a list of keys, `false` leaves it unmapped).
+    -- open window. Every key may be a list of keys; `false` leaves it unmapped.
+    --
+    -- Zoom (`zoom_in`/`zoom_out`/`zoom_reset`) shows part of the picture and
+    -- needs ImageMagick; it is a different thing from grow/shrink, which
+    -- change the window. `pan_*` move the visible part by a quarter of it,
+    -- `edge_*` all the way to that edge; a count multiplies both.
     zen = {
       width = 0.9,
       height = 0.85,
@@ -69,7 +74,21 @@ return {
         { width = 0.9, height = 0.85 },
         { width = 1, height = 1 },
       },
-      keys = { grow = "<S-Up>", shrink = "<S-Down>" },
+      keys = {
+        grow = "<S-Up>",
+        shrink = "<S-Down>",
+        zoom_in = "+",
+        zoom_out = "-",
+        zoom_reset = { "0", "=" },
+        pan_left = { "h", "<Left>" },
+        pan_right = { "l", "<Right>" },
+        pan_up = { "k", "<Up>" },
+        pan_down = { "j", "<Down>" },
+        edge_left = "H",
+        edge_right = "L",
+        edge_up = "K",
+        edge_down = "J",
+      },
     },
     remote = {
       -- Off by default: hovering a remote image link should not fire a network

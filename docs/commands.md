@@ -79,7 +79,12 @@ One image full-screen, in a **real editable window** rather than an overlay —
 which is what lets it survive a hover popup opened alongside it. Redraws on
 `WinResized`/`VimResized`, clears on `WinClosed`.
 
-- **Config:** `display.zen.width` / `display.zen.height`.
+Inside it, `+`/`-` zoom into the picture, `hjkl` move the visible part, `0`
+shows the whole picture again, `<S-Up>`/`<S-Down>` resize the window — see
+[BINDINGS → Zen window](BINDINGS.md#zen-window). Zoom needs ImageMagick.
+
+- **Config:** `display.zen.width` / `display.zen.height`, `display.zen.sizes`,
+  `display.zen.keys`.
 
 ### `:Image draw <position> [path]`
 

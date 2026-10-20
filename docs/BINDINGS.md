@@ -30,7 +30,7 @@ completion and this table all come from the same spec.
 | `:Image debug <mode> [path]` | — | Measure a misplaced draw: `report` logs the coordinates sent, `columns` tells a constant offset from a scaling one, `float` checks whether a window is where Neovim says it is, `disarm` undoes `report`'s instrumentation |
 | `:Image pickers [cfile\|cwd\|path] [dir]` | — | Browse images under a scope, live preview with snacks.picker if installed |
 | `:Image compare [cfile\|cwd\|path] [dir]` | — | Pick two images from a scan, view at true relative size (needs ImageMagick; else side by side, equal size) |
-| `:Image zen [path]` | — | Show one image full-screen in a real editable window; `<S-Up>`/`<S-Down>` in it step through `display.zen.sizes` |
+| `:Image zen [path]` | — | Show one image full-screen in a real editable window; inside it, zoom, move and resize with the [zen window keys](#zen-window) |
 | `:Image draw <position> [path]` | — | Draw an image at a named position in the current window (`full`/9 anchors); the primitive zen/hover/redact/the picker preview build on, also `images.draw()` |
 | `:Image pin` | — | Keep the image on screen instead of clearing on cursor move |
 | `:Image check` | — | Report whether this terminal can display images |
@@ -86,6 +86,31 @@ filetypes and routes anchor → image → URL → file, delegating the image cas
 back to images.nvim; since both register from a `FileType` autocmd, load order
 would otherwise decide the winner, and images.nvim winning would drop the
 other cases. Whoever binds first keeps the key.
+
+### Zen window
+
+Bound only in the `:Image zen` window's own buffer (also the window filetree.nvim
+opens with `<CR>` on an image), through the same keymap registry under the
+surface `images/zen`. Each one is set in `display.zen.keys`, accepts a list of
+keys, and `false` drops it.
+
+| Key | Description | Option |
+| --- | --- | --- |
+| `+` | Zoom in one step (1.5×) around the centre; `3+` three steps | `zoom_in` |
+| `-` | Zoom out one step | `zoom_out` |
+| `0`, `=` | Back to the whole picture | `zoom_reset` |
+| `h` `j` `k` `l`, arrows | Move the visible part by a quarter of it; a count multiplies | `pan_left` `pan_down` `pan_up` `pan_right` |
+| `H` `J` `K` `L` | Move it to that edge | `edge_left` `edge_down` `edge_up` `edge_right` |
+| `<S-Up>` / `<S-Down>` | Grow / shrink the **window** through `display.zen.sizes` | `grow` / `shrink` |
+| `q`, `<Esc>` | Close | — |
+
+Zoom shows *part* of the picture and is not the same as grow/shrink, which
+change the window. It needs ImageMagick (each new view is a `magick` crop,
+~250 ms for a 1080p screenshot) and an image whose header gives its size;
+without either, the zoom keys say so once and change nothing. Views already
+seen are cached, so stepping back is instant; while a crop runs, further key
+presses only move the target, and the view you have arrived at is the one cut
+next.
 
 ### which-key
 
