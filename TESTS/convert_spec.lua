@@ -396,10 +396,10 @@ return function(H)
     -- crop with first_frame: one picture, the first frame (the zen window zooms
     -- and cuts GIFs this way; without it every crop of one failed).
     local cut_out = root .. "/anim-cut.png"
-    local crop_out, crop_err = await(function(cb)
+    local crop_out, frame_err = await(function(cb)
       convert.crop(anim, "2x2+1+1", cut_out, { first_frame = true }, cb)
     end)
-    H.eq(crop_out, cut_out, "crop with first_frame writes one png from an animation: " .. tostring(crop_err))
+    H.eq(crop_out, cut_out, "crop with first_frame writes one png from an animation: " .. tostring(frame_err))
     local plain_out = await(function(cb)
       convert.crop(anim, "2x2+1+1", root .. "/anim-plain.png", nil, cb)
     end)
