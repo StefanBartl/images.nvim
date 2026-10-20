@@ -73,6 +73,9 @@ end
 ---@field parent ImagesNvim.ZenView|nil the window this one's picture was cut from
 ---@field origin ImagesNvim.ZenOrigin where this window's file sits in the original
 ---@field hidden boolean|nil hidden under a selection opened from it
+---@field child ImagesNvim.ZenView|nil the selection opened from this window, while it is open
+---@field cutting boolean|nil a selection of this window is being cut
+---@field closing boolean|nil its WinClosed is running
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -134,7 +137,10 @@ local function sweep_stale()
     if kind == "file" and name:match("%.png$") then
       local path = dir .. "/" .. name
       local st = vim.uv.fs_stat(path)
-      if st and st.mtime and now - st.mtime.sec > STALE_S then pcall(vim.uv.fs_unlink, path) end
+      -- A selection's file is what an open window shows and is not re-cut on
+      -- demand like a zoomed view, so it gets a day, not an hour.
+      local limit = name:match("^sel%-") and 24 * STALE_S or STALE_S
+      if st and st.mtime and now - st.mtime.sec > limit then pcall(vim.uv.fs_unlink, path) end
     end
   end
 end
@@ -332,6 +338,8 @@ local function show(view)
       -- Retrying on every key would start a `magick` and an error per press,
       -- and the view goes back to what is really on screen.
       view.broken = true
+      -- A selection begun on the zoomed view would now cut the wrong area.
+      if view.select then M.select_cancel() end
       view.rect = view.px and vp.full(view.px) or nil
       -- A drag in progress would put its zoomed rectangle back on the next
       -- move, and with it a `magick` and an error per event.
@@ -743,7 +751,8 @@ function M.help()
     pcall(vim.api.nvim_set_current_win, view.win)
     show(view)
   end, {
-    group = autocmd.group("images.zen.help", true),
+    -- Per window: a second window's list must not clear this one's handler.
+    group = autocmd.group("images.zen.help." .. view.win, true),
     pattern = tostring(win),
     once = true,
     desc = "images.zen: draw the picture again when the key list closes",
@@ -849,7 +858,12 @@ local ACTIONS = {
   },
   select_drag = {
     desc = "drag with the left button: open that part in its own window",
-    rhs = function() end, -- bound per variant in `map_fixed_keys`
+    -- A mouse key is bound per variant in `map_fixed_keys`, over this; a
+    -- keyboard key configured here starts the keyboard selection instead of
+    -- doing nothing.
+    rhs = function()
+      M.select_keys()
+    end,
   },
   back = {
     desc = "back to the window this part was cut from",
@@ -1075,7 +1089,8 @@ local function open_view(file, opts)
 
   if parent then
     parent.hidden = true
-    parent.drag, parent.select = nil, nil
+    parent.drag = nil
+    end_select(parent)
     pcall(vim.api.nvim_win_set_config, parent.win, { hide = true })
     require("images.terminal").clear()
   end
@@ -1112,6 +1127,7 @@ local function open_view(file, opts)
   }
   views[win] = view
   current = win
+  if parent then parent.child = view end
   map_keys(buf, zen_cfg.keys)
   map_fixed_keys(view)
 
@@ -1132,12 +1148,23 @@ local function open_view(file, opts)
   autocmd.create("WinClosed", function()
     views[win] = nil
     if current == win then current = nil end
+    view.closing = true
+    end_select(view)
     -- `q` in the picture with the key list still open (focus moved back with
     -- <C-w>p): the list would otherwise stay up over nothing.
     close_help(view)
+    -- A window closed while a selection sits on it (only a hidden window can
+    -- be, e.g. by another plugin's "close all floats"): its descendants go
+    -- with it, or its parent would come back under a still visible child.
+    local child = view.child
+    view.child = nil
+    if child and vim.api.nvim_win_is_valid(child.win) then pcall(vim.api.nvim_win_close, child.win, true) end
     require("images.terminal").clear()
     pcall(vim.api.nvim_del_augroup_by_id, group)
-    if parent and not closing_all then restore(parent) end
+    if parent then
+      if parent.child == view then parent.child = nil end
+      if not closing_all and not parent.closing then restore(parent) end
+    end
   end, {
     group = group,
     pattern = tostring(win),
@@ -1254,6 +1281,12 @@ end
 ---@param c integer
 ---@param by_keys boolean
 local function begin_select(view, r, c, by_keys)
+  -- One selection at a time per window: while its part is being cut, a second
+  -- one would open a second child on the same parent.
+  if view.cutting then
+    pcall(vim.api.nvim_echo, { { "cutting the selection …" } }, false, {})
+    return false
+  end
   if not (view.px and view.rect) then
     tell_once("select: this image does not say how large it is")
     return false
@@ -1272,11 +1305,12 @@ end
 ---@return boolean started
 function M.open_selection(view, rect)
   view = view or active()
-  if not alive(view) then return false end
+  if not alive(view) or view.cutting or view.child then return false end
   if not require("lib.nvim.cross.executable").exists("magick") then
     tell_once("cutting a selection needs ImageMagick (magick) on PATH")
     return false
   end
+  view.cutting = true
   local vp = require("images.viewport")
   local origin = view.origin
   local in_original = { x = origin.x + rect.x, y = origin.y + rect.y, w = rect.w, h = rect.h }
@@ -1284,16 +1318,22 @@ function M.open_selection(view, rect)
   local out = ("%s/sel-%s.png"):format(crop_dir(), vim.fn.sha256(key or (origin.file .. vp.geometry(in_original))))
   pcall(vim.api.nvim_echo, { { "cutting the selection …" } }, false, {})
   require("images.convert").crop(origin.file, vp.geometry(in_original), out, nil, function(path, err)
+    view.cutting = false
     if path and key then
       crops["sel\0" .. key] = path
       arm_cleanup()
     end
-    if not alive(view) then return end
+    -- Stale by now: the window is gone, already has a child, or is hidden.
+    if not alive(view) or view.child or view.hidden then return end
     if not path then
       notify().error(err or "could not cut the selection")
       return
     end
     pcall(vim.api.nvim_echo, { { "" } }, false, {})
+    -- What the user started on the parent while the cut ran ends properly:
+    -- a new selection gives its frame colour back, the key list closes.
+    end_select(view)
+    close_help(view)
     open_view(path, { parent = view, origin = { file = origin.file, x = in_original.x, y = in_original.y } })
   end)
   return true
@@ -1404,15 +1444,26 @@ end
 map_fixed_keys = function(view)
   local keymap = require("lib.nvim.bindings.keymap")
   local o = { buffer = view.buf, nowait = true }
-  keymap("n", "q", function()
+
+  -- A key the user gave to one of the configurable actions stays theirs: the
+  -- fixed meaning only takes keys nothing else in this window claims (and the
+  -- cheatsheet, built from the registry, keeps telling the truth).
+  local claimed = {}
+  for _, e in ipairs(keymap.registered("images/zen")) do
+    if e.bound and e.lhs and e.buffer == view.buf then claimed[termcodes(e.lhs)] = true end
+  end
+  local function fixed(lhs, rhs, desc)
+    if not claimed[termcodes(lhs)] then keymap("n", lhs, rhs, o, desc) end
+  end
+  fixed("q", function()
     M.close()
-  end, o, "images: zen: close the zen window(s)")
-  keymap("n", "<Esc>", function()
+  end, "images: zen: close the zen window(s)")
+  fixed("<Esc>", function()
     if not M.select_cancel() then M.close() end
-  end, o, "images: zen: drop the selection, or close")
-  keymap("n", "<CR>", function()
+  end, "images: zen: drop the selection, or close")
+  fixed("<CR>", function()
     M.select_confirm()
-  end, o, "images: zen: open the selection")
+  end, "images: zen: open the selection")
 
   -- The mouse selection: press, drag and release, derived like the middle
   -- drag's (multi-click variants included). Bound here rather than through
@@ -1436,19 +1487,22 @@ map_fixed_keys = function(view)
             M._pass_through(v.press)
           end
         end, o, "images: zen: start a selection")
+        -- Without a selection, a drag or release over the picture is swallowed:
+        -- handed back it would start Visual mode in this buffer, which paints
+        -- cells inside the picture and makes the terminal drop it.
         keymap("n", v.drag, function()
-          local pos = mouse(active())
+          local pos, over = mouse(active())
           if mouse_selecting() and pos then
             M.select_to(pos.screenrow, pos.screencol)
-          else
+          elseif not over then
             M._pass_through(v.drag)
           end
         end, o, "images: zen: drag the selection")
         keymap("n", v.release, function()
-          local pos = mouse(active())
+          local pos, over = mouse(active())
           if mouse_selecting() and pos then
             M.select_end(pos.screenrow, pos.screencol)
-          else
+          elseif not over then
             M._pass_through(v.release)
           end
         end, o, "images: zen: finish the selection")

@@ -220,6 +220,71 @@ return function(H)
     press()
     H.eq(passed[#passed], "<LeftMouse>", "a press not on the window is handed back unmapped")
     zen.close()
+
+    -- ── While a part is being cut, the parent takes no second selection ──
+    H.ok(zen.open(file), "zen opens for the in-flight case")
+    settle()
+    root = vim.api.nvim_get_current_win()
+    r1, c1 = cell_at(0.1, 0.1)
+    r2, c2 = cell_at(0.4, 0.4)
+    zen.select_begin(r1, c1)
+    zen.select_end(r2, c2)
+    local cutting = #crops
+    H.falsy(zen.select_keys(), "no second selection while the first is cut")
+    H.falsy(zen.select_begin(r1, c1), "... neither by mouse")
+    H.eq(#crops, cutting, "and no second crop")
+    -- The key list opened on the parent meanwhile closes when the part opens.
+    H.ok(zen.help(), "? opens on the parent while the cut runs")
+    local list = vim.api.nvim_get_current_win()
+    finish(cutting)
+    H.falsy(vim.api.nvim_win_is_valid(list), "the key list closes when the part opens")
+    H.ok(vim.api.nvim_get_current_win() ~= root, "the part is open")
+    H.falsy(vim.wo[root].winhighlight:find("ImagesZenSelect", 1, true), "the parent's frame colour is back")
+    local mid = vim.api.nvim_get_current_win()
+
+    -- ── A hidden middle window closed from outside takes its child along ─
+    zen.select_begin(r1, c1)
+    zen.select_end(r2, c2)
+    finish(#crops)
+    local deepest = vim.api.nvim_get_current_win()
+    H.ok(deepest ~= mid, "three deep")
+    vim.api.nvim_win_close(mid, true)
+    settle()
+    H.falsy(vim.api.nvim_win_is_valid(deepest), "closing the hidden middle window closes the one on top of it")
+    H.eq(vim.api.nvim_get_current_win(), root, "and the first window is back")
+    H.falsy(vim.api.nvim_win_get_config(root).hide, "shown")
+    zen.close()
+
+    -- ── The fixed keys yield to the user's own bindings ──────────────────
+    local zen_cfg = require("images.config").get().display.zen
+    local saved_keys = vim.deepcopy(zen_cfg.keys)
+    zen_cfg.keys.zoom_in = "<CR>"
+    zen_cfg.keys.back = "<Esc>"
+    H.ok(zen.open(file), "zen opens with <CR> as zoom in")
+    settle()
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<CR>", true, true, true), "x", false)
+    H.eq(vp.geometry(zen.viewport()), "400x200+100+50", "<CR> zooms, as configured")
+    zen.zoom_reset()
+    settle()
+    zen.select_begin(r1, c1)
+    zen.select_end(r2, c2)
+    finish(#crops)
+    local part = vim.api.nvim_get_current_win()
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, true, true), "x", false)
+    settle()
+    H.falsy(vim.api.nvim_win_is_valid(part), "<Esc> goes back, as configured")
+    H.ok(zen.is_open(), "... and does not close the whole stack")
+    zen.close()
+
+    -- A keyboard key on select_drag starts the keyboard selection instead of doing nothing.
+    zen_cfg.keys = vim.deepcopy(saved_keys)
+    zen_cfg.keys.select_drag = "s"
+    H.ok(zen.open(file), "zen opens with select_drag on s")
+    settle()
+    vim.api.nvim_feedkeys("s", "x", false)
+    H.ok(zen.selection() ~= nil, "s starts a selection")
+    zen.close()
+    zen_cfg.keys = saved_keys
   end)
 
   for _, name in ipairs(stubbed) do
