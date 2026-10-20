@@ -60,8 +60,9 @@ end
 ---@field box { width: number, height: number } fractions the window was sized from; what `M.resize` steps away from
 ---@field px Images.Scale.Dims|nil pixel size of `file`, nil when its header does not say (no zoom then)
 ---@field rect Images.Viewport.Rect|nil the visible rectangle; nil without `px`
----@field queued boolean a deferred draw is queued and has not settled yet
+---@field queued string|nil the file a deferred draw is queued for, until it has settled
 ---@field cropping boolean a `magick` crop for this view is running
+---@field broken boolean a crop failed: zoom is off for this window
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -105,9 +106,33 @@ local crops = {}
 
 local cleanup_armed = false
 
+---@return string
+local function crop_dir()
+  return vim.fn.stdpath("cache") .. "/images.nvim/zoom"
+end
+
+--- Seconds after which a crop found on disk from an earlier session is
+--- deleted. Not every crop reaches the exit sweep (a crashed session leaves
+--- its own behind); an hour leaves another running instance's fresh ones alone.
+local STALE_S = 60 * 60
+
+--- Delete leftovers older than `STALE_S` from the crop directory.
+local function sweep_stale()
+  local dir = crop_dir()
+  local now = os.time()
+  for name, kind in vim.fs.dir(dir) do
+    if kind == "file" and name:match("%.png$") then
+      local path = dir .. "/" .. name
+      local st = vim.uv.fs_stat(path)
+      if st and st.mtime and now - st.mtime.sec > STALE_S then pcall(vim.uv.fs_unlink, path) end
+    end
+  end
+end
+
 local function arm_cleanup()
   if cleanup_armed then return end
   cleanup_armed = true
+  pcall(sweep_stale)
   local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("VimLeavePre", function()
     for _, path in pairs(crops) do
@@ -135,21 +160,25 @@ end
 --- because on the first call the window has only just been opened — see
 --- `images.anchor`'s module docs for the reasoning.
 ---
---- At most one draw is queued per window: `M.resize` redraws, and the
---- `WinResized` its own size change fires asks again before the queued draw
---- has run. That second call would send the whole picture to the terminal a
---- second time for the same geometry; the queued draw reads the geometry when
---- it runs, so skipping it loses nothing.
+--- At most one draw of the same file is queued per window: `M.resize`
+--- redraws, and the `WinResized` its own size change fires asks again before
+--- the queued draw has run. That second call would send the whole picture to
+--- the terminal a second time for the same geometry; the queued draw reads the
+--- geometry when it runs, so skipping it loses nothing. A draw of a DIFFERENT
+--- file is never skipped: the queued one carries its file with it, and a quick
+--- zoom out and back in within one tick would otherwise leave the whole
+--- picture on screen under a zoomed rectangle. Both run, in order, and the
+--- later one is what stays.
 ---@param view ImagesNvim.ZenView
 ---@param path string
 ---@return nil
 local function draw(view, path)
-  if not alive(view) or view.queued then return end
-  view.queued = true
+  if not alive(view) or view.queued == path then return end
+  view.queued = path
   require("images.anchor").draw(view.win, "full", path, {
     defer = true,
     on_done = function(ok, err)
-      view.queued = false
+      if view.queued == path then view.queued = nil end
       -- A deferred draw whose window was closed in the meantime (`q` right
       -- after a resize) has nothing left to draw into: not an error.
       if ok or not alive(view) then return end
@@ -159,7 +188,7 @@ local function draw(view, path)
   -- Queued after anchor's own deferred draw (vim.schedule is FIFO): releases
   -- the slot even when that draw raised and never reached on_done.
   vim.schedule(function()
-    view.queued = false
+    if view.queued == path then view.queued = nil end
   end)
 end
 
@@ -181,17 +210,25 @@ local function show(view)
   if view.cropping then return end
 
   view.cropping = true
-  local out = ("%s/images.nvim/zoom/%s.png"):format(vim.fn.stdpath("cache"), vim.fn.sha256(key or view.file))
+  local out = ("%s/%s.png"):format(crop_dir(), vim.fn.sha256(key or view.file))
   require("images.convert").crop(view.file, vp.geometry(rect), out, nil, function(path, err)
     view.cropping = false
-    if not alive(view) then return end
-    if not path then
-      notify().error(err or "could not cut the zoomed view")
-      return
-    end
-    if key then
+    -- Recorded before anything else, so a crop finishing after its window
+    -- closed is still swept at exit rather than left on disk.
+    if path and key then
       crops[key] = path
       arm_cleanup()
+    end
+    if not alive(view) then return end
+    if not path then
+      -- One failure ends zoom for this window (an animated GIF, for one:
+      -- `magick` writes a file per frame and none under the name asked for).
+      -- Retrying on every key would start a `magick` and an error per press,
+      -- and the view goes back to what is really on screen.
+      view.broken = true
+      view.rect = view.px and vp.full(view.px) or nil
+      notify().error((err or "could not cut the zoomed view") .. " -- zoom is off for this window")
+      return draw(view, view.file)
     end
     show(view)
   end)
@@ -321,6 +358,7 @@ end
 ---@param view ImagesNvim.ZenView
 ---@return boolean
 local function zoomable(view)
+  if view.broken then return false end
   if not (view.px and view.rect) then
     tell_once("zoom: this image does not say how large it is")
     return false
@@ -586,8 +624,9 @@ function M.open(path, opts)
     box = box,
     px = px,
     rect = px and require("images.viewport").full(px) or nil,
-    queued = false,
+    queued = nil,
     cropping = false,
+    broken = false,
   }
   views[win] = view
   current = win

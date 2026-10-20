@@ -96,6 +96,16 @@ return function(H)
     fd:write(require("images.testcard").build(600, 300))
     fd:close()
 
+    -- Leftovers of an earlier session in the crop directory: an old one is swept on the
+    -- first crop, a fresh one (another running instance's) is left alone.
+    local crop_dir = vim.fn.stdpath("cache") .. "/images.nvim/zoom"
+    vim.fn.mkdir(crop_dir, "p")
+    local stale, fresh = crop_dir .. "/stale-spec.png", crop_dir .. "/fresh-spec.png"
+    H.write(stale, "old")
+    H.write(fresh, "new")
+    local two_hours_ago = os.time() - 2 * 60 * 60
+    vim.uv.fs_utime(stale, two_hours_ago, two_hours_ago)
+
     H.ok(zen.open(file), "zen opens a real PNG")
     local buf = vim.api.nvim_get_current_buf()
     settle()
@@ -127,6 +137,8 @@ return function(H)
     H.eq(#crops, 1, "... but no second magick is started")
 
     finish(1)
+    H.falsy(vim.uv.fs_stat(stale), "the first crop sweeps a leftover older than an hour")
+    H.ok(vim.uv.fs_stat(fresh), "... and leaves a fresh one alone")
     H.eq(#crops, 2, "when the first crop finishes, the rectangle arrived at is cut next")
     H.eq(crops[2].spec, "150x75+225+113", "... the latest one, not the stale one")
     settle()
@@ -142,6 +154,16 @@ return function(H)
     H.eq(geometry(), "300x150+150+75", "the first zoom step again")
     H.eq(#crops, 2, "no new crop: that rectangle is cached")
     H.eq(drawn[#drawn], crops[1].out, "... and its cached file is drawn")
+
+    -- Out and back in within one tick (a held key, a macro): the whole picture's draw is
+    -- still queued when the cached crop asks to be drawn. That second draw must not be
+    -- swallowed, or the whole picture stays on screen under a zoomed rectangle.
+    settle()
+    zen.zoom_reset()
+    zen.zoom(2)
+    H.eq(geometry(), "300x150+150+75", "back in at once")
+    H.eq(drawn[#drawn], crops[1].out, "the crop is drawn last, not the whole picture")
+    settle()
 
     -- ── Pan ──────────────────────────────────────────────────────────────
     H.ok(zen.pan(math.huge, 0), "pan to the right edge")
@@ -182,6 +204,23 @@ return function(H)
     H.eq(#warnings - n, 1, "... and it is said once, not per press")
     H.ok(tostring(warnings[#warnings]):find("ImageMagick", 1, true) ~= nil, "... naming ImageMagick")
     has_magick = true
+    zen.close()
+
+    -- ── A crop that fails ends zoom for that window, once ────────────────
+    -- An animated GIF does this for real: magick writes a file per frame.
+    H.ok(zen.open(file), "open again")
+    settle()
+    local errors_before = #warnings
+    H.ok(zen.zoom(3), "a zoom that will fail")
+    local failing = #crops
+    crops[failing].done(nil, "crop produced no file")
+    settle()
+    H.eq(geometry(), "600x300+0+0", "after the failure the rectangle is the whole picture again")
+    H.eq(drawn[#drawn], file, "... which is what is drawn")
+    H.falsy(zen.zoom(3), "zoom is off for this window")
+    H.falsy(zen.zoom(2), "... for every factor")
+    H.eq(#crops, failing, "no further magick is started")
+    H.eq(#warnings - errors_before, 1, "one error, not one per key")
     zen.close()
 
     -- ── An image whose size is unknown cannot be zoomed ──────────────────
