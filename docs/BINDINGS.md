@@ -107,6 +107,8 @@ keys, and `false` drops it.
 | `<LeftMouse>` held + drag, release | Select a part; on release it opens in a zen window of its own, stacked on this one (a click selects nothing) | `select_drag` |
 | `v`, then `h` `j` `k` `l` / `H` `J` `K` `L`, `<CR>` | Select a part by keyboard: both corners start in the middle, the keys move the second corner (one / five cells), `<CR>` opens it | `select` |
 | `<BS>` | From a selection back to the window it was cut from | `back` |
+| `gs` | Save what is shown as a PNG next to the original: `shot.crop-<x>-<y>-<w>x<h>.png` (pixels of the original), `-2`, `-3` … rather than overwriting; nothing for the whole original | `save` |
+| `gy` | Copy what is shown to the clipboard as an image (Windows drops transparency) | `yank` |
 | `?` | List the keys bound in this window; `?`, `q` or `<Esc>` close the list | `help` |
 | `<Esc>` | Drop a selection in progress; otherwise close | — |
 | `q` | Close — the whole stack of selections with it | — |

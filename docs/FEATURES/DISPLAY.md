@@ -106,6 +106,14 @@ command line reports the size and position in pixels of the original. Every
 window knows where it sits in the original (`M.origin()`), which is what saving
 a part will build on.
 
+**Save and copy.** `gs` writes what the window shows to a PNG next to the
+original (`shot.crop-<x>-<y>-<w>x<h>.png`, `-2`, `-3` … rather than
+overwriting; `display.zen.save.dir`/`ask`), `gy` puts it on the clipboard as an
+image (lib.nvim's `cross.copy_image_to_clipboard`). Both cut the visible
+rectangle from the original at full resolution, at any depth of the selection
+stack. The whole original is not saved again; `gy` copies a PNG original as it
+is.
+
 **Legend and key list.** The title shows the zoom factor (`shot.png · 2×`),
 the footer `? help`; `?` opens a list of the keys bound in that window, built
 from the keymap registry (`lib.nvim.bindings.keymap.cheatsheet`). Changing the

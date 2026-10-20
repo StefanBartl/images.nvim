@@ -52,6 +52,7 @@
 ---@field sizes { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
 ---@field keys ImagesNvim.ZenKeys keys of the open window
 ---@field legend boolean zoom factor in the title, "? help" in the footer
+---@field save ImagesNvim.ZenSaveOpts where `gs` writes
 
 ---@class ImagesNvim.RedactConfig : ImagesNvim.RedactOpts
 ---@field padding_cells integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
@@ -166,6 +167,7 @@
 ---@field sizes?  { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
 ---@field keys?   ImagesNvim.ZenKeys keys of the open window
 ---@field legend? boolean zoom factor in the title, "? help" in the footer (default true)
+---@field save? ImagesNvim.ZenSaveOpts where `gs` writes
 
 ---Keys of the `:Image zen` window; each a key, a list of keys, or `false` for none.
 ---@class ImagesNvim.ZenKeys
@@ -189,6 +191,12 @@
 ---@field select_drag? string|string[]|false press that starts selecting a part with the mouse; release opens it (default `<LeftMouse>`)
 ---@field select?     string|string[]|false select a part by keyboard: hjkl/HJKL move the corner, <CR> opens, <Esc> drops (default `v`)
 ---@field back?       string|string[]|false from a selection back to the window it was cut from (default `<BS>`)
+---@field save?       string|string[]|false save what is shown as a PNG, full resolution, next to the original (default `gs`)
+---@field yank?       string|string[]|false copy what is shown to the clipboard as an image (default `gy`)
+
+---@class ImagesNvim.ZenSaveOpts
+---@field dir? string folder `gs` writes to (default: next to the original)
+---@field ask? boolean offer the file name before writing (default false)
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

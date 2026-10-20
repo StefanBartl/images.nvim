@@ -675,6 +675,7 @@ local HELP_GROUPS = {
   },
   { title = "Mouse", actions = { "wheel_in", "wheel_out", "drag" } },
   { title = "Select", actions = { "select_drag", "select", "back" } },
+  { title = "Save", actions = { "save", "yank" } },
   { title = "Window", actions = { "grow", "shrink", "help" } },
 }
 
@@ -871,6 +872,18 @@ local ACTIONS = {
       M.back()
     end,
   },
+  save = {
+    desc = "save what is shown as a PNG next to the original (full resolution)",
+    rhs = function()
+      M.save()
+    end,
+  },
+  yank = {
+    desc = "copy what is shown to the clipboard as an image",
+    rhs = function()
+      M.yank()
+    end,
+  },
   drag = {
     desc = "hold the middle button and drag: move the picture",
     rhs = function()
@@ -904,6 +917,8 @@ local ORDER = {
   "select",
   "select_drag",
   "back",
+  "save",
+  "yank",
   "wheel_in",
   "wheel_out",
   "drag",
@@ -1529,6 +1544,166 @@ end
 function M.origin()
   local view = active()
   return view and view.origin
+end
+
+-- ── Save and copy ──────────────────────────────────────────────────────────
+--
+-- `gs` writes what is on screen to a file, `gy` puts it on the clipboard as an
+-- image. Both cut the visible rectangle from the ORIGINAL at full resolution
+-- (`view.origin` + `view.rect`), however deep the window sits in a stack of
+-- selections, so nothing is ever a crop of a crop.
+
+--- The visible rectangle of `view` in pixels of the original.
+---@param view ImagesNvim.ZenView
+---@return Images.Viewport.Rect|nil
+local function visible_in_original(view)
+  if not view.rect then return nil end
+  local o = view.origin
+  return { x = o.x + view.rect.x, y = o.y + view.rect.y, w = view.rect.w, h = view.rect.h }
+end
+
+--- Whether `view` shows the whole original (the first window, not zoomed).
+---@param view ImagesNvim.ZenView
+---@return boolean
+local function shows_whole_original(view)
+  if view.parent or not (view.px and view.rect) then return false end
+  return require("images.viewport").is_full(view.px, view.rect)
+end
+
+--- Where `gs` writes the part `rect` of `original`: next to it (or in `dir`), named
+--- `<stem>.crop-<x>-<y>-<w>x<h>.png`, with `-2`, `-3`, ... added when that file
+--- exists already -- a save never overwrites anything.
+---@param original string
+---@param rect Images.Viewport.Rect
+---@param dir string|nil
+---@return string path
+function M.save_target(original, rect, dir)
+  local folder = (type(dir) == "string" and dir ~= "") and vim.fs.normalize(vim.fn.expand(dir)) or vim.fs.dirname(original)
+  local stem = vim.fn.fnamemodify(original, ":t:r")
+  local base = ("%s/%s.crop-%d-%d-%dx%d"):format(folder, stem, rect.x, rect.y, rect.w, rect.h)
+  local path, n = base .. ".png", 1
+  while vim.uv.fs_stat(path) do
+    n = n + 1
+    path = ("%s-%d.png"):format(base, n)
+  end
+  return path
+end
+
+---@return { dir?: string, ask?: boolean }
+local function save_cfg()
+  local s = (cfg().display.zen or {}).save
+  return type(s) == "table" and s or {}
+end
+
+--- Cut `rect` of `original` into `out` and call `done(path)` on success.
+---@param original string
+---@param rect Images.Viewport.Rect
+---@param out string
+---@param done fun(path: string)
+local function cut(original, rect, out, done)
+  vim.fn.mkdir(vim.fs.dirname(out), "p")
+  require("images.convert").crop(original, require("images.viewport").geometry(rect), out, nil, function(path, err)
+    if not path then
+      notify().error(err or "could not cut the picture")
+      return
+    end
+    done(path)
+  end)
+end
+
+--- `gs`: write the visible part to a file. Nothing when the whole original is
+--- on screen -- that file exists already.
+---@return boolean started
+function M.save()
+  local view = active()
+  if not view then return false end
+  if shows_whole_original(view) then
+    notify().info("this is the whole original: " .. view.origin.file)
+    return false
+  end
+  local rect = visible_in_original(view)
+  if not rect then
+    tell_once("save: this image does not say how large it is")
+    return false
+  end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    tell_once("saving a part needs ImageMagick (magick) on PATH")
+    return false
+  end
+  local original = view.origin.file
+  local s = save_cfg()
+  local target = M.save_target(original, rect, s.dir)
+
+  local function write(path)
+    if vim.uv.fs_stat(path) then
+      notify().warn("exists, not overwritten: " .. path)
+      return
+    end
+    cut(original, rect, path, function(written)
+      notify().info("saved " .. written)
+    end)
+  end
+
+  if s.ask then
+    vim.ui.input({ prompt = "save the part as: ", default = target }, function(answer)
+      if answer and answer ~= "" then write(vim.fs.normalize(vim.fn.expand(answer))) end
+    end)
+  else
+    write(target)
+  end
+  return true
+end
+
+--- `gy`: put the visible part on the clipboard as an image. The whole original
+--- of a PNG goes as it is; anything else is cut into the cache first.
+---@return boolean started
+function M.yank()
+  local view = active()
+  if not view then return false end
+  local ok, copy = pcall(require, "lib.nvim.cross.copy_image_to_clipboard")
+  if not ok then
+    tell_once("copying an image needs a newer lib.nvim (cross.copy_image_to_clipboard)")
+    return false
+  end
+  local function to_clipboard(path)
+    copy(path, function(done, err)
+      if done then
+        notify().info("copied the picture to the clipboard")
+      else
+        notify().error(err or "could not copy the picture")
+      end
+    end)
+  end
+
+  local original = view.origin.file
+  if shows_whole_original(view) and original:lower():match("%.png$") then
+    to_clipboard(original)
+    return true
+  end
+  local rect = visible_in_original(view) or (view.px and { x = 0, y = 0, w = view.px.width, h = view.px.height })
+  if not rect then
+    tell_once("copy: this image does not say how large it is")
+    return false
+  end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    tell_once("copying a part needs ImageMagick (magick) on PATH")
+    return false
+  end
+  local key = crop_key(original, rect)
+  local out = ("%s/yank-%s.png"):format(crop_dir(), vim.fn.sha256(key or (original .. require("images.viewport").geometry(rect))))
+  local cached = key and crops["yank\0" .. key]
+  if cached and vim.uv.fs_stat(cached) then
+    to_clipboard(cached)
+    return true
+  end
+  cut(original, rect, out, function(path)
+    if key then
+      crops["yank\0" .. key] = path
+      arm_cleanup()
+    end
+    to_clipboard(path)
+  end)
+  return true
 end
 
 return M

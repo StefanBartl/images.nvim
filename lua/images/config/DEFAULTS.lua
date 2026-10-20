@@ -106,7 +106,16 @@ return {
         select_drag = "<LeftMouse>",
         select = "v",
         back = "<BS>",
+        -- Save what is shown to a PNG (`gs`) or copy it as an image (`gy`); cut
+        -- from the original at full resolution.
+        save = "gs",
+        yank = "gy",
       },
+      -- Where `gs` writes: next to the original unless `dir` is set; `ask`
+      -- offers the name first (the default is
+      -- `<stem>.crop-<x>-<y>-<w>x<h>.png`, `-2`, `-3` ... added, never
+      -- overwriting).
+      save = { dir = nil, ask = false },
     },
     remote = {
       -- Off by default: hovering a remote image link should not fire a network
