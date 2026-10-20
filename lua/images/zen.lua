@@ -63,6 +63,10 @@ end
 ---@field queued string|nil the file a deferred draw is queued for, until it has settled
 ---@field cropping boolean a `magick` crop for this view is running
 ---@field broken boolean a crop failed: zoom is off for this window
+---@field title string|nil the title on the frame now
+---@field footer string|nil the footer on the frame now
+---@field depth integer|nil 1 for a window opened on a file; a selection opened from one is one deeper
+---@field help integer|nil the cheatsheet window while it is open (no drawing then)
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -154,6 +158,64 @@ local function crop_key(file, rect)
   return table.concat({ file, tostring(st.mtime and st.mtime.sec or 0), require("images.viewport").geometry(rect) }, "\0")
 end
 
+-- ── Legend ─────────────────────────────────────────────────────────────────
+
+--- Narrower than this, the footer is only `?`.
+local FOOTER_MIN_WIDTH = 30
+
+---@return boolean
+local function legend_on()
+  return (cfg().display.zen or {}).legend ~= false
+end
+
+--- The zoom factor as the title shows it: `2.3×`, `2×`; nil at the whole picture.
+---@param view ImagesNvim.ZenView
+---@return string|nil
+local function zoom_label(view)
+  if not (view.px and view.rect) then return nil end
+  local vp = require("images.viewport")
+  if vp.is_full(view.px, view.rect) then return nil end
+  local text = ("%.1f"):format(vp.factor(view.px, view.rect)):gsub("%.0$", "")
+  return text .. "×"
+end
+
+--- The frame's title and footer for `view` (default: the active zen window)
+--- right now. Pure apart from reading the window's width.
+---@param view ImagesNvim.ZenView|nil
+---@return string|nil title nil without a zen window
+---@return string|nil footer nil without a legend
+function M.legend(view)
+  view = view or active()
+  if not view then return nil, nil end
+  local parts = { vim.fn.fnamemodify(view.file, ":t") }
+  if not legend_on() then return " " .. parts[1] .. " ", nil end
+  parts[#parts + 1] = zoom_label(view)
+  if (view.depth or 1) > 1 then parts[#parts + 1] = ("%d/%d"):format(view.depth, view.depth) end
+  local width = vim.api.nvim_win_is_valid(view.win) and vim.api.nvim_win_get_width(view.win) or 0
+  local footer = width < FOOTER_MIN_WIDTH and " ? " or " ? help "
+  return " " .. table.concat(parts, " · ") .. " ", footer
+end
+
+--- Put the legend on the frame when it differs from what is there. Only ever
+--- called right before a draw (see `draw`).
+---@param view ImagesNvim.ZenView
+---@return nil
+local function update_legend(view)
+  local title, footer = M.legend(view)
+  if title == view.title and footer == view.footer then return end
+  local printable = require("lib.nvim.window.printable_title")
+  local config = { title = printable(title), title_pos = "center" }
+  if footer then
+    config.footer = printable(footer)
+    config.footer_pos = "right"
+  elseif view.footer then
+    config.footer = ""
+  end
+  if pcall(vim.api.nvim_win_set_config, view.win, config) then
+    view.title, view.footer = title, footer
+  end
+end
+
 -- ── Drawing ────────────────────────────────────────────────────────────────
 
 --- Draw `path` into `view`'s window at its current geometry. `defer = true`
@@ -173,7 +235,12 @@ end
 ---@param path string
 ---@return nil
 local function draw(view, path)
-  if not alive(view) or view.queued == path then return end
+  if not alive(view) or view.help then return end
+  -- The legend changes here and nowhere else, so every change of the frame is
+  -- followed by a draw: `nvim_win_set_config` makes WezTerm drop the picture
+  -- (measured 2026-10-20), and the queued draw puts it back.
+  update_legend(view)
+  if view.queued == path then return end
   view.queued = path
   require("images.anchor").draw(view.win, "full", path, {
     defer = true,
@@ -425,6 +492,95 @@ function M.viewport()
   return view.rect, view.px
 end
 
+-- ── Cheatsheet ─────────────────────────────────────────────────────────────
+
+--- How `?` groups the zen keys. Built from the registry, so what it lists is
+--- what is bound in this window: a remapped key shows its new key, a disabled
+--- one is absent.
+---@type Lib.Keymap.CheatsheetGroup[]
+local HELP_GROUPS = {
+  { title = "Zoom", actions = { "zoom_in", "zoom_out", "zoom_reset" } },
+  {
+    title = "Move",
+    actions = { "pan_left", "pan_right", "pan_up", "pan_down", "edge_left", "edge_right", "edge_up", "edge_down" },
+  },
+  { title = "Window", actions = { "grow", "shrink", "help" } },
+}
+
+---@param view ImagesNvim.ZenView
+local function close_help(view)
+  if view.help and vim.api.nvim_win_is_valid(view.help) then pcall(vim.api.nvim_win_close, view.help, true) end
+end
+
+--- The cheatsheet of `view` (default: the active zen window), as
+--- `lib.nvim.bindings.keymap.cheatsheet` builds it.
+---@param view ImagesNvim.ZenView|nil
+---@return Lib.Keymap.Cheatsheet|nil
+function M.cheatsheet(view)
+  view = view or active()
+  if not view then return nil end
+  local footer = { "? / q / <Esc>   close this list", "q / <Esc> in the picture   close the zen window" }
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    footer[#footer + 1] = "zoom needs ImageMagick (magick), which is not on PATH"
+  end
+  return require("lib.nvim.bindings.keymap").cheatsheet("images/zen", {
+    buffer = view.buf,
+    groups = HELP_GROUPS,
+    footer = footer,
+  })
+end
+
+--- Toggle the list of the zen window's keys. While it is open the picture is
+--- taken off the screen -- an OSC 1337 image would sit on top of the list, and
+--- nothing removes one picture but a full repaint -- and drawn again when the
+--- list closes.
+---@return boolean shown
+function M.help()
+  local view = active()
+  if not view then return false end
+  if view.help and vim.api.nvim_win_is_valid(view.help) then
+    close_help(view)
+    return false
+  end
+
+  local sheet = M.cheatsheet(view) --[[@as Lib.Keymap.Cheatsheet]]
+  require("images.terminal").clear()
+  local win, buf = require("lib.nvim.window.make_scratch")({
+    lines = sheet.lines,
+    title = " images: zen keys ",
+    title_pos = "center",
+    nice_quit = true,
+    zindex = 60,
+  })
+  if not win or not buf then
+    show(view)
+    return false
+  end
+  view.help = win
+
+  local ns = vim.api.nvim_create_namespace("images.zen.help")
+  for _, h in ipairs(sheet.highlights) do
+    pcall(vim.api.nvim_buf_set_extmark, buf, ns, h.line, h.col_start, { end_col = h.col_end, hl_group = h.group })
+  end
+  require("lib.nvim.bindings.keymap")("n", "?", function()
+    close_help(view)
+  end, { buffer = buf, nowait = true }, "images: close the zen key list")
+
+  local autocmd = require("lib.nvim.bindings.autocmd")
+  autocmd.create("WinClosed", function()
+    view.help = nil
+    if not alive(view) then return end
+    pcall(vim.api.nvim_set_current_win, view.win)
+    show(view)
+  end, {
+    group = autocmd.group("images.zen.help", true),
+    pattern = tostring(win),
+    once = true,
+    desc = "images.zen: draw the picture again when the key list closes",
+  })
+  return true
+end
+
 -- ── Keys ───────────────────────────────────────────────────────────────────
 
 --- A pan step: a quarter of the visible rectangle per press, times the count.
@@ -449,43 +605,49 @@ end
 ---@type table<string, Lib.Keymap.Action>
 local ACTIONS = {
   grow = {
-    desc = "zen: grow the window",
+    desc = "grow the window",
     rhs = function()
       M.resize(1)
     end,
   },
   shrink = {
-    desc = "zen: shrink the window",
+    desc = "shrink the window",
     rhs = function()
       M.resize(-1)
     end,
   },
   zoom_in = {
-    desc = "zen: zoom in",
+    desc = "zoom in (a count: that many steps)",
     rhs = function()
       M.zoom(require("images.viewport").ZOOM_STEP ^ vim.v.count1)
     end,
   },
   zoom_out = {
-    desc = "zen: zoom out",
+    desc = "zoom out",
     rhs = function()
       M.zoom(1 / require("images.viewport").ZOOM_STEP ^ vim.v.count1)
     end,
   },
   zoom_reset = {
-    desc = "zen: whole picture",
+    desc = "the whole picture",
     rhs = function()
       M.zoom_reset()
     end,
   },
-  pan_left = { desc = "zen: move the view left", rhs = pan_rhs(-PAN_STEP, 0) },
-  pan_right = { desc = "zen: move the view right", rhs = pan_rhs(PAN_STEP, 0) },
-  pan_up = { desc = "zen: move the view up", rhs = pan_rhs(0, -PAN_STEP) },
-  pan_down = { desc = "zen: move the view down", rhs = pan_rhs(0, PAN_STEP) },
-  edge_left = { desc = "zen: move the view to the left edge", rhs = pan_rhs(-math.huge, 0) },
-  edge_right = { desc = "zen: move the view to the right edge", rhs = pan_rhs(math.huge, 0) },
-  edge_up = { desc = "zen: move the view to the top edge", rhs = pan_rhs(0, -math.huge) },
-  edge_down = { desc = "zen: move the view to the bottom edge", rhs = pan_rhs(0, math.huge) },
+  pan_left = { desc = "move the view left a quarter", rhs = pan_rhs(-PAN_STEP, 0) },
+  pan_right = { desc = "move the view right a quarter", rhs = pan_rhs(PAN_STEP, 0) },
+  pan_up = { desc = "move the view up a quarter", rhs = pan_rhs(0, -PAN_STEP) },
+  pan_down = { desc = "move the view down a quarter", rhs = pan_rhs(0, PAN_STEP) },
+  edge_left = { desc = "move the view to the left edge", rhs = pan_rhs(-math.huge, 0) },
+  edge_right = { desc = "move the view to the right edge", rhs = pan_rhs(math.huge, 0) },
+  edge_up = { desc = "move the view to the top edge", rhs = pan_rhs(0, -math.huge) },
+  edge_down = { desc = "move the view to the bottom edge", rhs = pan_rhs(0, math.huge) },
+  help = {
+    desc = "this list of keys",
+    rhs = function()
+      M.help()
+    end,
+  },
 }
 
 ---@type string[]
@@ -503,6 +665,7 @@ local ORDER = {
   "edge_right",
   "edge_up",
   "edge_down",
+  "help",
 }
 
 local defaults_applied = false
@@ -560,6 +723,7 @@ function M.close()
   for win, view in pairs(views) do
     any = true
     views[win] = nil
+    close_help(view)
     if vim.api.nvim_win_is_valid(view.win) then pcall(vim.api.nvim_win_close, view.win, true) end
   end
   current = nil
@@ -603,12 +767,13 @@ function M.open(path, opts)
   }
   local width, height = M.dimensions_for(file, box)
 
+  local title = " " .. vim.fn.fnamemodify(file, ":t") .. " "
   local win, buf = require("lib.nvim.window.make_scratch")({
     width = width,
     height = height,
     modifiable = true,
     nice_quit = true,
-    title = " " .. vim.fn.fnamemodify(file, ":t") .. " ",
+    title = title,
   })
   if not win or not buf then
     notify().error("could not open the zen window")
@@ -627,6 +792,8 @@ function M.open(path, opts)
     queued = nil,
     cropping = false,
     broken = false,
+    title = title,
+    depth = 1,
   }
   views[win] = view
   current = win

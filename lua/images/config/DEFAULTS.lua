@@ -65,8 +65,11 @@ return {
     -- Zoom (`zoom_in`/`zoom_out`/`zoom_reset`) shows part of the picture and
     -- needs ImageMagick; it is a different thing from grow/shrink, which
     -- change the window. `pan_*` move the visible part by a quarter of it,
-    -- `edge_*` all the way to that edge; a count multiplies both.
+    -- `edge_*` all the way to that edge; a count multiplies both. `help` lists
+    -- the keys actually bound. `legend = false` keeps the frame to the file
+    -- name (no zoom factor in the title, no "? help" footer).
     zen = {
+      legend = true,
       width = 0.9,
       height = 0.85,
       sizes = {
@@ -88,6 +91,7 @@ return {
         edge_right = "L",
         edge_up = "K",
         edge_down = "J",
+        help = "?",
       },
     },
     remote = {

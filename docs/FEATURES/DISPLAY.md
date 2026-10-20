@@ -97,8 +97,16 @@ the next one cut, so holding a key never builds a queue. The arithmetic
 (rectangles, zoom around a point, the box a cell is measured against) is the
 pure module `images/viewport.lua`.
 
+**Legend and key list.** The title shows the zoom factor (`shot.png · 2×`),
+the footer `? help`; `?` opens a list of the keys bound in that window, built
+from the keymap registry (`lib.nvim.bindings.keymap.cheatsheet`). Changing the
+frame makes WezTerm drop the picture (measured), so the frame only ever
+changes right before a draw, and the list takes the picture away while it is
+open. `display.zen.legend = false` turns the title factor and footer off.
+
 - **Module:** `images/zen.lua` (`M.open`, `M.close`, `M.dimensions`, `M.zoom`,
-  `M.zoom_reset`, `M.pan`, `M.viewport`), `images/viewport.lua`
+  `M.zoom_reset`, `M.pan`, `M.viewport`, `M.legend`, `M.help`, `M.cheatsheet`),
+  `images/viewport.lua`
 - **Usercmds:** `:Image zen [path]` ([usercmds](../BINDINGS.md#user-commands))
 - **Keys:** [BINDINGS → Zen window](../BINDINGS.md#zen-window)
 - **Config:** `opts.display.zen.width`/`height` (fractions of the editor,

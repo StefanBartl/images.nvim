@@ -51,6 +51,7 @@
 ---@field height number fraction of the editor height (0-1)
 ---@field sizes { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
 ---@field keys ImagesNvim.ZenKeys keys of the open window
+---@field legend boolean zoom factor in the title, "? help" in the footer
 
 ---@class ImagesNvim.RedactConfig : ImagesNvim.RedactOpts
 ---@field padding_cells integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
@@ -164,6 +165,7 @@
 ---@field height? number fraction of the editor height (0-1)
 ---@field sizes?  { width: number, height: number }[] size steps of the open window (fractions), cycled by `keys`
 ---@field keys?   ImagesNvim.ZenKeys keys of the open window
+---@field legend? boolean zoom factor in the title, "? help" in the footer (default true)
 
 ---Keys of the `:Image zen` window; each a key, a list of keys, or `false` for none.
 ---@class ImagesNvim.ZenKeys
@@ -180,6 +182,7 @@
 ---@field edge_right? string|string[]|false (default `L`)
 ---@field edge_up?    string|string[]|false (default `K`)
 ---@field edge_down?  string|string[]|false (default `J`)
+---@field help?       string|string[]|false list the keys bound in the window (default `?`)
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

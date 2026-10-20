@@ -33,6 +33,7 @@ local KNOWN = {
     browse_exclude = true,
     browse_max_entries = true,
     zen = {
+      legend = true,
       width = true,
       height = true,
       sizes = true,
@@ -50,6 +51,7 @@ local KNOWN = {
         edge_right = true,
         edge_up = true,
         edge_down = true,
+        help = true,
       },
     },
     remote = { enabled = true, timeout_ms = true, max_bytes = true, cache_ttl_s = true, allow_private_hosts = true },

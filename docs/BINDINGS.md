@@ -102,7 +102,16 @@ keys, and `false` drops it.
 | `h` `j` `k` `l`, arrows | Move the visible part by a quarter of it; a count multiplies | `pan_left` `pan_down` `pan_up` `pan_right` |
 | `H` `J` `K` `L` | Move it to that edge | `edge_left` `edge_down` `edge_up` `edge_right` |
 | `<S-Up>` / `<S-Down>` | Grow / shrink the **window** through `display.zen.sizes` | `grow` / `shrink` |
+| `?` | List the keys bound in this window; `?`, `q` or `<Esc>` close the list | `help` |
 | `q`, `<Esc>` | Close | — |
+
+The frame says where you are: the title carries the zoom factor
+(`shot.png · 2.3×`, nothing at the whole picture), the footer `? help` points
+at the list (just `?` in a window under 30 columns). The list is built from
+what is actually bound, so a remapped key shows its new key and a disabled one
+is absent. While it is open the picture is taken off the screen and drawn again
+when it closes — a terminal image would otherwise sit on top of the list.
+`display.zen.legend = false` keeps the frame to the file name.
 
 Zoom shows *part* of the picture and is not the same as grow/shrink, which
 change the window. It needs ImageMagick (each new view is a `magick` crop,
