@@ -107,7 +107,9 @@ keys, and `false` drops it.
 
 The frame says where you are: the title carries the zoom factor
 (`shot.png · 2.3×`, nothing at the whole picture), the footer `? help` points
-at the list (just `?` in a window under 30 columns). The list is built from
+at the list (just `?` in a window under 30 columns). The footer names whatever
+`help` is bound to (`g? help` after `keys.help = "g?"`), that key also closes
+the list, and with `help = false` there is no footer. The list is built from
 what is actually bound, so a remapped key shows its new key and a disabled one
 is absent. While it is open the picture is taken off the screen and drawn again
 when it closes — a terminal image would otherwise sit on top of the list.

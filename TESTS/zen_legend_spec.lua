@@ -21,10 +21,19 @@ return function(H)
     saved[name] = package.loaded[name]
   end
 
+  -- Deferred like the real one, and asking `skip_if` when the draw runs, not when it is
+  -- requested: "draw" is what reaches the terminal, "skipped" a draw that was dropped.
   local events = {}
   package.loaded["images.anchor"] = {
-    draw = function()
-      events[#events + 1] = "draw"
+    draw = function(_, _, _, opts)
+      vim.schedule(function()
+        if opts and opts.skip_if and opts.skip_if() then
+          events[#events + 1] = "skipped"
+        else
+          events[#events + 1] = "draw"
+        end
+        if opts and opts.on_done then opts.on_done(true, nil) end
+      end)
     end,
   }
   package.loaded["images.terminal"] = {
@@ -196,6 +205,55 @@ return function(H)
     help_win = vim.api.nvim_get_current_win()
     zen.close()
     H.falsy(vim.api.nvim_win_is_valid(help_win), "closing zen closes an open list with it")
+
+    -- A draw requested before `?`, running after it (`+?` typed fast, a macro): it must not
+    -- land on top of the list.
+    zen_cfg.keys = vim.deepcopy(saved_keys)
+    H.ok(zen.open(file), "zen opens for the same-tick case")
+    settle()
+    events = {}
+    zen.zoom(2)
+    zen.help()
+    settle()
+    H.falsy(vim.tbl_contains(events, "draw"), "the draw queued before ? is dropped, not drawn over the list")
+    H.ok(vim.tbl_contains(events, "skipped"), "... it was asked and skipped")
+    zen.help()
+    settle()
+    H.ok(vim.tbl_contains(events, "draw"), "closing the list draws the zoomed picture")
+    H.eq((frame()), " shot.png · 2× ", "... with its legend")
+
+    -- `q` in the picture while the list is open: the list goes too.
+    zen.help()
+    help_win = vim.api.nvim_get_current_win()
+    local pic
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if win ~= help_win and vim.api.nvim_win_get_config(win).relative ~= "" then pic = win end
+    end
+    vim.api.nvim_win_close(pic, true)
+    H.falsy(vim.api.nvim_win_is_valid(help_win), "closing the picture window closes the list with it")
+    zen.close()
+
+    -- The footer and the list's close key follow keys.help.
+    zen_cfg.keys.help = "g?"
+    H.ok(zen.open(file), "zen opens with help on g?")
+    settle()
+    H.eq(select(2, frame()), " g? help ", "the footer names the key that opens the list")
+    H.ok(zen.help(), "the list opens")
+    help_win = vim.api.nvim_get_current_win()
+    H.ok(
+      zen.cheatsheet() ~= nil and table.concat(zen.cheatsheet().lines, "\n"):find("g? / q", 1, true) ~= nil,
+      "the list says g? closes it"
+    )
+    vim.api.nvim_feedkeys("g?", "x", false)
+    settle()
+    H.falsy(vim.api.nvim_win_is_valid(help_win), "g? in the list closes it")
+    zen.close()
+
+    zen_cfg.keys.help = false
+    H.ok(zen.open(file), "zen opens with help off")
+    settle()
+    H.eq(select(2, frame()), nil, "no footer advertises a key that is not bound")
+    zen.close()
   end)
 
   vim.api.nvim_win_set_config = real_set_config

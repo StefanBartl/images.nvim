@@ -103,6 +103,27 @@ return function(H)
     H.eq(sent, 1, "…only once the loop continues")
     H.eq(done_ok, true, "on_done reports success afterwards")
 
+    -- ── draw(): skip_if is asked when the deferred draw runs ────────────────
+    -- Not when it is requested: the zen window's key list may open in between.
+    sent = 0
+    done_ok = nil
+    local covered = false
+    anchor.draw(nil, "full", img, {
+      defer = true,
+      skip_if = function()
+        return covered
+      end,
+      on_done = function(o)
+        done_ok = o
+      end,
+    })
+    covered = true
+    vim.wait(500, function()
+      return done_ok ~= nil
+    end)
+    H.eq(sent, 0, "skip_if true at run time: nothing is sent")
+    H.eq(done_ok, true, "…and on_done says nothing went wrong")
+
     vim.api.nvim_ui_send = real_send
     require("images.terminal").clear()
   end)

@@ -265,6 +265,7 @@ end
 ---@field inset integer|nil safety margin in cells all round; `nil` = `display.draw_inset` from the configuration, `0` = flush. See `draw_inset`.
 ---@field padding { row: integer?, col: integer? }|nil cell offset instead of `display.terminal_padding`; for callers trying values out without changing the configuration
 ---@field on_done fun(ok: boolean, err: string|nil)|nil runs exactly once in every case — synchronously for `defer = false` (or when `target` cannot be resolved at all), otherwise as soon as the deferred draw attempt has settled
+---@field skip_if fun(): boolean|nil asked when a deferred draw is about to run; `true` drops it (`on_done(true)`: nothing went wrong, it is no longer wanted). For a caller whose window may have been covered between the request and the tick it runs in
 
 --- Draw an image into `target` at `position`.
 ---@param target integer|nil window or buffer handle; nil/0 = current window
@@ -284,6 +285,13 @@ function M.draw(target, position, file, opts)
 
   if opts.defer then
     vim.schedule(function()
+      -- Checked now, not at the request: scheduled callbacks wait while keys
+      -- are still pending, so a lot can happen in between (zen's key list
+      -- opening over the window, for one).
+      if opts.skip_if and opts.skip_if() then
+        if opts.on_done then opts.on_done(true, nil) end
+        return
+      end
       local ok, err = draw_now(winid, position, file, opts.scale, opts.inset, opts.padding)
       if opts.on_done then opts.on_done(ok, err) end
     end)

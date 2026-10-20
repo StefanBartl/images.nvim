@@ -168,6 +168,20 @@ local function legend_on()
   return (cfg().display.zen or {}).legend ~= false
 end
 
+--- The keys bound to `help` in `view`'s buffer, from the keymap registry: what
+--- the footer advertises and what closes the list again.
+---@param view ImagesNvim.ZenView|nil
+---@return string[]
+function M.help_keys(view)
+  view = view or active()
+  local out = {}
+  if not view then return out end
+  for _, e in ipairs(require("lib.nvim.bindings.keymap").registered("images/zen")) do
+    if e.name == "help" and e.bound and e.lhs and e.buffer == view.buf then out[#out + 1] = e.lhs end
+  end
+  return out
+end
+
 --- The zoom factor as the title shows it: `2.3×`, `2×`; nil at the whole picture.
 ---@param view ImagesNvim.ZenView
 ---@return string|nil
@@ -190,9 +204,21 @@ function M.legend(view)
   local parts = { vim.fn.fnamemodify(view.file, ":t") }
   if not legend_on() then return " " .. parts[1] .. " ", nil end
   parts[#parts + 1] = zoom_label(view)
-  if (view.depth or 1) > 1 then parts[#parts + 1] = ("%d/%d"):format(view.depth, view.depth) end
-  local width = vim.api.nvim_win_is_valid(view.win) and vim.api.nvim_win_get_width(view.win) or 0
-  local footer = width < FOOTER_MIN_WIDTH and " ? " or " ? help "
+  if (view.depth or 1) > 1 then
+    local deepest = 1
+    for _, other in pairs(views) do
+      deepest = math.max(deepest, other.depth or 1)
+    end
+    parts[#parts + 1] = ("%d/%d"):format(view.depth, deepest)
+  end
+  -- The footer names the key that really opens the list, and is left off
+  -- when none does: advertising `?` after `keys.help = false` would be a lie.
+  local key = M.help_keys(view)[1]
+  local footer = nil
+  if key then
+    local width = vim.api.nvim_win_is_valid(view.win) and vim.api.nvim_win_get_width(view.win) or 0
+    footer = width < FOOTER_MIN_WIDTH and (" " .. key .. " ") or (" " .. key .. " help ")
+  end
   return " " .. table.concat(parts, " · ") .. " ", footer
 end
 
@@ -244,6 +270,12 @@ local function draw(view, path)
   view.queued = path
   require("images.anchor").draw(view.win, "full", path, {
     defer = true,
+    -- The key list may have opened, or the window gone, between this request
+    -- and the tick the draw runs in (`+?` typed fast, a macro): the picture
+    -- would then land on top of the list.
+    skip_if = function()
+      return not alive(view) or view.help ~= nil
+    end,
     on_done = function(ok, err)
       if view.queued == path then view.queued = nil end
       -- A deferred draw whose window was closed in the meantime (`q` right
@@ -519,7 +551,11 @@ end
 function M.cheatsheet(view)
   view = view or active()
   if not view then return nil end
-  local footer = { "? / q / <Esc>   close this list", "q / <Esc> in the picture   close the zen window" }
+  local close = vim.list_extend(vim.deepcopy(M.help_keys(view)), { "q", "<Esc>" })
+  local footer = {
+    table.concat(close, " / ") .. "   close this list",
+    "q / <Esc> in the picture   close the zen window",
+  }
   if not require("lib.nvim.cross.executable").exists("magick") then
     footer[#footer + 1] = "zoom needs ImageMagick (magick), which is not on PATH"
   end
@@ -562,9 +598,12 @@ function M.help()
   for _, h in ipairs(sheet.highlights) do
     pcall(vim.api.nvim_buf_set_extmark, buf, ns, h.line, h.col_start, { end_col = h.col_end, hl_group = h.group })
   end
-  require("lib.nvim.bindings.keymap")("n", "?", function()
-    close_help(view)
-  end, { buffer = buf, nowait = true }, "images: close the zen key list")
+  -- The key that opened the list closes it too, whatever it is bound to.
+  for _, lhs in ipairs(M.help_keys(view)) do
+    require("lib.nvim.bindings.keymap")("n", lhs, function()
+      close_help(view)
+    end, { buffer = buf, nowait = true }, "images: close the zen key list")
+  end
 
   local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("WinClosed", function()
@@ -810,6 +849,9 @@ function M.open(path, opts)
   autocmd.create("WinClosed", function()
     views[win] = nil
     if current == win then current = nil end
+    -- `q` in the picture with the key list still open (focus moved back with
+    -- <C-w>p): the list would otherwise stay up over nothing.
+    close_help(view)
     require("images.terminal").clear()
   end, {
     group = group,
