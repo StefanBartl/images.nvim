@@ -104,8 +104,22 @@ keys, and `false` drops it.
 | `<S-Up>` / `<S-Down>` | Grow / shrink the **window** through `display.zen.sizes` | `grow` / `shrink` |
 | `<M-ScrollWheelUp>` / `<M-ScrollWheelDown>` | Alt + wheel: zoom in / out around the picture point under the pointer (only when the pointer is over the window) | `wheel_in` / `wheel_out` |
 | `<MiddleMouse>` held + drag | Move the picture with the pointer, cell for cell; `<MiddleDrag>`/`<MiddleRelease>` follow from the key (`<M-LeftMouse>` brings `<M-LeftDrag>`/`<M-LeftRelease>`) | `drag` |
+| `<LeftMouse>` held + drag, release | Select a part; on release it opens in a zen window of its own, stacked on this one (a click selects nothing) | `select_drag` |
+| `v`, then `h` `j` `k` `l` / `H` `J` `K` `L`, `<CR>` | Select a part by keyboard: both corners start in the middle, the keys move the second corner (one / five cells), `<CR>` opens it | `select` |
+| `<BS>` | From a selection back to the window it was cut from | `back` |
 | `?` | List the keys bound in this window; `?`, `q` or `<Esc>` close the list | `help` |
-| `q`, `<Esc>` | Close | — |
+| `<Esc>` | Drop a selection in progress; otherwise close | — |
+| `q` | Close — the whole stack of selections with it | — |
+
+**Selecting never paints over the picture.** WezTerm drops the whole image as
+soon as Neovim writes a cell inside it, so there is no visual mode and no
+highlight: while you select, the frame takes the `ImagesZenSelect` colour
+(links to `DiagnosticWarn`) and the command line says
+`selection 640×360 px at 120,80` — in pixels of the original. The part is cut
+from the **original** file at full resolution, also from a selection of a
+selection, so cutting deeper loses nothing. The window it came from is hidden
+and keeps its zoom; the title shows the depth (`shot.png · 2/2`). A press
+beside the picture goes to Neovim as usual (focus, visual selection there).
 
 The frame says where you are: the title carries the zoom factor
 (`shot.png · 2.3×`, nothing at the whole picture), the footer `? help` points

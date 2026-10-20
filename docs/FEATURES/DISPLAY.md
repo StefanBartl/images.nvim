@@ -97,6 +97,15 @@ the next one cut, so holding a key never builds a queue. The arithmetic
 (rectangles, zoom around a point, the box a cell is measured against) is the
 pure module `images/viewport.lua`.
 
+**Selecting a part.** Drag with the left button (or `v`, `hjkl`, `<CR>`) and
+the rectangle opens as a zen window of its own, cut from the original at full
+resolution and stacked on the window it came from, which is hidden with its
+view kept; `<BS>` goes back, `q` closes the stack. Nothing is painted over the
+picture while selecting (it would vanish): the frame changes colour and the
+command line reports the size and position in pixels of the original. Every
+window knows where it sits in the original (`M.origin()`), which is what saving
+a part will build on.
+
 **Legend and key list.** The title shows the zoom factor (`shot.png · 2×`),
 the footer `? help`; `?` opens a list of the keys bound in that window, built
 from the keymap registry (`lib.nvim.bindings.keymap.cheatsheet`). Changing the

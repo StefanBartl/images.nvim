@@ -186,6 +186,9 @@
 ---@field wheel_in?   string|string[]|false zoom in at the pointer (default `<M-ScrollWheelUp>`; needs 'mouse')
 ---@field wheel_out?  string|string[]|false zoom out at the pointer (default `<M-ScrollWheelDown>`)
 ---@field drag?       string|string[]|false press that starts moving the picture with the mouse; its Drag/Release events are derived (default `<MiddleMouse>`)
+---@field select_drag? string|string[]|false press that starts selecting a part with the mouse; release opens it (default `<LeftMouse>`)
+---@field select?     string|string[]|false select a part by keyboard: hjkl/HJKL move the corner, <CR> opens, <Esc> drops (default `v`)
+---@field back?       string|string[]|false from a selection back to the window it was cut from (default `<BS>`)
 
 ---@class ImagesNvim.RedactOpts
 ---@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)

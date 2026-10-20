@@ -99,6 +99,13 @@ return {
         wheel_in = "<M-ScrollWheelUp>",
         wheel_out = "<M-ScrollWheelDown>",
         drag = "<MiddleMouse>",
+        -- Selecting a part: drag with `select_drag` (its drag/release derived
+        -- the same way), or `select` and then hjkl/HJKL, <CR> opens, <Esc>
+        -- drops. The part opens in a zen window of its own, stacked on this
+        -- one; `back` returns to it, q closes the whole stack.
+        select_drag = "<LeftMouse>",
+        select = "v",
+        back = "<BS>",
       },
     },
     remote = {

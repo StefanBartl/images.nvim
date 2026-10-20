@@ -135,7 +135,7 @@ require("images").setup({
 | `browse_max_entries` | `20000` | Upper bound on entries that scan visits. A safety net against a `cwd` that turns out to be your home directory, not an error: what was found so far is still shown |
 | `zen.width` / `zen.height` | `0.9` / `0.85` | Size of the `:Image zen` window, as a fraction of the editor |
 | `zen.sizes` | `0.66`, `0.9×0.85`, `1` | The steps `zen.keys.grow`/`shrink` cycle the open window through |
-| `zen.keys` | see [BINDINGS](BINDINGS.md#zen-window) | Keys inside the zen window: `grow`, `shrink`, `zoom_in`, `zoom_out`, `zoom_reset`, `pan_left`/`right`/`up`/`down`, `edge_left`/`right`/`up`/`down`, `help`, and the mouse: `wheel_in`, `wheel_out`, `drag` (its drag/release events are derived); each a key, a list, or `false` |
+| `zen.keys` | see [BINDINGS](BINDINGS.md#zen-window) | Keys inside the zen window: `grow`, `shrink`, `zoom_in`, `zoom_out`, `zoom_reset`, `pan_left`/`right`/`up`/`down`, `edge_left`/`right`/`up`/`down`, `help`, and the mouse: `wheel_in`, `wheel_out`, `drag` (its drag/release events are derived); selecting: `select_drag`, `select`, `back`; each a key, a list, or `false` |
 | `zen.legend` | `true` | The zoom factor in the window title and `? help` in its footer. `false` leaves the frame at the file name |
 | `gopath_fallback` | `true` | Ask [gopath.nvim](https://github.com/StefanBartl/gopath.nvim)'s cursor resolver about a bare filesystem path before falling back to Vim's `<cfile>`. A no-op without gopath.nvim; `false` disables it even with it installed |
 

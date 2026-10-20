@@ -68,6 +68,11 @@ end
 ---@field depth integer|nil 1 for a window opened on a file; a selection opened from one is one deeper
 ---@field help integer|nil the cheatsheet window while it is open (no drawing then)
 ---@field drag ImagesNvim.ZenDrag|nil a middle-button drag in progress
+---@field select ImagesNvim.ZenSelect|nil a selection in progress
+---@field winhl string|nil the window's 'winhighlight' before the selection coloured the frame
+---@field parent ImagesNvim.ZenView|nil the window this one's picture was cut from
+---@field origin ImagesNvim.ZenOrigin where this window's file sits in the original
+---@field hidden boolean|nil hidden under a selection opened from it
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -202,7 +207,8 @@ end
 function M.legend(view)
   view = view or active()
   if not view then return nil, nil end
-  local parts = { vim.fn.fnamemodify(view.file, ":t") }
+  -- The original's name: a selection's file is a crop in the cache (`sel-<hash>.png`).
+  local parts = { vim.fn.fnamemodify((view.origin and view.origin.file) or view.file, ":t") }
   if not legend_on() then return " " .. parts[1] .. " ", nil end
   parts[#parts + 1] = zoom_label(view)
   if (view.depth or 1) > 1 then
@@ -262,7 +268,7 @@ end
 ---@param path string
 ---@return nil
 local function draw(view, path)
-  if not alive(view) or view.help then return end
+  if not alive(view) or view.help or view.hidden then return end
   -- The legend changes here and nowhere else, so every change of the frame is
   -- followed by a draw: `nvim_win_set_config` makes WezTerm drop the picture
   -- (measured 2026-10-20), and the queued draw puts it back.
@@ -275,7 +281,7 @@ local function draw(view, path)
     -- and the tick the draw runs in (`+?` typed fast, a macro): the picture
     -- would then land on top of the list.
     skip_if = function()
-      return not alive(view) or view.help ~= nil
+      return not alive(view) or view.help ~= nil or view.hidden == true
     end,
     on_done = function(ok, err)
       if view.queued == path then view.queued = nil end
@@ -484,6 +490,9 @@ local function move_to(view, rect, by_drag)
   -- a zoom made with the button still held on its next event.
   if not by_drag then view.drag = nil end
   if rect == view.rect then return false end
+  -- A selection is measured against the view it started on; once that moves
+  -- it would cut something other than what was marked.
+  if view.select then M.select_cancel() end
   view.rect = rect
   show(view)
   return true
@@ -657,6 +666,7 @@ local HELP_GROUPS = {
     actions = { "pan_left", "pan_right", "pan_up", "pan_down", "edge_left", "edge_right", "edge_up", "edge_down" },
   },
   { title = "Mouse", actions = { "wheel_in", "wheel_out", "drag" } },
+  { title = "Select", actions = { "select_drag", "select", "back" } },
   { title = "Window", actions = { "grow", "shrink", "help" } },
 }
 
@@ -746,12 +756,23 @@ end
 --- A pan step: a quarter of the visible rectangle per press, times the count.
 local PAN_STEP = 0.25
 
+--- Cells a keyboard selection's corner moves per H/J/K/L (h/j/k/l: one).
+local SELECT_BIG_STEP = 5
+
 ---@param fx number
 ---@param fy number
 ---@return fun()
 local function pan_rhs(fx, fy)
   return function()
     local n = vim.v.count1
+    -- In a keyboard selection the same keys move its second corner instead:
+    -- one cell, or five for the H/J/K/L "edge" keys, times the count.
+    local function cells(f)
+      if f == 0 then return 0 end
+      local step = (f == math.huge or f == -math.huge) and SELECT_BIG_STEP or 1
+      return (f > 0 and step or -step) * n
+    end
+    if M.select_step(cells(fy), cells(fx)) then return end
     local function scaled(f)
       if f == math.huge or f == -math.huge then return f end
       return f * n
@@ -820,6 +841,22 @@ local ACTIONS = {
       return 1 / step
     end),
   },
+  select = {
+    desc = "select a part by keyboard (hjkl move the corner, <CR> opens, <Esc> drops)",
+    rhs = function()
+      M.select_keys()
+    end,
+  },
+  select_drag = {
+    desc = "drag with the left button: open that part in its own window",
+    rhs = function() end, -- bound per variant in `map_fixed_keys`
+  },
+  back = {
+    desc = "back to the window this part was cut from",
+    rhs = function()
+      M.back()
+    end,
+  },
   drag = {
     desc = "hold the middle button and drag: move the picture",
     rhs = function()
@@ -850,6 +887,9 @@ local ORDER = {
   "edge_up",
   "edge_down",
   "help",
+  "select",
+  "select_drag",
+  "back",
   "wheel_in",
   "wheel_out",
   "drag",
@@ -964,18 +1004,149 @@ function M.is_open()
   return active() ~= nil
 end
 
---- Close every zen window (a no-op when none is open).
+-- Defined in the Selection section below; `open_view` needs both.
+local end_select, map_fixed_keys
+
+--- Set while `M.close` takes the whole stack down, so a closing child does not
+--- bring its parent back for the moment before the parent closes too.
+local closing_all = false
+
+--- Close every zen window, the whole stack (a no-op when none is open).
 ---@return nil
 function M.close()
   local any = false
+  closing_all = true
   for win, view in pairs(views) do
     any = true
     views[win] = nil
     close_help(view)
     if vim.api.nvim_win_is_valid(view.win) then pcall(vim.api.nvim_win_close, view.win, true) end
   end
+  closing_all = false
   current = nil
   if any then require("images.terminal").clear() end
+end
+
+--- Close the active zen window only: a selection goes back to the window it
+--- was cut from, the first window closes the stack.
+---@return boolean closed
+function M.back()
+  local view = active()
+  if not view or not view.parent then return false end
+  pcall(vim.api.nvim_win_close, view.win, true)
+  return true
+end
+
+--- Bring `parent` back after its child closed: shown, focused, drawn.
+---@param parent ImagesNvim.ZenView
+local function restore(parent)
+  if not alive(parent) then return end
+  parent.hidden = false
+  pcall(vim.api.nvim_win_set_config, parent.win, { hide = false })
+  current = parent.win
+  pcall(vim.api.nvim_set_current_win, parent.win)
+  require("images.terminal").clear()
+  show(parent)
+end
+
+---@class ImagesNvim.ZenOpenOpts
+---@field width? number
+---@field height? number
+---@field parent? ImagesNvim.ZenView the window a selection was cut from
+---@field origin? ImagesNvim.ZenOrigin where `file` sits in the original
+
+--- Open a zen window on `file`. Without `opts.parent` every other zen window
+--- is closed first; with one, the parent is hidden (keeping its view) and the
+--- new window stacks on it.
+---@param file string
+---@param opts ImagesNvim.ZenOpenOpts
+---@return boolean ok
+local function open_view(file, opts)
+  local zen_cfg = cfg().display.zen or {}
+  local parent = opts.parent
+  if not parent then M.close() end
+
+  local box = parent and parent.box
+    or {
+      width = valid_fraction(opts.width, valid_fraction(zen_cfg.width, 0.9)),
+      height = valid_fraction(opts.height, valid_fraction(zen_cfg.height, 0.85)),
+    }
+  local width, height = M.dimensions_for(file, box)
+
+  if parent then
+    parent.hidden = true
+    parent.drag, parent.select = nil, nil
+    pcall(vim.api.nvim_win_set_config, parent.win, { hide = true })
+    require("images.terminal").clear()
+  end
+
+  local title = " " .. vim.fn.fnamemodify((opts.origin and opts.origin.file) or file, ":t") .. " "
+  local win, buf = require("lib.nvim.window.make_scratch")({
+    width = width,
+    height = height,
+    modifiable = true,
+    title = title,
+  })
+  if not win or not buf then
+    notify().error("could not open the zen window")
+    if parent then restore(parent) end
+    return false
+  end
+
+  local px = require("images.pixels").read(file)
+  ---@type ImagesNvim.ZenView
+  local view = {
+    win = win,
+    buf = buf,
+    file = file,
+    box = box,
+    px = px,
+    rect = px and require("images.viewport").full(px) or nil,
+    queued = nil,
+    cropping = false,
+    broken = false,
+    title = title,
+    depth = parent and (parent.depth or 1) + 1 or 1,
+    parent = parent,
+    origin = opts.origin or { file = file, x = 0, y = 0 },
+  }
+  views[win] = view
+  current = win
+  map_keys(buf, zen_cfg.keys)
+  map_fixed_keys(view)
+
+  -- One group per window: with a stack open, clearing a shared group would
+  -- take the other windows' resize and close handlers with it.
+  local autocmd = require("lib.nvim.bindings.autocmd")
+  local group = autocmd.group("images.zen." .. win, true)
+  autocmd.create({ "WinResized", "VimResized" }, function()
+    -- A drag or a selection measures against the picture box it started with;
+    -- after a resize that box is gone, so they end rather than mapping wrongly.
+    view.drag = nil
+    end_select(view)
+    show(view)
+  end, {
+    group = group,
+    desc = "images.zen: image follows the window size",
+  })
+  autocmd.create("WinClosed", function()
+    views[win] = nil
+    if current == win then current = nil end
+    -- `q` in the picture with the key list still open (focus moved back with
+    -- <C-w>p): the list would otherwise stay up over nothing.
+    close_help(view)
+    require("images.terminal").clear()
+    pcall(vim.api.nvim_del_augroup_by_id, group)
+    if parent and not closing_all then restore(parent) end
+  end, {
+    group = group,
+    pattern = tostring(win),
+    once = true,
+    desc = "images.zen: clean up on close",
+  })
+
+  show(view)
+  return true
 end
 
 --- Show the image under the cursor (or at `path`) full-screen.
@@ -1004,76 +1175,306 @@ function M.open(path, opts)
 
   require("images.guard").check()
 
-  -- Replace an already open zen window rather than stacking them.
-  M.close()
-
-  local zen_cfg = cfg().display.zen or {}
+  -- Replace an already open zen window (stack and all) rather than stacking.
   opts = opts or {}
-  local box = {
-    width = valid_fraction(opts.width, valid_fraction(zen_cfg.width, 0.9)),
-    height = valid_fraction(opts.height, valid_fraction(zen_cfg.height, 0.85)),
-  }
-  local width, height = M.dimensions_for(file, box)
+  return open_view(file, { width = opts.width, height = opts.height })
+end
 
-  local title = " " .. vim.fn.fnamemodify(file, ":t") .. " "
-  local win, buf = require("lib.nvim.window.make_scratch")({
-    width = width,
-    height = height,
-    modifiable = true,
-    nice_quit = true,
-    title = title,
-  })
-  if not win or not buf then
-    notify().error("could not open the zen window")
+-- ── Selection ──────────────────────────────────────────────────────────────
+--
+-- A rectangle is chosen without painting anything over the picture: WezTerm
+-- drops the whole image as soon as Neovim writes a cell inside it (measured,
+-- 2026-10-20), so there is no visual mode and no highlight. The feedback is the
+-- frame's colour (`winhighlight` leaves the picture alone, measured too) and a
+-- line in the command line. Releasing the button (or <CR>) cuts the rectangle
+-- from the ORIGINAL file at full resolution and opens it as a zen window of its
+-- own, stacked on this one.
+
+---@class ImagesNvim.ZenOrigin
+---@field file string the original image
+---@field x integer where this window's file starts in it, source pixels
+---@field y integer
+
+---@class ImagesNvim.ZenSelect
+---@field r1 integer first corner, content cell (1-based)
+---@field c1 integer
+---@field r2 integer second corner
+---@field c2 integer
+---@field box Images.Viewport.Box the picture box when it started
+---@field rect Images.Viewport.Rect the visible rectangle when it started
+---@field keys boolean chosen by keyboard (hjkl move the second corner)
+
+--- Smaller than this on either axis, a selection is a click.
+local MIN_SELECT_CELLS = 2
+
+local HL_SELECT = "ImagesZenSelect"
+
+---@param view ImagesNvim.ZenView
+---@param on boolean
+local function frame_colour(view, on)
+  if not vim.api.nvim_win_is_valid(view.win) then return end
+  if on then
+    pcall(vim.api.nvim_set_hl, 0, HL_SELECT, { link = "DiagnosticWarn", default = true })
+    view.winhl = vim.wo[view.win].winhighlight
+    local entry = "FloatBorder:" .. HL_SELECT
+    vim.wo[view.win].winhighlight = view.winhl ~= "" and (view.winhl .. "," .. entry) or entry
+  elseif view.winhl ~= nil then
+    vim.wo[view.win].winhighlight = view.winhl
+    view.winhl = nil
+  end
+end
+
+--- The selection as a rectangle of `view.file`, or nil while it is a click.
+---@param view ImagesNvim.ZenView
+---@return Images.Viewport.Rect|nil
+local function selected_rect(view)
+  local s = view.select
+  if not s then return nil end
+  return require("images.viewport").cells_to_rect(s.rect, s.box, s.r1, s.c1, s.r2, s.c2, MIN_SELECT_CELLS)
+end
+
+---@param view ImagesNvim.ZenView
+local function echo_select(view)
+  local rect = selected_rect(view)
+  local text = rect and ("selection %d×%d px at %d,%d"):format(rect.w, rect.h, view.origin.x + rect.x, view.origin.y + rect.y)
+    or "selection: drag further (a click selects nothing)"
+  pcall(vim.api.nvim_echo, { { text } }, false, {})
+end
+
+---@param view ImagesNvim.ZenView
+end_select = function(view)
+  if not view.select then return end
+  view.select = nil
+  frame_colour(view, false)
+  pcall(vim.api.nvim_echo, { { "" } }, false, {})
+end
+
+---@param view ImagesNvim.ZenView
+---@param r integer content cell
+---@param c integer
+---@param by_keys boolean
+local function begin_select(view, r, c, by_keys)
+  if not (view.px and view.rect) then
+    tell_once("select: this image does not say how large it is")
     return false
   end
-
-  local px = require("images.pixels").read(file)
-  ---@type ImagesNvim.ZenView
-  local view = {
-    win = win,
-    buf = buf,
-    file = file,
-    box = box,
-    px = px,
-    rect = px and require("images.viewport").full(px) or nil,
-    queued = nil,
-    cropping = false,
-    broken = false,
-    title = title,
-    depth = 1,
-  }
-  views[win] = view
-  current = win
-  map_keys(buf, zen_cfg.keys)
-
-  local autocmd = require("lib.nvim.bindings.autocmd")
-  local group = autocmd.group("images.zen", true)
-  autocmd.create({ "WinResized", "VimResized" }, function()
-    -- A drag measures against the picture box it started with; after a
-    -- resize that box is gone, so the drag ends rather than mapping wrongly.
-    view.drag = nil
-    show(view)
-  end, {
-    group = group,
-    desc = "images.zen: image follows the window size",
-  })
-  autocmd.create("WinClosed", function()
-    views[win] = nil
-    if current == win then current = nil end
-    -- `q` in the picture with the key list still open (focus moved back with
-    -- <C-w>p): the list would otherwise stay up over nothing.
-    close_help(view)
-    require("images.terminal").clear()
-  end, {
-    group = group,
-    pattern = tostring(win),
-    once = true,
-    desc = "images.zen: clean up on close",
-  })
-
-  show(view)
+  view.drag = nil
+  local box = picture_box(view)
+  view.select = { r1 = r, c1 = c, r2 = r, c2 = c, box = box, rect = view.rect, keys = by_keys }
+  frame_colour(view, true)
+  echo_select(view)
   return true
+end
+
+--- Cut `rect` (of `view.file`) from the original and open it on top of `view`.
+---@param view ImagesNvim.ZenView
+---@param rect Images.Viewport.Rect
+---@return boolean started
+function M.open_selection(view, rect)
+  view = view or active()
+  if not alive(view) then return false end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    tell_once("cutting a selection needs ImageMagick (magick) on PATH")
+    return false
+  end
+  local vp = require("images.viewport")
+  local origin = view.origin
+  local in_original = { x = origin.x + rect.x, y = origin.y + rect.y, w = rect.w, h = rect.h }
+  local key = crop_key(origin.file, in_original)
+  local out = ("%s/sel-%s.png"):format(crop_dir(), vim.fn.sha256(key or (origin.file .. vp.geometry(in_original))))
+  pcall(vim.api.nvim_echo, { { "cutting the selection …" } }, false, {})
+  require("images.convert").crop(origin.file, vp.geometry(in_original), out, nil, function(path, err)
+    if path and key then
+      crops["sel\0" .. key] = path
+      arm_cleanup()
+    end
+    if not alive(view) then return end
+    if not path then
+      notify().error(err or "could not cut the selection")
+      return
+    end
+    pcall(vim.api.nvim_echo, { { "" } }, false, {})
+    open_view(path, { parent = view, origin = { file = origin.file, x = in_original.x, y = in_original.y } })
+  end)
+  return true
+end
+
+--- Finish the selection: open it, or nothing for a click.
+---@param view ImagesNvim.ZenView
+---@return boolean opened
+local function confirm_select(view)
+  local rect = selected_rect(view)
+  end_select(view)
+  if not rect then return false end
+  return M.open_selection(view, rect)
+end
+
+--- Start a mouse selection at a screen cell.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean started
+function M.select_begin(screenrow, screencol)
+  local view = active()
+  if not view then return false end
+  local row0, col0 = require("images.anchor").content_origin(view.win)
+  return begin_select(view, screenrow - row0 + 1, screencol - col0 + 1, false)
+end
+
+--- Move the selection's second corner to a screen cell.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean moved
+function M.select_to(screenrow, screencol)
+  local view = active()
+  if not (view and view.select) then return false end
+  local row0, col0 = require("images.anchor").content_origin(view.win)
+  view.select.r2, view.select.c2 = screenrow - row0 + 1, screencol - col0 + 1
+  echo_select(view)
+  return true
+end
+
+--- End the mouse selection at a screen cell and open it.
+---@param screenrow integer
+---@param screencol integer
+---@return boolean opened
+function M.select_end(screenrow, screencol)
+  local view = active()
+  if not (view and view.select) then return false end
+  M.select_to(screenrow, screencol)
+  return confirm_select(view)
+end
+
+--- Keyboard selection: start with both corners in the middle of the picture.
+---@return boolean started
+function M.select_keys()
+  local view = active()
+  if not view or view.select then return false end
+  if not (view.px and view.rect) then return begin_select(view, 1, 1, true) end
+  local box = picture_box(view)
+  local r = box.row_off + math.max(1, math.floor(box.rows / 2))
+  local c = box.col_off + math.max(1, math.floor(box.cols / 2))
+  return begin_select(view, r, c, true)
+end
+
+--- Move a keyboard selection's second corner by `dr`,`dc` cells, kept on the
+--- picture. What `hjkl` do while a keyboard selection is open.
+---@param dr integer
+---@param dc integer
+---@return boolean moved
+function M.select_step(dr, dc)
+  local view = active()
+  local s = view and view.select
+  if not (s and s.keys) then return false end
+  local box = s.box
+  s.r2 = math.max(box.row_off + 1, math.min(box.row_off + box.rows, s.r2 + dr))
+  s.c2 = math.max(box.col_off + 1, math.min(box.col_off + box.cols, s.c2 + dc))
+  echo_select(view)
+  return true
+end
+
+--- Confirm the active window's selection (<CR>, or the mouse release).
+---@return boolean opened
+function M.select_confirm()
+  local view = active()
+  if not (view and view.select) then return false end
+  return confirm_select(view)
+end
+
+--- Drop the active window's selection without opening it.
+---@return boolean dropped
+function M.select_cancel()
+  local view = active()
+  if not (view and view.select) then return false end
+  end_select(view)
+  return true
+end
+
+---@param lhs string
+local function pass_through(lhs)
+  -- `n`: not remapped, so the default action runs, at the position the
+  -- event came with -- a click beside the zen window still focuses there.
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(lhs, true, true, true), "n", false)
+end
+
+--- The keys every zen window has whatever `display.zen.keys` says: closing,
+--- and confirming or dropping a selection. `q` closes the whole stack,
+--- `<Esc>` drops a selection first; `<CR>` only means something while one is
+--- open.
+---@param view ImagesNvim.ZenView
+map_fixed_keys = function(view)
+  local keymap = require("lib.nvim.bindings.keymap")
+  local o = { buffer = view.buf, nowait = true }
+  keymap("n", "q", function()
+    M.close()
+  end, o, "images: zen: close the zen window(s)")
+  keymap("n", "<Esc>", function()
+    if not M.select_cancel() then M.close() end
+  end, o, "images: zen: drop the selection, or close")
+  keymap("n", "<CR>", function()
+    M.select_confirm()
+  end, o, "images: zen: open the selection")
+
+  -- The mouse selection: press, drag and release, derived like the middle
+  -- drag's (multi-click variants included). Bound here rather than through
+  -- the action's rhs, because a press beside the picture is handed back to
+  -- Neovim as the very key that came -- a click elsewhere must still focus
+  -- there and start its own visual selection.
+  local function mouse_selecting()
+    local here = active()
+    return here and here.select and not here.select.keys and here or nil
+  end
+  for _, e in ipairs(require("lib.nvim.bindings.keymap").registered("images/zen")) do
+    if e.name == "select_drag" and e.bound and e.lhs and e.buffer == view.buf then
+      for _, v in ipairs(drag_variants(e.lhs)) do
+        keymap("n", v.press, function()
+          local here = active()
+          local pos, over = mouse(here)
+          if here then end_select(here) end
+          if pos and over then
+            M.select_begin(pos.screenrow, pos.screencol)
+          else
+            M._pass_through(v.press)
+          end
+        end, o, "images: zen: start a selection")
+        keymap("n", v.drag, function()
+          local pos = mouse(active())
+          if mouse_selecting() and pos then
+            M.select_to(pos.screenrow, pos.screencol)
+          else
+            M._pass_through(v.drag)
+          end
+        end, o, "images: zen: drag the selection")
+        keymap("n", v.release, function()
+          local pos = mouse(active())
+          if mouse_selecting() and pos then
+            M.select_end(pos.screenrow, pos.screencol)
+          else
+            M._pass_through(v.release)
+          end
+        end, o, "images: zen: finish the selection")
+      end
+    end
+  end
+end
+
+--- Hand a mouse key back to Neovim unmapped. A field so a spec can watch it.
+M._pass_through = pass_through
+
+--- The selection state of the active window, for tests: corners, and the
+--- rectangle it would cut.
+---@return ImagesNvim.ZenSelect|nil select
+---@return Images.Viewport.Rect|nil rect
+function M.selection()
+  local view = active()
+  if not view then return nil end
+  return view.select, selected_rect(view)
+end
+
+--- The active view's position in the original: file and offset. For `gs`.
+---@return ImagesNvim.ZenOrigin|nil
+function M.origin()
+  local view = active()
+  return view and view.origin
 end
 
 return M
