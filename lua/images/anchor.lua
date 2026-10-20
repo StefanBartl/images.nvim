@@ -236,56 +236,18 @@ local function draw_now(winid, position, file, scale, inset, padding)
   -- Where the window really sits, which is not always where it asked to sit.
   local win_row, win_col = placed_position(winid, pos, height + row_inset + row_trail, width + col_inset + col_trail)
 
-  local cols, rows, col_off, row_off, box_err = require("images.scale").anchor_box(width, height, position, scale)
+  -- Anchor box, `draw_inset` margin, then the box fitted to the picture's own
+  -- aspect ratio: `scale.draw_box` explains each step. `clamp_to_screen` could
+  -- not catch a picture that is not fitted first, because it clamps the
+  -- request and the overflow is in what the terminal derives from it. Why it
+  -- never showed before: for a picture wider than its box -- every screenshot,
+  -- which is what this plugin was built on -- the width is the binding axis
+  -- and fitting to it is already correct; a portrait page is the first case
+  -- where it is not. `zen` and `redact` shape their own window with
+  -- `fit_cells` before drawing into it, so for them the fit is a no-op.
+  local cols, rows, col_off, row_off, box_err =
+    require("images.scale").draw_box(width, height, position, scale, draw_inset(inset), require("images.pixels").read(file))
   if not (cols and rows and col_off and row_off) then return false, box_err end
-
-  -- Margin all round, box stays centred. Capped per axis so that even in a
-  -- very small window at least one cell of image survives -- a margin that
-  -- eats the image entirely would be worse than none.
-  local margin = draw_inset(inset)
-  if margin > 0 then
-    local mc = math.min(margin, math.floor((cols - 1) / 2))
-    local mr = math.min(margin, math.floor((rows - 1) / 2))
-    if mc > 0 then
-      cols, col_off = cols - 2 * mc, col_off + mc
-    end
-    if mr > 0 then
-      rows, row_off = rows - 2 * mr, row_off + mr
-    end
-  end
-
-  -- The box the WINDOW offers is not the box the PICTURE wants, and handing
-  -- the terminal the former and trusting `preserveAspectRatio=1` to letterbox
-  -- inside it is not enough. Measured in WezTerm with an A4 page (993x1404) in
-  -- an 82x25 preview window: the picture is scaled to the requested WIDTH and
-  -- its height then follows from the aspect ratio -- 57 rows, ending 23 rows
-  -- past the bottom of a 40-row screen. An image reaching past the last row
-  -- scrolls the whole screen and takes Neovim's grid with it (see
-  -- `images.terminal`'s module docs); `clamp_to_screen` cannot catch it,
-  -- because it clamps the request and the overflow is in what the terminal
-  -- derives from it.
-  --
-  -- Shrinking the request to the picture's own aspect ratio first removes the
-  -- ambiguity: at 35x25 both axes are already right, so it no longer matters
-  -- which one the terminal chooses to honour, and the placement becomes this
-  -- plugin's decision rather than the terminal's. The letterbox is centred in
-  -- the box the anchor picked, which is where a terminal that fits properly
-  -- would have put it anyway.
-  --
-  -- Why it never showed before: for a picture wider than its box -- every
-  -- screenshot, which is what this plugin was built on -- the width is the
-  -- binding axis and fitting to it is already correct. A portrait page is the
-  -- first case where it is not. `zen` and `redact` shape their own window with
-  -- `fit_cells` before drawing into it, so for them this is a no-op; without
-  -- readable dimensions (SVG, an unknown container) `fit_cells` returns the box
-  -- unchanged, which is exactly the previous behaviour.
-  local px = require("images.pixels").read(file)
-  if px then
-    local fit_cols, fit_rows = require("images.scale").fit_cells(cols, rows, px)
-    col_off = col_off + math.floor((cols - fit_cols) / 2)
-    row_off = row_off + math.floor((rows - fit_rows) / 2)
-    cols, rows = fit_cols, fit_rows
-  end
 
   require("images.terminal").clear()
   return require("images.terminal").draw(

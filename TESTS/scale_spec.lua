@@ -138,4 +138,32 @@ return function(H)
   px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 25, col2 = 50 }, 50, 25, { width = 500, height = 250 }, 100)
   H.eq(px.x2, 500, "x2 is clamped to the image width")
   H.eq(px.y2, 250, "y2 is clamped to the image height")
+
+  -- ── draw_box(): the box images.anchor really draws in ────────────────────
+  do
+    local saved_aspect = scale.CELL_ASPECT
+    scale.CELL_ASPECT = 0.5
+
+    local bc, br, bco, bro = scale.draw_box(80, 24, "full", nil, 1, nil)
+    H.eq(bc, 78, "draw_box: without dimensions only the margin comes off")
+    H.eq(br, 22, "…on both axes")
+    H.eq(bco, 1, "…and the box starts one cell in")
+    H.eq(bro, 1, "…on both axes")
+
+    local tc, _, tco = scale.draw_box(3, 3, "full", nil, 5, nil)
+    H.eq(tc, 1, "draw_box: a margin larger than the window leaves one cell of image")
+    H.eq(tco, 1, "…centred")
+
+    local sc, sr, sco, sro = scale.draw_box(80, 24, "full", nil, 0, { width = 1000, height = 1000 })
+    H.eq(sc, 48, "draw_box: a square picture in 24 rows is 48 cells wide at aspect 0.5")
+    H.eq(sco, 16, "…centred in the 80 columns")
+    H.eq(sr, 24, "…and fills the height")
+    H.eq(sro, 0, "…from the top")
+
+    local nope, _, _, _, why = scale.draw_box(80, 24, "nowhere", nil, 0, nil)
+    H.eq(nope, nil, "draw_box: an unknown position is refused")
+    H.ok(type(why) == "string", "…with a reason")
+
+    scale.CELL_ASPECT = saved_aspect
+  end
 end

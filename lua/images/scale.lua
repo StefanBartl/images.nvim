@@ -150,6 +150,57 @@ function M.anchor_box(win_width, win_height, position, scale)
   return cols, rows, col_offset, row_offset, nil
 end
 
+--- The cell box an image is really drawn in, inside a window's content area:
+--- `M.anchor_box`, then the `margin` kept free all round, then the box fitted to
+--- the picture's own aspect ratio and centred. `images.anchor` draws exactly here,
+--- and anything that maps a screen cell back onto the picture (`images.viewport`)
+--- reads the same box, so the two cannot drift apart.
+---
+--- The margin is capped per axis so that even a very small window keeps at least
+--- one cell of image -- a margin that eats the image entirely would be worse than
+--- none.
+---
+--- **The box the WINDOW offers is not the box the PICTURE wants**, and handing the
+--- terminal the former and trusting `preserveAspectRatio=1` to letterbox inside it
+--- is not enough. Measured in WezTerm with an A4 page (993x1404) in an 82x25
+--- preview window: the picture is scaled to the requested WIDTH and its height
+--- then follows from the aspect ratio -- 57 rows, ending 23 rows past the bottom
+--- of a 40-row screen. An image reaching past the last row scrolls the whole
+--- screen and takes Neovim's grid with it (see `images.terminal`'s module docs).
+--- Shrinking the request to the picture's own aspect ratio first removes the
+--- ambiguity: both axes are already right, so it no longer matters which one the
+--- terminal chooses to honour. The letterbox is centred in the box the anchor
+--- picked, which is where a terminal that fits properly would have put it anyway.
+--- Without readable dimensions (SVG, an unknown container) `M.fit_cells` returns
+--- the box unchanged, which is the older behaviour.
+---@param win_width integer content cells
+---@param win_height integer content cells
+---@param position string one of `M.POSITIONS`
+---@param scale number|nil see `M.anchor_box`
+---@param margin integer cells kept free on every side, >= 0
+---@param image_px Images.Scale.MaybeDims|nil
+---@return integer|nil cols, integer|nil rows, integer|nil col_offset, integer|nil row_offset, string|nil err offsets 0-based from the content's top-left cell
+function M.draw_box(win_width, win_height, position, scale, margin, image_px)
+  local cols, rows, col_off, row_off, err = M.anchor_box(win_width, win_height, position, scale)
+  if not (cols and rows and col_off and row_off) then return nil, nil, nil, nil, err end
+
+  if margin > 0 then
+    local mc = math.min(margin, math.floor((cols - 1) / 2))
+    local mr = math.min(margin, math.floor((rows - 1) / 2))
+    if mc > 0 then
+      cols, col_off = cols - 2 * mc, col_off + mc
+    end
+    if mr > 0 then
+      rows, row_off = rows - 2 * mr, row_off + mr
+    end
+  end
+
+  local fit_cols, fit_rows = M.fit_cells(cols, rows, image_px)
+  col_off = col_off + math.floor((cols - fit_cols) / 2)
+  row_off = row_off + math.floor((rows - fit_rows) / 2)
+  return fit_cols, fit_rows, col_off, row_off, nil
+end
+
 --- Assumed pixel aspect ratio of a terminal cell (width/height). images.nvim
 --- never queries the terminal for it (the "no cell measurement" guardrail) —
 --- 0.5 is a coarse assumption typical of common monospace fonts (a cell is

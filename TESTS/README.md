@@ -96,11 +96,12 @@ Everything else with real branching logic has an assertion-based spec.
 | `redact.lua` | `redact_spec.lua` | `is_open`/`close` only — box-marking is interactive |
 | `remote.lua` | `remote_spec.lua` | URL detection, private-host refusal, download argv |
 | `resolve.lua` | `resolve_spec.lua` | Link scanning, extension checks, path resolution, the `vim.fn.expand` shell-injection regression |
-| `scale.lua` | `scale_spec.lua` | Fit/compute arithmetic |
+| `scale.lua` | `scale_spec.lua` | Fit/compute arithmetic, and `draw_box` (the box `anchor` draws in: inset, fit, centring) |
 | `scan.lua` | `scan_spec.lua` | Buffer scanning, line-range restriction, found/missing split |
 | `screenshot.lua` | `screenshot_spec.lua` | Availability detection |
 | `terminal.lua` | `terminal_draw_spec.lua`, `capability_spec.lua` | Draw-call shaping and terminal-capability detection |
 | `testcard.lua` | `testcard_spec.lua` | Generated PNG correctness |
+| `viewport.lua` | `viewport_spec.lua` | Zoom around a fixed point, the zoom floor and ceiling, pan/drag clamping, the picture box (inset + letterbox) a cell is measured against, cell selection → source rectangle |
 | `.testing.lua` | `testing_config_spec.lua` | Every guard of the runner stays at `"error"` (a loosened guard would let a deprecated API through unnoticed) |
 | `win_clipboard_worker.lua` | `win_clipboard_worker_spec.lua` | Request queueing/serialization, response parsing, timeout + respawn, shutdown — `vim.system` stubbed, the real Windows-only PowerShell process is out of reach headlessly (see this file's own header) |
 | `zen.lua` | `zen_spec.lua` | State/lifecycle only |
