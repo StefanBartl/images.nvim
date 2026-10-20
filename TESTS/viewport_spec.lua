@@ -65,6 +65,21 @@ return function(H)
   H.ok(vp.zoom_at(hd, half, 0 / 0) == half, "zoom_at: a NaN factor changes nothing")
   H.ok(vp.zoom_at(hd, half, -2) == half, "zoom_at: a negative factor changes nothing")
 
+  -- A strip at the floor that spans the picture on one axis: further in is impossible,
+  -- and that must not turn into "out to the whole picture" (both limits are 1 there).
+  local square = { width = 1000, height = 1000 }
+  local strip = { x = 0, y = 500, w = 1000, h = 32 }
+  H.ok(vp.zoom_at(square, strip, 1.5) == strip, "zoom_at: a strip at the floor stays put on a zoom in")
+  H.ok(not vp.can_zoom(square, strip, 1.5), "can_zoom: and says so")
+  local wide = { width = 1000, height = 20 }
+  local first = vp.rect_for(wide, 1, 0.5, 0.5)
+  H.eq(show(first), "666x20+167+0", "rect_for: a picture lower than the floor keeps its height")
+  H.ok(vp.zoom_at(wide, first, 1.5) == first, "zoom_at: zooming in on it does not jump back out")
+
+  -- NaN never reaches the clamps (under LuaJIT math.min(1, NaN) is NaN).
+  H.eq(show(vp.zoom_at(hd, full, 2, 0 / 0, 0 / 0)), "960x540+480+270", "zoom_at: a NaN point is the centre")
+  H.ok(vp.pan(hd, half, 0 / 0, 0 / 0) == half, "pan: a NaN distance does not move")
+
   -- A picture that is itself smaller than the floor cannot be zoomed at all.
   local tiny = { width = 20, height = 10 }
   H.ok(not vp.can_zoom(tiny, vp.full(tiny), 2), "can_zoom: a picture under FLOOR_PX stays whole")

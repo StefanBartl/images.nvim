@@ -68,6 +68,17 @@ function M.factor(px, rect)
   return math.max(px.width / rect.w, px.height / rect.h)
 end
 
+--- `value` when it is a number other than NaN, else `default`. The clamps
+--- below cannot clean a NaN themselves: under LuaJIT `math.min(1, 0/0)` is NaN,
+--- and a NaN position ended up at the picture's bottom-right edge.
+---@param value any
+---@param default number
+---@return number
+local function finite(value, default)
+  if type(value) == "number" and value == value then return value end
+  return default
+end
+
 --- Integer rectangle of size `w`x`h` (floats allowed) at `x`,`y`, pushed back
 --- inside the picture: a view near an edge stays full-size rather than hanging
 --- off it.
@@ -112,8 +123,8 @@ end
 ---@param fy number|nil default 0.5
 ---@return Images.Viewport.Rect
 function M.zoom_at(px, rect, factor, fx, fy)
-  fx = math.max(0, math.min(1, fx or 0.5))
-  fy = math.max(0, math.min(1, fy or 0.5))
+  fx = math.max(0, math.min(1, finite(fx, 0.5)))
+  fy = math.max(0, math.min(1, finite(fy, 0.5)))
   if type(factor) ~= "number" or factor <= 0 or factor ~= factor then return rect end
 
   -- The furthest in and out this rectangle may go, as factors on its own size.
@@ -121,11 +132,17 @@ function M.zoom_at(px, rect, factor, fx, fy)
   -- or the other axis would run past the picture and the aspect ratio tip over.
   local max_in = math.max(1, math.min(rect.w, rect.h) / M.FLOOR_PX)
   local max_out = math.max(rect.w / px.width, rect.h / px.height)
+  local zoom_out = factor < 1
   factor = math.max(max_out, math.min(max_in, factor))
+  -- Clamped to no change at all: a rectangle already at the floor cannot go
+  -- further in, and one that spans the picture on one axis gives the same
+  -- limit of 1 for going out. Without this a zoom IN on such a rectangle fell
+  -- through to the outer limit below and came back as the whole picture.
+  if math.abs(factor - 1) < 1e-9 then return rect end
 
   local w, h = rect.w / factor, rect.h / factor
   -- At the outer limit, be the whole picture exactly rather than a rounding of it.
-  if factor <= max_out + 1e-9 then
+  if zoom_out and factor <= max_out + 1e-9 then
     w, h = px.width, px.height
   end
   local anchor_x = rect.x + fx * rect.w
@@ -153,7 +170,7 @@ end
 ---@param dy number
 ---@return Images.Viewport.Rect
 function M.pan(px, rect, dx, dy)
-  local out = clamp(px, rect.x + dx, rect.y + dy, rect.w, rect.h)
+  local out = clamp(px, rect.x + finite(dx, 0), rect.y + finite(dy, 0), rect.w, rect.h)
   if out.x == rect.x and out.y == rect.y then return rect end
   return out
 end
