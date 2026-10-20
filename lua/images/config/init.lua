@@ -3,9 +3,6 @@
 
 local M = {}
 
----@type ImagesNvim.Config|nil
-local current = nil
-
 ---@type table|nil
 local user_opts = nil
 
@@ -137,14 +134,47 @@ local function sanitize(opts, schema, prefix)
   return clean, found_issues
 end
 
----@type string[]
-local issues = {}
+--- To the schema that `lib.lua.config` infers from the defaults, every option is open: the checks are
+--- `sanitize` above, run on the `setup` layer before the merge (the stored calibration is trusted
+--- data). An unknown top-level key is caught there as well.
+local ANY = "boolean|number|string|table|function"
+---@type table<string, string>
+local SCHEMA = {}
+for key in pairs(KNOWN) do
+  SCHEMA[key] = ANY
+end
+
+--- The options `setup()` was last given, cleaned and unmerged (see `M.user_opts`).
+local config_object = require("lib.lua.config").new(require("images.config.DEFAULTS"), {
+  name = "images",
+  schema = SCHEMA,
+  -- defaults < calibration < explicit options: a decision weighs more than a measurement
+  layers = { "calibration", "setup" },
+  normalize = function(opts, issues, layer)
+    if layer ~= "setup" then return end
+    local clean, found_issues = sanitize(opts, KNOWN, "")
+    table.sort(found_issues)
+    user_opts = vim.deepcopy(clean)
+    for key in pairs(opts) do
+      opts[key] = nil
+    end
+    for key, value in pairs(clean) do
+      opts[key] = value
+    end
+    vim.list_extend(issues, found_issues)
+  end,
+  notify = function(message)
+    notify().warn(message)
+  end,
+})
 
 --- Whatever the last `setup()` had to reject — for `:checkhealth images`.
 ---@return string[]
 function M.issues()
-  return issues
+  return config_object.issues()
 end
+
+local was_set_up = false
 
 --- Layer user options over the defaults.
 ---
@@ -157,26 +187,21 @@ end
 --- `opts` is validated first (ERR-50): an unknown key or a wrong-shaped
 --- value is dropped so the built-in default is what actually takes effect,
 --- and every issue is both warned here (once) and kept for `:checkhealth`
---- (see `M.issues()`).
+--- (see `M.issues()`). Every call starts from the defaults.
 ---@param opts ImagesNvim.Opts|nil
 ---@return ImagesNvim.Config
 function M.setup(opts)
-  local defaults = require("images.config.DEFAULTS")
-
-  local calibrated = {}
+  local calibrated
   local ok, values = pcall(function()
     return require("images.calibration").as_config()
   end)
   if ok and type(values) == "table" then calibrated = values end
 
-  local clean, found_issues = sanitize(opts or {}, KNOWN, "")
-  table.sort(found_issues)
-  issues = found_issues
-  if #found_issues > 0 then notify().warn("setup(): " .. table.concat(found_issues, "; ")) end
-
-  user_opts = clean
-  current = vim.tbl_deep_extend("force", vim.deepcopy(defaults), calibrated, clean)
-  return current
+  user_opts = nil
+  config_object.layer("calibration", calibrated)
+  config_object.setup(type(opts) == "table" and opts or nil)
+  was_set_up = true
+  return config_object.get()
 end
 
 --- The options this plugin was last set up with, unmerged.
@@ -196,8 +221,8 @@ end
 --- ran, so the Lua API stays usable without setup.
 ---@return ImagesNvim.Config
 function M.get()
-  if not current then return M.setup(nil) end
-  return current
+  if not was_set_up then return M.setup(nil) end
+  return config_object.get()
 end
 
 return M
