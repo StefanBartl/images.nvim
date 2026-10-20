@@ -29,6 +29,13 @@ return function(H)
     draw = function(_, _, file)
       drawn[#drawn + 1] = file
     end,
+    -- The geometry a drag measures against; this spec only needs it to exist.
+    content_origin = function()
+      return 1, 1
+    end,
+    inset = function()
+      return 0
+    end,
   }
   package.loaded["images.terminal"] = {
     clear = function() end,
@@ -213,12 +220,17 @@ return function(H)
     local errors_before = #warnings
     H.ok(zen.zoom(3), "a zoom that will fail")
     local failing = #crops
+    -- A drag already running while the crop fails must not bring the zoom back.
+    H.ok(zen.drag_begin(10, 10), "a drag starts while the crop runs")
     crops[failing].done(nil, "crop produced no file")
     settle()
     H.eq(geometry(), "600x300+0+0", "after the failure the rectangle is the whole picture again")
     H.eq(drawn[#drawn], file, "... which is what is drawn")
     H.falsy(zen.zoom(3), "zoom is off for this window")
     H.falsy(zen.zoom(2), "... for every factor")
+    H.falsy(zen.drag_to(12, 14), "... and for the drag that was running")
+    H.falsy(zen.drag_to(14, 18), "... on every further move")
+    H.eq(geometry(), "600x300+0+0", "the rectangle stays the whole picture")
     H.eq(#crops, failing, "no further magick is started")
     H.eq(#warnings - errors_before, 1, "one error, not one per key")
     zen.close()

@@ -327,6 +327,9 @@ local function show(view)
       -- and the view goes back to what is really on screen.
       view.broken = true
       view.rect = view.px and vp.full(view.px) or nil
+      -- A drag in progress would put its zoomed rectangle back on the next
+      -- move, and with it a `magick` and an error per event.
+      view.drag = nil
       notify().error((err or "could not cut the zoomed view") .. " -- zoom is off for this window")
       return draw(view, view.file)
     end
@@ -589,7 +592,7 @@ end
 function M.drag_to(screenrow, screencol)
   local view = active()
   local drag = view and view.drag
-  if not drag then return false end
+  if not drag or view.broken then return false end
   local vp = require("images.viewport")
   if vp.is_full(view.px, drag.rect) then return false end
   return move_to(view, vp.drag(view.px, drag.rect, drag.box, screencol - drag.col, screenrow - drag.row), true)
@@ -884,6 +887,12 @@ local function drag_variants(lhs)
 end
 M.drag_variants = drag_variants
 
+---@param lhs string
+---@return string the key as Neovim reads it, whatever its spelling
+local function termcodes(lhs)
+  return vim.api.nvim_replace_termcodes(lhs, true, true, true)
+end
+
 local defaults_applied = false
 
 --- Fill each action's `default` from `DEFAULTS` once: a `display.zen.keys`
@@ -930,7 +939,9 @@ local function map_keys(buf, keys)
   for _, e in ipairs(bound) do
     local variants = e.name == "drag" and e.bound and e.lhs and drag_variants(e.lhs) or {}
     for _, v in ipairs(variants) do
-      if v.press ~= e.lhs then
+      -- Compared as keys, not as spellings: `<2-M-LeftMouse>` and
+      -- `<M-2-LeftMouse>` are one key, and the registry already binds it.
+      if termcodes(v.press) ~= termcodes(e.lhs) then
         keymap("n", v.press, ACTIONS.drag.rhs, { buffer = buf, nowait = true }, "images: zen: start dragging the picture")
       end
       keymap("n", v.drag, function()
@@ -1039,6 +1050,9 @@ function M.open(path, opts)
   local autocmd = require("lib.nvim.bindings.autocmd")
   local group = autocmd.group("images.zen", true)
   autocmd.create({ "WinResized", "VimResized" }, function()
+    -- A drag measures against the picture box it started with; after a
+    -- resize that box is gone, so the drag ends rather than mapping wrongly.
+    view.drag = nil
     show(view)
   end, {
     group = group,

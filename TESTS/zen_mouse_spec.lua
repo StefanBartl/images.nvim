@@ -173,6 +173,19 @@ return function(H)
     zen.zoom_reset()
     zen.zoom(2)
 
+    -- A resize from outside (WinResized) makes the drag's picture box stale: the drag ends.
+    H.ok(zen.drag_begin(row, col), "a drag starts")
+    vim.api.nvim_exec_autocmds("WinResized", {})
+    H.falsy(zen.drag_to(row, col + 2), "a WinResized ended the drag")
+
+    -- The configured key in another spelling is not bound twice.
+    local count = 0
+    local want = vim.api.nvim_replace_termcodes("<MiddleMouse>", true, true, true)
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), "n")) do
+      if vim.api.nvim_replace_termcodes(m.lhs, true, true, true) == want then count = count + 1 end
+    end
+    H.eq(count, 1, "<MiddleMouse> is mapped once")
+
     zen.zoom_reset()
     H.ok(zen.drag_begin(row, col), "a drag can start on the whole picture")
     H.falsy(zen.drag_to(row, col + 3), "... but there is nothing to move")
