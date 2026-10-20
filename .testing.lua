@@ -34,6 +34,11 @@ return {
       "powershell",
     },
   },
+  -- ps_path_spec.lua makes two real powershell.exe round trips and lets each take up to 120 s
+  -- (PS_TIMEOUT_MS, images.nvim@f589a8e): a cold start on windows-latest took 36 s in a green run
+  -- and just over 60 s in two red ones on 2026-10-20. The file limit has to be above what the spec
+  -- itself allows, or the runner kills a slow but healthy file; it still catches a real hang.
+  timeouts = { file_ms = 300000 },
   -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
   env_allow = { "MAGICK_*" },
   -- menu_spec.lua returns without a single assertion when no ui.nvim checkout exists (CI, by design);
