@@ -73,6 +73,7 @@ end
 ---@field parent ImagesNvim.ZenView|nil the window this one's picture was cut from
 ---@field origin ImagesNvim.ZenOrigin where this window's file sits in the original
 ---@field hidden boolean|nil hidden under a selection opened from it
+---@field plain boolean opened with `viewport = false`: no viewport keys
 ---@field child ImagesNvim.ZenView|nil the selection opened from this window, while it is open
 ---@field cutting boolean|nil a selection of this window is being cut
 ---@field closing boolean|nil its WinClosed is running
@@ -701,7 +702,8 @@ function M.cheatsheet(view)
     table.concat(close, " / ") .. "   close this list",
     "q / <Esc> in the picture   close the zen window",
   }
-  if not require("lib.nvim.cross.executable").exists("magick") then
+  -- A plain window has no zoom to need it for.
+  if not view.plain and not require("lib.nvim.cross.executable").exists("magick") then
     footer[#footer + 1] = "zoom needs ImageMagick (magick), which is not on PATH"
   end
   return require("lib.nvim.bindings.keymap").cheatsheet("images/zen", {
@@ -1158,11 +1160,13 @@ local function open_view(file, opts)
     depth = parent and (parent.depth or 1) + 1 or 1,
     parent = parent,
     origin = opts.origin or { file = file, x = 0, y = 0 },
+    -- A part opened from a plain window (through the Lua API) stays plain.
+    plain = opts.plain or (parent and parent.plain) or false,
   }
   views[win] = view
   current = win
   if parent then parent.child = view end
-  map_keys(buf, zen_cfg.keys, opts.plain)
+  map_keys(buf, zen_cfg.keys, view.plain)
   map_fixed_keys(view)
 
   -- One group per window: with a stack open, clearing a shared group would

@@ -256,6 +256,26 @@ return function(H)
     for _, lhs in ipairs({ "+", "-", "h", "<M-ScrollWheelUp>", "<MiddleMouse>", "<LeftMouse>", "v", "gs", "gy" }) do
       H.falsy(plain[lhs], "plain leaves out " .. lhs)
     end
+    has_magick = false
+    H.falsy(
+      table.concat(zen.cheatsheet().lines, "\n"):find("ImageMagick", 1, true),
+      "a plain window's key list has no zoom, so no ImageMagick note"
+    )
+    has_magick = true
+    -- A part opened from a plain window through the Lua API stays plain.
+    zen.open_selection(nil, { x = 0, y = 0, w = 100, h = 50 })
+    local sel = crops[#crops]
+    vim.fn.mkdir(vim.fs.dirname(sel.out), "p")
+    local sf = assert(io.open(sel.out, "wb"))
+    sf:write(require("images.testcard").build(100, 50))
+    sf:close()
+    sel.done(sel.out, nil)
+    settle()
+    local child = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), "n")) do
+      child[m.lhs] = true
+    end
+    H.ok(child["<S-Up>"] and not child["+"], "a part cut from a plain window is plain too")
     zen.close()
   end)
 
