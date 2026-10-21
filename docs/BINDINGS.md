@@ -92,7 +92,9 @@ other cases. Whoever binds first keeps the key.
 Bound only in the `:Image zen` window's own buffer (also the window filetree.nvim
 opens with `<CR>` on an image), through the same keymap registry under the
 surface `images/zen`. Each one is set in `display.zen.keys`, accepts a list of
-keys, and `false` drops it.
+keys, and `false` drops it. A host can open a plain window with
+`images.zen(path, { viewport = false })`: only its size, `?` and closing are
+bound then (filetree.nvim's `preview.image.float.viewport = false`).
 
 | Key | Description | Option |
 | --- | --- | --- |

@@ -243,6 +243,20 @@ return function(H)
     H.falsy(zen.zoom(2), "and no zoom")
     zen.close()
     H.falsy(zen.is_open(), "closed")
+
+    -- ── viewport = false: a plain window, only size, ? and closing ───────
+    H.ok(zen.open(file, { viewport = false }), "zen opens plain")
+    local plain = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), "n")) do
+      plain[m.lhs] = true
+    end
+    for _, lhs in ipairs({ "<S-Up>", "<S-Down>", "?", "q" }) do
+      H.ok(plain[lhs], "plain keeps " .. lhs)
+    end
+    for _, lhs in ipairs({ "+", "-", "h", "<M-ScrollWheelUp>", "<MiddleMouse>", "<LeftMouse>", "v", "gs", "gy" }) do
+      H.falsy(plain[lhs], "plain leaves out " .. lhs)
+    end
+    zen.close()
   end)
 
   for _, name in ipairs(stubbed) do

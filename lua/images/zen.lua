@@ -987,10 +987,17 @@ end
 --- cheatsheet list exactly what is bound. A pan key is bound even while the
 --- whole picture is shown -- the zen buffer is empty, so `h` there moves
 --- nothing anyway, and binding on zoom would mean rebinding on every step.
+--- The window keys a plain zen window keeps (`opts.viewport = false`): its
+--- size, the key list, closing. Everything that changes what part of the
+--- picture is shown, or cuts, saves or copies it, stays unbound there.
+---@type table<string, true>
+local PLAIN_KEEPS = { grow = true, shrink = true, help = true }
+
 ---@param buf integer
 ---@param keys table|false|nil `display.zen.keys`
+---@param plain boolean|nil bind only `PLAIN_KEEPS`
 ---@return nil
-local function map_keys(buf, keys)
+local function map_keys(buf, keys, plain)
   apply_defaults()
   -- `false` binds nothing; anything that is not a table means "the defaults".
   local user = nil
@@ -998,6 +1005,12 @@ local function map_keys(buf, keys)
     user = false
   elseif type(keys) == "table" then
     user = keys
+  end
+  if plain and user ~= false then
+    user = vim.deepcopy(user or {})
+    for _, name in ipairs(ORDER) do
+      if not PLAIN_KEEPS[name] then user[name] = false end
+    end
   end
   local keymap = require("lib.nvim.bindings.keymap")
   local bound = keymap.register("images", { actions = ACTIONS, order = ORDER }, user, { buffer = buf, surface = "zen" })
@@ -1087,6 +1100,7 @@ end
 ---@field width? number
 ---@field height? number
 ---@field parent? ImagesNvim.ZenView the window a selection was cut from
+---@field plain? boolean no viewport keys (zoom, pan, mouse, selection, save/copy)
 ---@field origin? ImagesNvim.ZenOrigin where `file` sits in the original
 
 --- Open a zen window on `file`. Without `opts.parent` every other zen window
@@ -1148,7 +1162,7 @@ local function open_view(file, opts)
   views[win] = view
   current = win
   if parent then parent.child = view end
-  map_keys(buf, zen_cfg.keys)
+  map_keys(buf, zen_cfg.keys, opts.plain)
   map_fixed_keys(view)
 
   -- One group per window: with a stack open, clearing a shared group would
@@ -1200,9 +1214,11 @@ end
 ---
 --- `opts.width`/`opts.height` (fractions of the editor) open the window at a
 --- size of its own instead of `display.zen.width`/`height`; `M.resize` steps
---- on from there through `display.zen.sizes`.
+--- on from there through `display.zen.sizes`. `opts.viewport = false` opens a
+--- plain window: only its size, `?` and closing are bound, no zoom, pan, mouse,
+--- selection or save/copy (a host that wants the picture and nothing more).
 ---@param path string|nil nil = the image under the cursor
----@param opts { width?: number, height?: number }|nil
+---@param opts { width?: number, height?: number, viewport?: boolean }|nil
 ---@return boolean ok
 function M.open(path, opts)
   local file = require("images.resolve").path_or_cursor(path)
@@ -1224,7 +1240,7 @@ function M.open(path, opts)
 
   -- Replace an already open zen window (stack and all) rather than stacking.
   opts = opts or {}
-  return open_view(file, { width = opts.width, height = opts.height })
+  return open_view(file, { width = opts.width, height = opts.height, plain = opts.viewport == false })
 end
 
 -- ── Selection ──────────────────────────────────────────────────────────────

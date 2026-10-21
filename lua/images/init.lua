@@ -647,9 +647,10 @@ end
 --- Show the image under the cursor (or at `path`) in a large, editable window —
 --- it survives a hover popup (from snacks, say) opening alongside it, see
 --- `images.zen`. `opts.width`/`opts.height` (fractions) open it at a size of
---- its own; `display.zen.keys` grow/shrink it from there.
+--- its own; `display.zen.keys` grow/shrink it from there. `opts.viewport =
+--- false` leaves out zoom, pan, mouse, selection and save/copy.
 ---@param path string|nil nil = the image under the cursor
----@param opts { width?: number, height?: number }|nil
+---@param opts { width?: number, height?: number, viewport?: boolean }|nil
 ---@return boolean ok
 function M.zen(path, opts)
   return require("images.zen").open(path, opts)
