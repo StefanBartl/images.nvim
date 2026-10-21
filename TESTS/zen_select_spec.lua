@@ -255,6 +255,59 @@ return function(H)
     H.falsy(vim.api.nvim_win_get_config(root).hide, "shown")
     zen.close()
 
+    -- ── A message plugin's float does not end the selection ──────────────
+    -- Live test 2026-10-21: noice opens and grows a float for every echo, each a
+    -- WinResized; that ended the selection before the release, and nothing opened.
+    H.ok(zen.open(file), "zen opens for the message-float case")
+    settle()
+    root = vim.api.nvim_get_current_win()
+    r1, c1 = cell_at(0.1, 0.1)
+    r2, c2 = cell_at(0.4, 0.4)
+    zen.select_begin(r1, c1)
+    local msg = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = 0,
+      col = 0,
+      width = 10,
+      height = 1,
+    })
+    vim.api.nvim_exec_autocmds("WinResized", { data = { windows = { msg } } })
+    zen.select_to(r2, c2)
+    local before_cut = #crops
+    H.ok(zen.select_end(r2, c2), "the selection survives another float's resize and opens on release")
+    H.eq(#crops, before_cut + 1, "... it is cut")
+    finish(#crops)
+    zen.back()
+    settle()
+
+    -- ── A float closing over the picture: drawn again ────────────────────
+    local box_now, row0_now, col0_now = geometry_now()
+    local over = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = row0_now + box_now.row_off + 2,
+      col = col0_now + box_now.col_off + 2,
+      width = 12,
+      height = 3,
+    })
+    local beside = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = 0,
+      col = vim.o.columns - 3,
+      width = 2,
+      height = 1,
+    })
+    settle()
+    local drawn_before = #drawn
+    vim.api.nvim_win_close(beside, true)
+    settle()
+    H.eq(#drawn, drawn_before, "a float closing beside the picture changes nothing")
+    vim.api.nvim_win_close(over, true)
+    settle()
+    H.eq(#drawn, drawn_before + 1, "a float closing over the picture: it is drawn again")
+    H.ok(vim.api.nvim_win_is_valid(root), "the zen window is still there")
+    vim.api.nvim_win_close(msg, true)
+    zen.close()
+
     -- ── The fixed keys yield to the user's own bindings ──────────────────
     local zen_cfg = require("images.config").get().display.zen
     local saved_keys = vim.deepcopy(zen_cfg.keys)

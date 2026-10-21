@@ -1053,6 +1053,33 @@ function M.is_open()
   return active() ~= nil
 end
 
+--- The screen rectangle a window covers, border included: rows/cols, 0-based.
+---@param win integer
+---@return integer|nil top, integer left, integer bottom, integer right
+local function screen_rect(win)
+  if not vim.api.nvim_win_is_valid(win) then return nil, 0, 0, 0 end
+  local pos = vim.api.nvim_win_get_position(win)
+  local c = vim.api.nvim_win_get_config(win)
+  local framed = type(c.border) == "table" and 1 or 0
+  local h = vim.api.nvim_win_get_height(win) + 2 * framed
+  local w = vim.api.nvim_win_get_width(win) + 2 * framed
+  return pos[1], pos[2], pos[1] + h - 1, pos[2] + w - 1
+end
+
+--- Whether the float `other` covers part of window `win` on screen. Splits do
+--- not count: they do not sit over a float.
+---@param other integer
+---@param win integer
+---@return boolean
+function M.overlaps(other, win)
+  local ok, c = pcall(vim.api.nvim_win_get_config, other)
+  if not ok or c.relative == nil or c.relative == "" then return false end
+  local t1, l1, b1, r1 = screen_rect(other)
+  local t2, l2, b2, r2 = screen_rect(win)
+  if not (t1 and t2) then return false end
+  return t1 <= b2 and t2 <= b1 and l1 <= r2 and l2 <= r1
+end
+
 -- Defined in the Selection section below; `open_view` needs both.
 local end_select, map_fixed_keys
 
@@ -1173,7 +1200,18 @@ local function open_view(file, opts)
   -- take the other windows' resize and close handlers with it.
   local autocmd = require("lib.nvim.bindings.autocmd")
   local group = autocmd.group("images.zen." .. win, true)
-  autocmd.create({ "WinResized", "VimResized" }, function()
+  autocmd.create({ "WinResized", "VimResized" }, function(ev)
+    -- Only a resize of THIS window counts. A message plugin (noice, snacks)
+    -- opens and grows a float of its own for every echo -- the selection's
+    -- "selection 640x360 px ..." line among them -- and each of those fires
+    -- WinResized; taking that for our own resize ended every selection before
+    -- the button was released (live test 2026-10-21).
+    if ev and ev.event == "WinResized" then
+      -- `ev.data.windows` for a caller that fires the event itself (a spec:
+      -- headless Neovim fires no WinResized and v:event cannot be set).
+      local changed = (type(ev.data) == "table" and ev.data.windows) or (vim.v.event and vim.v.event.windows) or {}
+      if not vim.tbl_contains(changed, win) then return end
+    end
     -- A drag or a selection measures against the picture box it started with;
     -- after a resize that box is gone, so they end rather than mapping wrongly.
     view.drag = nil
@@ -1182,6 +1220,22 @@ local function open_view(file, opts)
   end, {
     group = group,
     desc = "images.zen: image follows the window size",
+  })
+  -- Another float closing over the picture (a notification, a hover) leaves a
+  -- hole: the terminal dropped the image cells it was drawn over, and closing
+  -- it repaints them as empty. Draw the picture again when one goes that
+  -- overlapped this window (`gy`'s "copied" message took the lower half away,
+  -- live test 2026-10-21).
+  autocmd.create("WinClosed", function(ev)
+    local closed = tonumber(ev and ev.match)
+    if not closed or closed == win or not alive(view) or view.hidden or view.help then return end
+    if not M.overlaps(closed, win) then return end
+    vim.schedule(function()
+      if alive(view) then show(view) end
+    end)
+  end, {
+    group = group,
+    desc = "images.zen: draw again when a float over the picture closes",
   })
   autocmd.create("WinClosed", function()
     views[win] = nil

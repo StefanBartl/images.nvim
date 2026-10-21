@@ -174,9 +174,12 @@ return function(H)
     zen.zoom(2)
 
     -- A resize from outside (WinResized) makes the drag's picture box stale: the drag ends.
+    local here = vim.api.nvim_get_current_win()
     H.ok(zen.drag_begin(row, col), "a drag starts")
-    vim.api.nvim_exec_autocmds("WinResized", {})
-    H.falsy(zen.drag_to(row, col + 2), "a WinResized ended the drag")
+    vim.api.nvim_exec_autocmds("WinResized", { data = { windows = { here + 100 } } })
+    H.ok(zen.drag_to(row, col + 1), "a WinResized of another window (a message float) leaves the drag alone")
+    vim.api.nvim_exec_autocmds("WinResized", { data = { windows = { here } } })
+    H.falsy(zen.drag_to(row, col + 2), "a WinResized of the zen window ends the drag")
 
     -- The configured key in another spelling is not bound twice.
     local count = 0

@@ -144,14 +144,23 @@ return function(H)
 
     -- The resize's own WinResized arrives before the queued draw has run:
     -- one picture sent, not two.
+    -- (Headless Neovim fires no WinResized; the spec fires it, naming the
+    -- resized windows the way v:event.windows would.)
     settle()
+    local zen_win = vim.api.nvim_get_current_win()
+    local function resized(wins)
+      vim.api.nvim_exec_autocmds("WinResized", { data = { windows = wins } })
+    end
     local d1 = draws
     zen.resize(1)
-    vim.api.nvim_exec_autocmds("WinResized", {})
+    resized({ zen_win })
     H.eq(draws - d1, 1, "a resize and its own WinResized draw the picture once")
     settle()
-    vim.api.nvim_exec_autocmds("WinResized", {})
+    resized({ zen_win })
     H.eq(draws - d1, 2, "a WinResized after the draw has run draws again")
+    settle()
+    resized({ zen_win + 100 })
+    H.eq(draws - d1, 2, "a WinResized of another window (a message float) does not redraw")
 
     zen.resize(1)
     eq_size(full, "the full-screen step keeps the make_scratch caps")
