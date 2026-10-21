@@ -29,8 +29,7 @@ M.MIN_SCALE = 0.35
 ---@field width integer|nil pixels, when they could be read
 ---@field height integer|nil pixels, when they could be read
 
---- The same pair, both known -- what `M.cell_box_to_pixels` needs, because it
---- divides by them. Narrowed once at the place that checked, rather than
+--- The same pair, both known -- what a caller that divides by them needs. Narrowed once at the place that checked, rather than
 --- re-checked at every use.
 ---@class Images.Scale.Dims : Images.Scale.MaybeDims
 ---@field width integer pixels
@@ -205,10 +204,8 @@ end
 --- never queries the terminal for it (the "no cell measurement" guardrail) —
 --- 0.5 is a coarse assumption typical of common monospace fonts (a cell is
 --- roughly twice as tall as it is wide). That is
---- enough for `images.redact`: `M.fit_cells` picks the draw box so that
---- `preserveAspectRatio=1` has almost nothing left to letterbox, and
---- `M.cell_box_to_pixels`'s safety margin absorbs the rest — better one cell
---- too much blacked out than one too little.
+--- enough for `M.fit_cells` to pick a draw box that `preserveAspectRatio=1`
+--- has almost nothing left to letterbox.
 ---
 --- Overwritten by `images.cell` as soon as `display.cell_aspect` supplies a
 --- value. Without one the assumption stands — no caller has to tell the
@@ -264,48 +261,6 @@ function M.fit_cells(max_cols, max_rows, image_px)
 
   local rows = math.floor(max_cols * M.CELL_ASPECT / image_aspect)
   return max_cols, math.max(1, rows)
-end
-
---- Convert a 1-based, inclusive cell box (relative to the draw box) into a
---- pixel box of the source file. Assumes `draw_cols`/`draw_rows` were chosen
---- via `M.fit_cells` — otherwise the assumed 1:1 correspondence between cell
---- grid and visible image would be noticeably off. `padding_cells` grows the
---- box outwards before conversion: a redaction should err on the large side.
----@param box { row1: integer, col1: integer, row2: integer, col2: integer }
----@param draw_cols integer
----@param draw_rows integer
----@param image_px Images.Scale.Dims
----@param padding_cells integer|nil
----@return { x1: integer, y1: integer, x2: integer, y2: integer }
-function M.cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding_cells)
-  -- `padding_cells` is `display.redact.padding_cells` verbatim (see
-  -- `images.redact`): a non-number reaches the subtraction below and throws
-  -- ("attempt to perform arithmetic on ... (a string/boolean/table value)",
-  -- reproduced with each), which `padding_cells or 0` does not catch since
-  -- only `nil`/`false` fall through it. A negative value would shrink the
-  -- box instead of growing it — the opposite of what this margin is for — so
-  -- it is clamped to 0 the same as an invalid type (ERR-22).
-  if type(padding_cells) ~= "number" or padding_cells ~= padding_cells or padding_cells < 0 then padding_cells = 0 end
-
-  local col1 = math.max(1, box.col1 - padding_cells)
-  local row1 = math.max(1, box.row1 - padding_cells)
-  local col2 = math.min(draw_cols, box.col2 + padding_cells)
-  local row2 = math.min(draw_rows, box.row2 + padding_cells)
-
-  local scale_x = image_px.width / draw_cols
-  local scale_y = image_px.height / draw_rows
-
-  local x1 = math.floor((col1 - 1) * scale_x)
-  local y1 = math.floor((row1 - 1) * scale_y)
-  local x2 = math.ceil(col2 * scale_x)
-  local y2 = math.ceil(row2 * scale_y)
-
-  return {
-    x1 = math.max(0, math.min(x1, image_px.width)),
-    y1 = math.max(0, math.min(y1, image_px.height)),
-    x2 = math.max(0, math.min(x2, image_px.width)),
-    y2 = math.max(0, math.min(y2, image_px.height)),
-  }
 end
 
 return M

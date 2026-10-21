@@ -20,7 +20,7 @@ completion and this table all come from the same spec.
 | `:Image screenshot` | — | Take a screenshot interactively and insert the link — skips the clipboard step |
 | `:Image replace [path]` | — | Overwrite an image with the clipboard, keep the link |
 | `:Image export [path]` | — | Export an image as PDF next to the source file (via `pdfport.nvim` if installed, else needs ImageMagick) |
-| `:Image redact [path]` | — | Censor mode: mark boxes (Visual + `<CR>`), `w` blacks them out into a new file (needs ImageMagick) |
+| `:Image redact [path]` | — | Censor mode in a zen window: mark boxes (left-button drag, or `v` + hjkl + `<CR>`), `u` removes the last, `w` blacks them out into a new file (needs ImageMagick) |
 | `:Image ocr [path] [--lang=<code>]` | — | Read the text out of an image into a markdown scratch split (needs `tesseract`); `--lang`/`-l` overrides `ocr.lang` |
 | `:Image scale <size> [path]` | — | Resized copy next to the source (`photo.png` → `photo.scaled.png`); `size` is `50%`, `800x600`, `800x`, `x600` or `800x600!` (needs ImageMagick) |
 | `:Image optimise [path] [--quality=<n>]` | — | Smaller copy next to the source (`photo.png` → `photo.optimised.png`): metadata stripped, best compression. A result that is not smaller is deleted and reported (needs ImageMagick) |
@@ -173,7 +173,7 @@ mapped keys, which would show an action and a group under the same key.
 | images.zen | `WinResized`, `VimResized` | Redraws the `:Image zen` image so it follows the window's size |
 | images.zen | `WinClosed` | Clears the image when the zen window closes (`once`) |
 | images.hover_float | `WinClosed` | Clears the image and resets state when the hover float closes (`once`) |
-| images.redact | `WinClosed` | Clears the image when the redact window closes (`once`) |
+| images.redact | `WinClosed` | Drops the boxes and deletes the previews when the redact window closes (`once`); the zen window clears the image |
 | images.ascii | `WinClosed` | Clears the ASCII-fallback window state when it closes (`once`) |
 
 The clear group is registered only while an image is on screen, not

@@ -1,33 +1,32 @@
 ---@module 'images.redact'
----@brief Redaction mode: black out parts of an image in a zen-like window,
---- leaving the original intact.
+---@brief Redaction mode: black out parts of an image in a zen window, leaving
+--- the original intact.
 ---@description
 --- Motivation: casedesk attachments
 --- (screenshots containing customer data under `Ressources/`) that have to be
 --- made unrecognisable before any future handover to an AI.
 ---
---- The real obstacle is that an image drawn via OSC 1337 is not interactive as
---- far as Neovim is concerned — mouse and cursor yield cell coordinates only,
---- never pixel coordinates within the image. The solution here: the selection
---- happens entirely in cells, through genuine Neovim visual mode on a
---- space-filled scratch buffer sized to the image (`v`/`<C-v>` + `<CR>` marks a
---- box, the same idea as visual block) — no new input system, no pixel
---- arithmetic during selection. The conversion happens once, on write (`w`):
---- `images.scale.fit_cells` picks the draw box so `preserveAspectRatio=1` has
---- almost nothing left to letterbox (the cell count is fitted to the image's
---- aspect ratio via an assumed, documented cell width/height,
---- `images.scale.CELL_ASPECT` — not a real cell measurement, see there), and
---- `images.scale.cell_box_to_pixels` converts to pixel coordinates with a
---- safety margin. The burn-in goes through `images.convert.redact`
---- (ImageMagick, one of the deliberate exceptions to the "ImageMagick
---- improves, never enables" guardrail -- docs/architecture.md lists them all).
+--- The window is a zen window (`images.zen`), and a box is chosen the way a
+--- part is chosen there: drag with the left button, or `v` and then
+--- hjkl/HJKL, `<CR>` takes it. Nothing is painted over the picture while
+--- choosing -- WezTerm drops the whole image as soon as Neovim writes a cell
+--- inside it (measured 2026-10-20), which is what made the old visual-mode
+--- selection blind: pressing `v` made the picture vanish and only the empty
+--- cells were left to mark. Zoom and pan work as in any zen window, so a small
+--- line of text can be boxed precisely.
 ---
---- **Not part of the automated test suite**: the key logic itself (visual mode
---- capture, window construction) needs a real terminal with OSC 1337 support to
---- be verified meaningfully — as everywhere in this suite, "drawing" stays
---- unchecked (see TESTS/zen_spec.lua). The pure geometry
---- (`images.scale.fit_cells`/`cell_box_to_pixels`) and the burn-in
---- (`images.convert.redact`) are tested.
+--- A confirmed box comes back in the original's pixels (`images.zen`'s
+--- `on_select`) and is burned into a PREVIEW in a temporary directory, which
+--- the window then shows instead of the original: every box marked so far is
+--- visible as black, and the title counts them. `u` takes the last one off
+--- again (a count takes that many). `w` burns them into the original's copy
+--- (`photo.png` -> `photo.redacted.png`, `images.convert.redact`, ImageMagick --
+--- one of the deliberate exceptions to the "ImageMagick improves, never
+--- enables" guardrail, docs/architecture.md lists them all) and closes.
+---
+--- `display.redact.padding_cells` widens every box by that many cells of the
+--- view it was chosen in, on each side: a cell is coarse, and over-redacting
+--- is the safe failure mode.
 
 local M = {}
 
@@ -41,127 +40,140 @@ local function notify()
   return require("lib.nvim.notify").create("[images]")
 end
 
----@type integer|nil
-local winid = nil
----@type integer|nil
-local bufnr = nil
----@type string|nil
-local file = nil
----@type Images.Scale.Dims|nil
-local image_px = nil
----@type integer
-local draw_cols = 0
----@type integer
-local draw_rows = 0
+---@class Images.Redact.PixelBox
+---@field x1 integer
+---@field y1 integer
+---@field x2 integer inclusive
+---@field y2 integer inclusive
 
----@class Images.Redact.Box
----@field row1 integer
----@field col1 integer
----@field row2 integer
----@field col2 integer
+---@class Images.Redact.State
+---@field win integer the zen window
+---@field file string the original
+---@field px Images.Scale.Dims its size
+---@field boxes Images.Redact.PixelBox[]
+---@field dir string where the previews go
+---@field seq integer the preview asked for last; an older one arriving late is dropped
+---@field writing boolean `w` is burning the boxes in
 
----@type Images.Redact.Box[]
-local boxes = {}
+---@type Images.Redact.State|nil
+local state = nil
 
-local ns = vim.api.nvim_create_namespace("images.redact")
+--- A selection (`rect`, original pixels) widened by `padding` cells of `cell`
+--- pixels on each side and clamped to the picture `px`, as the inclusive
+--- corners `images.convert.redact` draws. Pure.
+---@param rect Images.Viewport.Rect
+---@param cell { w: number, h: number }
+---@param padding integer
+---@param px Images.Scale.Dims
+---@return Images.Redact.PixelBox
+function M.pixel_box(rect, cell, padding, px)
+  -- `padding` is `display.redact.padding_cells` verbatim: a non-number would
+  -- throw in the arithmetic below, and a negative one would shrink the box --
+  -- the opposite of what the margin is for. Both count as no margin (ERR-22).
+  if type(padding) ~= "number" or padding ~= padding or padding < 0 then padding = 0 end
+  local pad_x = math.ceil(padding * cell.w)
+  local pad_y = math.ceil(padding * cell.h)
+  return {
+    x1 = math.max(0, rect.x - pad_x),
+    y1 = math.max(0, rect.y - pad_y),
+    x2 = math.min(px.width - 1, rect.x + rect.w - 1 + pad_x),
+    y2 = math.min(px.height - 1, rect.y + rect.h - 1 + pad_y),
+  }
+end
 
 --- Whether a redaction window is currently open.
 ---@return boolean
 function M.is_open()
-  return winid ~= nil and vim.api.nvim_win_is_valid(winid)
+  return state ~= nil and vim.api.nvim_win_is_valid(state.win)
 end
 
---- Close the redaction window (a no-op when none is open). Discards
---- unconfirmed boxes — original and target file are untouched at that point
---- anyway, only `w` actually writes.
+--- The boxes marked so far, in the original's pixels (a copy).
+---@return Images.Redact.PixelBox[]
+function M.boxes()
+  return state and vim.deepcopy(state.boxes) or {}
+end
+
+---@param s Images.Redact.State
+local function forget(s)
+  if state == s then state = nil end
+  vim.fn.delete(s.dir, "rf")
+end
+
+--- Close the redaction window (a no-op when none is open). Discards the boxes
+--- -- original and target file are untouched at that point anyway, only `w`
+--- writes.
 ---@return nil
 function M.close()
-  if winid and vim.api.nvim_win_is_valid(winid) then pcall(vim.api.nvim_win_close, winid, true) end
-  if winid then require("images.terminal").clear() end
-  winid, bufnr, file, image_px, draw_cols, draw_rows = nil, nil, nil, nil, 0, 0
-  boxes = {}
+  local s = state
+  if not s then return end
+  if vim.api.nvim_win_is_valid(s.win) then pcall(vim.api.nvim_win_close, s.win, true) end
+  forget(s)
 end
 
----@return nil
-local function redraw_boxes()
-  if not bufnr then return end
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-  for _, box in ipairs(boxes) do
-    pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, box.row1 - 1, box.col1 - 1, {
-      end_row = box.row2 - 1,
-      end_col = box.col2,
-      hl_group = "Visual",
-    })
+--- Show the original with every box so far burned in -- or the original itself
+--- once none is left. The latest request wins: a slow `magick` for two boxes
+--- finishing after the one for three would otherwise show the wrong set.
+---@param s Images.Redact.State
+local function refresh(s)
+  s.seq = s.seq + 1
+  local seq = s.seq
+  if #s.boxes == 0 then
+    require("images.zen").show_file(s.win, s.file)
+    return
   end
+  local ext = vim.fn.fnamemodify(s.file, ":e")
+  local out = ("%s/preview-%d.%s"):format(s.dir, seq, ext ~= "" and ext or "png")
+  require("images.convert").redact(s.file, s.boxes, function(path, err)
+    if state ~= s or seq ~= s.seq then return end
+    if not path then
+      notify().error(err or "could not draw the preview")
+      return
+    end
+    require("images.zen").show_file(s.win, path)
+  end, out)
 end
 
----@return nil
+---@param s Images.Redact.State
+---@param rect Images.Viewport.Rect
+---@param cell { w: number, h: number }
+local function add_box(s, rect, cell)
+  local padding = (cfg().display.redact or {}).padding_cells or 0
+  s.boxes[#s.boxes + 1] = M.pixel_box(rect, cell, padding, s.px)
+  refresh(s)
+end
+
 ---A count removes that many boxes: `3u` after marking a run of them in the
----wrong place beats pressing `u` three times and watching three notifications.
----Clamped to what is actually there rather than warning per missing box.
-local function undo_box()
-  if #boxes == 0 then
+---wrong place beats pressing `u` three times. Clamped to what is there.
+---@param s Images.Redact.State
+local function undo_box(s)
+  if #s.boxes == 0 then
     notify().warn("no box to remove")
     return
   end
-
-  local want = math.min(vim.v.count1, #boxes)
-  for _ = 1, want do
-    table.remove(boxes)
+  for _ = 1, math.min(vim.v.count1, #s.boxes) do
+    table.remove(s.boxes)
   end
-  redraw_boxes()
-  notify().info(("%d box(es) removed (%d remaining)"):format(want, #boxes))
+  refresh(s)
 end
 
---- Take the current visual selection as a redaction box. Runs as a visual mode
---- mapping — `getpos("v")`/`getpos(".")` are still valid while the callback
---- executes; an `<Esc>` afterwards leaves the mode.
----@return nil
-local function confirm_box()
-  local vstart = vim.fn.getpos("v")
-  local vend = vim.fn.getpos(".")
-  vim.cmd("normal! \27")
-
-  local row1, col1 = vstart[2], vstart[3]
-  local row2, col2 = vend[2], vend[3]
-  if row1 > row2 then
-    row1, row2 = row2, row1
-  end
-  if col1 > col2 then
-    col1, col2 = col2, col1
-  end
-
-  boxes[#boxes + 1] = { row1 = row1, col1 = col1, row2 = row2, col2 = col2 }
-  redraw_boxes()
-  notify().info(("box %d marked"):format(#boxes))
-end
-
----@return nil
-local function write_redacted()
-  if #boxes == 0 then
+---@param s Images.Redact.State
+local function write_redacted(s)
+  if #s.boxes == 0 then
     notify().warn("no box marked — nothing to redact")
     return
   end
-  if not file or not image_px then return end
-
-  local padding = cfg().display.redact.padding_cells or 0
-  local pixel_boxes = {}
-  for _, box in ipairs(boxes) do
-    pixel_boxes[#pixel_boxes + 1] = require("images.scale").cell_box_to_pixels(box, draw_cols, draw_rows, image_px, padding)
-  end
-
-  -- convert.redact() is asynchronous: magick used to block here for the whole
-  -- conversion. The window stays up until the result arrives and is closed only
-  -- in the callback — so the ordering is the same as before, just without a
-  -- frozen editor.
-  require("images.convert").redact(file, pixel_boxes, function(out, err)
+  if s.writing then return end
+  s.writing = true
+  -- Asynchronous: the window stays up until the result arrives and is closed
+  -- only then, so a failure leaves the boxes to try again with.
+  require("images.convert").redact(s.file, s.boxes, function(out, err)
+    s.writing = false
     if not out then
       notify().error(err or "redaction failed")
       return
     end
-
     notify().info("redacted copy saved: " .. vim.fn.fnamemodify(out, ":~"))
-    M.close()
+    if state == s then M.close() end
   end)
 end
 
@@ -174,78 +186,70 @@ function M.open(path)
     notify().warn("no image under the cursor or at the given path")
     return false
   end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    notify().error("`:Image redact` needs ImageMagick (`magick` not found)")
+    return false
+  end
 
   local px, info_err = require("images.info").collect(target)
   if not px or not px.width or not px.height then
-    notify().error(info_err or "cannot determine the image dimensions — `:Image redact` needs ImageMagick")
+    notify().error(info_err or "cannot determine the image dimensions")
     return false
   end
 
-  require("images.guard").check()
   M.close()
 
-  -- Narrowed once, here: `image_px` outlives this function and is handed to
-  -- `cell_box_to_pixels`, which divides by both values.
-  ---@type Images.Scale.Dims
-  local dims = { width = px.width, height = px.height }
+  ---@type Images.Redact.State
+  local s = {
+    win = -1,
+    file = target,
+    px = { width = px.width, height = px.height },
+    boxes = {},
+    dir = vim.fn.tempname() .. "-images-redact",
+    seq = 0,
+    writing = false,
+  }
+  vim.fn.mkdir(s.dir, "p")
+  -- Set before the window opens: its first draw already asks for the label.
+  state = s
 
-  local max_cols, max_rows = require("images.zen").dimensions(cfg().display.zen)
-  local cols, rows = require("images.scale").fit_cells(max_cols, max_rows, dims)
-
-  local lines = {}
-  local blank = (" "):rep(cols)
-  for i = 1, rows do
-    lines[i] = blank
-  end
-
-  local win, buf = require("lib.nvim.window.make_scratch")({
-    lines = lines,
-    width = cols,
-    height = rows,
-    modifiable = false,
-    nice_quit = true,
-    title = " Redact: " .. vim.fn.fnamemodify(target, ":t") .. " ",
+  local zen = require("images.zen")
+  local ok = zen.open(target, {
+    on_select = function(_, rect, cell)
+      if state == s then add_box(s, rect, cell) end
+    end,
+    label = function()
+      if state ~= s then return nil end
+      return ("redact · %d box%s"):format(#s.boxes, #s.boxes == 1 and "" or "es")
+    end,
   })
-  if not win or not buf then
-    notify().error("could not open the redaction window")
+  local win = ok and zen.win() or nil
+  if not win then
+    forget(s)
     return false
   end
+  s.win = win
 
-  winid, bufnr, file, image_px, draw_cols, draw_rows = win, buf, target, dims, cols, rows
-  boxes = {}
-
+  local buf = vim.api.nvim_win_get_buf(win)
   local map = require("lib.nvim.bindings.keymap")
-  map("n", "w", write_redacted, { buffer = buf, nowait = true }, "images.redact: redact and save")
-  map("n", "u", undo_box, { buffer = buf, nowait = true }, "images.redact: remove the last box")
-  map("x", "<CR>", confirm_box, { buffer = buf, nowait = true }, "images.redact: mark the selection as a box")
+  map("n", "w", function()
+    write_redacted(s)
+  end, { buffer = buf, nowait = true }, "images.redact: burn the boxes in and save")
+  map("n", "u", function()
+    undo_box(s)
+  end, { buffer = buf, nowait = true }, "images.redact: remove the last box")
 
   local autocmd = require("lib.nvim.bindings.autocmd")
   autocmd.create("WinClosed", function()
-    winid = nil
-    require("images.terminal").clear()
+    forget(s)
   end, {
     group = autocmd.group("images.redact", true),
     pattern = tostring(win),
     once = true,
-    desc = "images.redact: clean up on close",
+    desc = "images.redact: drop the boxes and previews on close",
   })
 
-  -- `defer = true` for the same reason as in `images.zen` — see
-  -- `images.anchor`'s module docs: the window has only just been opened.
-  -- `inset = 0`: here the draw box is not a presentation choice but the basis
-  -- for mapping back. `draw_cols`/`draw_rows` above and
-  -- `images.scale.cell_box_to_pixels` assume the box drawn is exactly the one
-  -- `fit_cells` determined. A safety margin would map every marked box onto the
-  -- wrong part of the image — what got blacked out would not be what the user
-  -- marked.
-  require("images.anchor").draw(win, "full", target, {
-    defer = true,
-    inset = 0,
-    on_done = function(ok, err)
-      if not ok then notify().error(err or "could not display the image") end
-    end,
-  })
-
+  notify().info("redact: drag (or v, hjkl, <CR>) to mark a box · u removes the last · w saves")
   return true
 end
 

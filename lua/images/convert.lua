@@ -188,10 +188,11 @@ end
 --- mode is exactly the situation where you want to carry straight on
 --- afterwards.
 ---@param path string absolute path to an image file
----@param boxes { x1: integer, y1: integer, x2: integer, y2: integer }[] pixel rectangles, see `images.scale.cell_box_to_pixels`
+---@param boxes { x1: integer, y1: integer, x2: integer, y2: integer }[] inclusive pixel rectangles, see `images.redact.pixel_box`
 ---@param on_done fun(out_path: string|nil, err: string|nil)|nil
+---@param out string|nil where to write instead (`:Image redact`'s preview goes to the cache)
 ---@return nil
-function M.redact(path, boxes, on_done)
+function M.redact(path, boxes, on_done, out)
   local function done(out_path, err)
     if on_done then on_done(out_path, err) end
   end
@@ -204,8 +205,10 @@ function M.redact(path, boxes, on_done)
   local stat = vim.uv.fs_stat(path)
   if not stat then return done(nil, "file not found: " .. path) end
 
-  local ext = vim.fn.fnamemodify(path, ":e")
-  local out = vim.fn.fnamemodify(path, ":r") .. ".redacted." .. (ext ~= "" and ext or "png")
+  if not out then
+    local ext = vim.fn.fnamemodify(path, ":e")
+    out = vim.fn.fnamemodify(path, ":r") .. ".redacted." .. (ext ~= "" and ext or "png")
+  end
 
   -- `-strip`: the pixels are painted over, but the source's metadata is not --
   -- a JPEG's EXIF thumbnail and a PNG's text chunks (a screenshot tool's

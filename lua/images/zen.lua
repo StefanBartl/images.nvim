@@ -78,6 +78,13 @@ end
 ---@field child ImagesNvim.ZenView|nil the selection opened from this window, while it is open
 ---@field cutting boolean|nil a selection of this window is being cut
 ---@field closing boolean|nil its WinClosed is running
+---@field on_select ImagesNvim.ZenOnSelect|nil a host takes a confirmed selection instead of a child window (`:Image redact`)
+---@field label (fun(view: ImagesNvim.ZenView): string|nil)|nil a host's part of the title, after the name
+
+--- What a host does with a confirmed selection (`opts.on_select` of `M.open`):
+--- `rect` is in the original's pixels, `cell` the size one window cell covered
+--- in them while it was chosen.
+---@alias ImagesNvim.ZenOnSelect fun(view: ImagesNvim.ZenView, rect: Images.Viewport.Rect, cell: { w: number, h: number })
 
 --- Every open zen window, by window id.
 ---@type table<integer, ImagesNvim.ZenView>
@@ -222,7 +229,9 @@ function M.legend(view)
   if not view then return nil, nil end
   -- The original's name: a selection's file is a crop in the cache (`sel-<hash>.png`).
   local parts = { vim.fn.fnamemodify((view.origin and view.origin.file) or view.file, ":t") }
-  if not legend_on() then return " " .. parts[1] .. " ", nil end
+  local label = view.label and view.label(view)
+  if label and label ~= "" then parts[#parts + 1] = label end
+  if not legend_on() then return " " .. table.concat(parts, " · ") .. " ", nil end
   parts[#parts + 1] = zoom_label(view)
   if (view.depth or 1) > 1 then
     local deepest = 1
@@ -1009,11 +1018,19 @@ end
 ---@type table<string, true>
 local PLAIN_KEEPS = { grow = true, shrink = true, help = true }
 
+--- What a window whose selection goes to a host (`opts.on_select`) leaves
+--- unbound: no part is ever cut from it, and saving or copying what is shown
+--- would hand out the picture the host is working on (for `:Image redact`, the
+--- original with the boxes not burned in yet).
+---@type table<string, true>
+local HOSTED_DROPS = { back = true, save = true, yank = true }
+
 ---@param buf integer
 ---@param keys table|false|nil `display.zen.keys`
 ---@param plain boolean|nil bind only `PLAIN_KEEPS`
+---@param hosted boolean|nil leave `HOSTED_DROPS` unbound
 ---@return nil
-local function map_keys(buf, keys, plain)
+local function map_keys(buf, keys, plain, hosted)
   apply_defaults()
   -- `false` binds nothing; anything that is not a table means "the defaults".
   local user = nil
@@ -1022,10 +1039,10 @@ local function map_keys(buf, keys, plain)
   elseif type(keys) == "table" then
     user = keys
   end
-  if plain and user ~= false then
+  if (plain or hosted) and user ~= false then
     user = vim.deepcopy(user or {})
     for _, name in ipairs(ORDER) do
-      if not PLAIN_KEEPS[name] then user[name] = false end
+      if (plain and not PLAIN_KEEPS[name]) or (hosted and HOSTED_DROPS[name]) then user[name] = false end
     end
   end
   local keymap = require("lib.nvim.bindings.keymap")
@@ -1208,11 +1225,13 @@ local function open_view(file, opts)
     origin = opts.origin or { file = file, x = 0, y = 0 },
     -- A part opened from a plain window (through the Lua API) stays plain.
     plain = opts.plain or (parent and parent.plain) or false,
+    on_select = opts.on_select,
+    label = opts.label,
   }
   views[win] = view
   current = win
   if parent then parent.child = view end
-  map_keys(buf, zen_cfg.keys, view.plain)
+  map_keys(buf, zen_cfg.keys, view.plain, view.on_select ~= nil)
   map_fixed_keys(view)
 
   -- One group per window: with a stack open, clearing a shared group would
@@ -1303,8 +1322,12 @@ end
 --- on from there through `display.zen.sizes`. `opts.viewport = false` opens a
 --- plain window: only its size, `?` and closing are bound, no zoom, pan, mouse,
 --- selection or save/copy (a host that wants the picture and nothing more).
+---
+--- `opts.on_select` hands a confirmed selection to the caller instead of
+--- opening it (see `ImagesNvim.ZenOnSelect`); such a window binds no `back`,
+--- `save` or `yank`. `opts.label` adds the caller's part to the title.
 ---@param path string|nil nil = the image under the cursor
----@param opts { width?: number, height?: number, viewport?: boolean }|nil
+---@param opts { width?: number, height?: number, viewport?: boolean, on_select?: ImagesNvim.ZenOnSelect, label?: fun(view: ImagesNvim.ZenView): string|nil }|nil
 ---@return boolean ok
 function M.open(path, opts)
   local file = require("images.resolve").path_or_cursor(path)
@@ -1326,7 +1349,34 @@ function M.open(path, opts)
 
   -- Replace an already open zen window (stack and all) rather than stacking.
   opts = opts or {}
-  return open_view(file, { width = opts.width, height = opts.height, plain = opts.viewport == false })
+  return open_view(file, {
+    width = opts.width,
+    height = opts.height,
+    plain = opts.viewport == false,
+    on_select = opts.on_select,
+    label = opts.label,
+  })
+end
+
+--- The zen window opened last, while it is open.
+---@return integer|nil
+function M.win()
+  local view = current and views[current]
+  return alive(view) and view.win or nil
+end
+
+--- Show `path` in the zen window `win` in place of its file, at the same zoom
+--- and pan. For a picture of the SAME size (`:Image redact`'s preview with the
+--- boxes burned in): the visible rectangle stays as it is.
+---@param win integer
+---@param path string
+---@return boolean ok false without that window
+function M.show_file(win, path)
+  local view = views[win]
+  if not alive(view) then return false end
+  view.file = path
+  show(view)
+  return true
 end
 
 -- ── Selection ──────────────────────────────────────────────────────────────
@@ -1466,8 +1516,18 @@ end
 ---@return boolean opened
 local function confirm_select(view)
   local rect = selected_rect(view)
+  local s = view.select
   end_select(view)
   if not rect then return false end
+  if view.on_select then
+    local origin = view.origin
+    local cell = { w = s.rect.w / math.max(1, s.box.cols), h = s.rect.h / math.max(1, s.box.rows) }
+    view.on_select(view, { x = origin.x + rect.x, y = origin.y + rect.y, w = rect.w, h = rect.h }, cell)
+    -- The frame was given back its colour: draw, which is also what puts a
+    -- host's new label on it.
+    show(view)
+    return true
+  end
   return M.open_selection(view, rect)
 end
 

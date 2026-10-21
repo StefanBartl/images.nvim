@@ -55,7 +55,7 @@
 ---@field save ImagesNvim.ZenSaveOpts where `gs` writes
 
 ---@class ImagesNvim.RedactConfig : ImagesNvim.RedactOpts
----@field padding_cells integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
+---@field padding_cells integer safety margin around each marked box, in cells of the view it was marked in (see images.redact.pixel_box)
 
 ---@class ImagesNvim.AsciiFallbackConfig : ImagesNvim.AsciiFallbackOpts
 ---@field enabled boolean draw block graphics instead of the OSC sequence on an unsupported terminal (needs ImageMagick, see images.ascii)
@@ -199,7 +199,7 @@
 ---@field ask? boolean offer the file name before writing (default false)
 
 ---@class ImagesNvim.RedactOpts
----@field padding_cells? integer safety margin around each marked box, in cells (see images.scale.cell_box_to_pixels)
+---@field padding_cells? integer safety margin around each marked box, in cells of the view it was marked in (see images.redact.pixel_box)
 
 ---@class ImagesNvim.AsciiFallbackOpts
 ---@field enabled? boolean draw block graphics instead of the OSC sequence on an unsupported terminal (needs ImageMagick, see images.ascii)

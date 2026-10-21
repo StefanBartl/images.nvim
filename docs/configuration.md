@@ -194,7 +194,7 @@ to write one.
 
 | Key | Default | What it does |
 | --- | --- | --- |
-| `padding_cells` | `1` | Safety margin in cells added around every marked box before it is burned in. Over-redacting is the safe failure mode, under-redacting is not |
+| `padding_cells` | `1` | Safety margin in cells of the view a box was marked in, added on each side before it is burned in. Over-redacting is the safe failure mode, under-redacting is not |
 
 ### display.ascii_fallback
 

@@ -174,18 +174,18 @@ that already points at it.
 
 ### `:Image redact [path]`
 
-Censor mode: a full-screen window (like `zen`) with a selection grid over the
-image.
+Censor mode in a zen window: every zen key works (zoom, pan, `?`), and a
+selection marks a box instead of opening a part.
 
 | Key | Does |
 | --- | --- |
-| `v` / `<C-v>` then move, `<CR>` | mark a box |
+| left-button drag, or `v` then hjkl/HJKL, `<CR>` | mark a box (shown black right away) |
 | `u` (`3u`) | remove the last box, or three, clamped to what is there |
 | `w` | burn every box in and write `photo.png` → `photo.redacted.png` |
 
 The source file is never touched. Selection happens entirely in terminal cells
 — a terminal has no pixel-precise mouse input at all — so each box is padded by
-`display.redact.padding_cells` (default one cell): over-redacting is the safe
+`display.redact.padding_cells` (default one cell of the view it was marked in): over-redacting is the safe
 failure mode, under-redacting is not. Needs ImageMagick. Full rationale in
 [FEATURES/CAPTURE.md](FEATURES/CAPTURE.md#why-boxes-are-padded-generously).
 

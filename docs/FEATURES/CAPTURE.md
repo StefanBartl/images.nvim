@@ -84,19 +84,29 @@ result arrives via notify once the conversion finishes.
 
 ## Redact
 
-Opens a full-screen censor mode over an image: enter Visual mode
-(`v`/`<C-v>`), move to the opposite corner of the area to black out,
-`<CR>` marks the box — repeat for as many boxes as needed, `u` undoes the
-last one, `w` burns every marked box in via ImageMagick and writes a new
-file (`photo.png` → `photo.redacted.png`). The source file is never
-touched. The result carries no metadata: `-strip` removes EXIF (including an
+Opens an image in a [zen window](DISPLAY.md) in censor mode: drag with the
+left button over the area to black out — or `v`, then hjkl/HJKL, `<CR>` —
+and it becomes a box. Repeat for as many boxes as needed; zoom and pan work
+as in any zen window, so small text can be boxed precisely. Every box shows
+up black in the window right away (a preview in a temporary directory), and
+the title counts them. `u` undoes the last one, `w` burns every box in via
+ImageMagick and writes a new file (`photo.png` → `photo.redacted.png`). The
+source file is never touched.
+
+Nothing is painted over the picture while choosing: WezTerm drops the whole
+image as soon as Neovim writes a cell inside it, which is why the earlier
+Visual-mode selection made the picture vanish on `v`. The selection shows on
+the frame's colour instead, like a zen selection. `gs`, `gy` and `<BS>` are
+not bound in a redact window: they would cut or hand out the picture with
+the boxes not burned in yet. The result carries no metadata: `-strip` removes EXIF (including an
 embedded JPEG thumbnail, which would otherwise still show the unredacted
 image), PNG text chunks, colour profiles and anything else ImageMagick
 treats as a profile or property. Only the pixels remain.
 
 - **Tab:** true
-- **Module:** `images/redact.lua` (`M.open`, `confirm_box`, `undo_box`,
-  `write_redacted`), `images/convert.lua` (`M.redact`)
+- **Module:** `images/redact.lua` (`M.open`, `M.pixel_box`, `add_box`,
+  `undo_box`, `write_redacted`), `images/zen.lua` (`opts.on_select`,
+  `M.show_file`), `images/convert.lua` (`M.redact`)
 - **Usercmds:** `:Image redact [path]` ([usercmds](../BINDINGS.md#user-commands))
 - **Config:** `opts.display.redact.padding_cells` (default `1`)
 - **Count:** `u` removes the last box, `3u` removes three — clamped to what is
@@ -107,8 +117,9 @@ treats as a profile or property. Only the pixels remain.
 
 Selection happens entirely in terminal cells — there is no pixel-precise
 mouse input available in a terminal at all, so each marked box gets a
-configurable safety margin (default one cell) added around it before
-burning in. Over-redacting is the safe failure mode; under-redacting is
+configurable safety margin (default one cell of the view it was marked in,
+on each side) added around it before burning in. Zoomed in, a cell covers
+fewer pixels, so the margin shrinks with it. Over-redacting is the safe failure mode; under-redacting is
 not.
 
 ## Scale, optimise, convert — image operations as file operations

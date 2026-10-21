@@ -143,9 +143,9 @@ return {
       windows_timeout_ms = 60000,
       windows_poll_interval_ms = 600,
     },
-    -- `:Image redact`: safety margin around each marked box, in cells --
-    -- better one cell too much blacked out than one too little, see
-    -- images.scale.cell_box_to_pixels.
+    -- `:Image redact`: safety margin around each marked box, in cells of the
+    -- view it was marked in -- better one cell too much blacked out than one
+    -- too little, see images.redact.pixel_box.
     redact = {
       padding_cells = 1,
     },

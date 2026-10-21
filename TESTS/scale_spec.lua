@@ -119,26 +119,6 @@ return function(H)
   H.ok(cols >= 1, "cols is never 0")
   H.ok(rows >= 1, "rows is never 0")
 
-  -- ── cell_box_to_pixels(): a linear conversion without a margin ───────────
-  local px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 5, col2 = 10 }, 50, 25, { width = 500, height = 250 }, 0)
-  H.eq(px.x1, 0, "top left corner at cell 1 -> pixel 0")
-  H.eq(px.y1, 0, "…and at the top")
-  H.eq(px.x2, 100, "right edge: cell 10 of 50 -> 10/50*500 = 100")
-  H.eq(px.y2, 50, "bottom edge: cell 5 of 25 -> 5/25*250 = 50")
-
-  -- ── cell_box_to_pixels(): the safety margin grows the box, but never past
-  --    the image's edge ─────────────────────────────────────────────────────
-  px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 5, col2 = 10 }, 50, 25, { width = 500, height = 250 }, 1)
-  H.eq(px.x1, 0, "the margin at the left edge stays at 0, never negative")
-  H.eq(px.y1, 0, "…the same clamp at the top")
-  H.eq(px.x2, 110, "the margin extends the right edge by one cell (11/50*500)")
-
-  -- ── cell_box_to_pixels(): never past the image dimensions, even with an
-  --    exaggerated margin ───────────────────────────────────────────────────
-  px = scale.cell_box_to_pixels({ row1 = 1, col1 = 1, row2 = 25, col2 = 50 }, 50, 25, { width = 500, height = 250 }, 100)
-  H.eq(px.x2, 500, "x2 is clamped to the image width")
-  H.eq(px.y2, 250, "y2 is clamped to the image height")
-
   -- ── draw_box(): the box images.anchor really draws in ────────────────────
   do
     local saved_aspect = scale.CELL_ASPECT
