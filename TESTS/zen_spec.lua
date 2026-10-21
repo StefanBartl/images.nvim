@@ -172,6 +172,23 @@ return function(H)
     H.ok(type(last_on_done) == "function", "the draw got an on_done")
     last_on_done(false, "boom")
     H.eq(#errors, 1, "a failed draw into the open window is reported")
+    last_on_done(false, "boom")
+    H.eq(#errors, 1, "... once, not again for the next failed attempt")
+    -- A float closing over a picture that cannot be drawn does not retry it: the
+    -- error message is such a float, and retrying on its close would loop.
+    settle()
+    local over = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = math.floor(vim.o.lines / 2),
+      col = math.floor(vim.o.columns / 2),
+      width = 4,
+      height = 1,
+      zindex = 60,
+    })
+    local d_fail = draws
+    vim.api.nvim_win_close(over, true)
+    settle()
+    H.eq(draws, d_fail, "no redraw on a float closing while the picture fails to draw")
     -- ... one that settles after `q` closed the window is not an error.
     local pending = last_on_done
     zen.close()

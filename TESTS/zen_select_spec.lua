@@ -306,6 +306,40 @@ return function(H)
     H.eq(#drawn, drawn_before + 1, "a float closing over the picture: it is drawn again")
     H.ok(vim.api.nvim_win_is_valid(root), "the zen window is still there")
     vim.api.nvim_win_close(msg, true)
+
+    -- A hidden float covered nothing: its close does not redraw.
+    local hidden = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = row0_now + box_now.row_off + 2,
+      col = col0_now + box_now.col_off + 2,
+      width = 12,
+      height = 3,
+      hide = true,
+    })
+    settle()
+    drawn_before = #drawn
+    vim.api.nvim_win_close(hidden, true)
+    settle()
+    H.eq(#drawn, drawn_before, "a hidden float closing over the picture changes nothing")
+
+    -- Another tab page: nothing is drawn there, and coming back draws again.
+    vim.cmd("tabnew")
+    settle()
+    drawn_before = #drawn
+    local other_tab = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), false, {
+      relative = "editor",
+      row = row0_now + box_now.row_off + 2,
+      col = col0_now + box_now.col_off + 2,
+      width = 12,
+      height = 3,
+    })
+    vim.api.nvim_win_close(other_tab, true)
+    vim.api.nvim_exec_autocmds("VimResized", {})
+    settle()
+    H.eq(#drawn, drawn_before, "nothing is drawn while the zen window's tab is in the background")
+    vim.cmd("tabclose")
+    settle()
+    H.ok(#drawn > drawn_before, "back on its tab, the picture is drawn again")
     zen.close()
 
     -- ── The fixed keys yield to the user's own bindings ──────────────────

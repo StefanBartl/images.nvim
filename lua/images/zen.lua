@@ -74,6 +74,7 @@ end
 ---@field origin ImagesNvim.ZenOrigin where this window's file sits in the original
 ---@field hidden boolean|nil hidden under a selection opened from it
 ---@field plain boolean opened with `viewport = false`: no viewport keys
+---@field draw_failed boolean|nil the last draw failed and was reported (until one succeeds)
 ---@field child ImagesNvim.ZenView|nil the selection opened from this window, while it is open
 ---@field cutting boolean|nil a selection of this window is being cut
 ---@field closing boolean|nil its WinClosed is running
@@ -281,6 +282,10 @@ end
 ---@return nil
 local function draw(view, path)
   if not alive(view) or view.help or view.hidden then return end
+  -- Only into the tab page that is on screen: a draw from another tab (a
+  -- float closing there, a VimResized) would paint over that tab's windows.
+  -- TabEnter draws again when the zen window's tab comes back.
+  if vim.api.nvim_win_get_tabpage(view.win) ~= vim.api.nvim_get_current_tabpage() then return end
   -- The legend changes here and nowhere else, so every change of the frame is
   -- followed by a draw: `nvim_win_set_config` makes WezTerm drop the picture
   -- (measured 2026-10-20), and the queued draw puts it back.
@@ -297,9 +302,18 @@ local function draw(view, path)
     end,
     on_done = function(ok, err)
       if view.queued == path then view.queued = nil end
+      if ok then
+        view.draw_failed = nil
+        return
+      end
       -- A deferred draw whose window was closed in the meantime (`q` right
       -- after a resize) has nothing left to draw into: not an error.
-      if ok or not alive(view) then return end
+      if not alive(view) then return end
+      -- Said once per failure, not per attempt: the message is itself a float
+      -- over the picture, and its closing asks for a redraw (see open_view) --
+      -- a file deleted while shown would otherwise report itself forever.
+      if view.draw_failed then return end
+      view.draw_failed = true
       notify().error(err or "could not display the image")
     end,
   })
@@ -1074,6 +1088,11 @@ end
 function M.overlaps(other, win)
   local ok, c = pcall(vim.api.nvim_win_get_config, other)
   if not ok or c.relative == nil or c.relative == "" then return false end
+  -- A hidden float covered nothing; one below the zen window was painted under it.
+  if c.hide then return false end
+  local ok_own, own = pcall(vim.api.nvim_win_get_config, win)
+  if ok_own and (c.zindex or 50) < (own.zindex or 50) then return false end
+  if vim.api.nvim_win_get_tabpage(other) ~= vim.api.nvim_win_get_tabpage(win) then return false end
   local t1, l1, b1, r1 = screen_rect(other)
   local t2, l2, b2, r2 = screen_rect(win)
   if not (t1 and t2) then return false end
@@ -1229,6 +1248,9 @@ local function open_view(file, opts)
   autocmd.create("WinClosed", function(ev)
     local closed = tonumber(ev and ev.match)
     if not closed or closed == win or not alive(view) or view.hidden or view.help then return end
+    -- A picture that cannot be drawn is not retried here: its error message is
+    -- such a float, and retrying on its close would loop.
+    if view.draw_failed then return end
     if not M.overlaps(closed, win) then return end
     vim.schedule(function()
       if alive(view) then show(view) end
@@ -1236,6 +1258,12 @@ local function open_view(file, opts)
   end, {
     group = group,
     desc = "images.zen: draw again when a float over the picture closes",
+  })
+  autocmd.create("TabEnter", function()
+    if alive(view) and vim.api.nvim_win_get_tabpage(win) == vim.api.nvim_get_current_tabpage() then show(view) end
+  end, {
+    group = group,
+    desc = "images.zen: draw again when its tab page comes back",
   })
   autocmd.create("WinClosed", function()
     views[win] = nil
