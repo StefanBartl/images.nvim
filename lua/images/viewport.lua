@@ -27,6 +27,12 @@
 
 local M = {}
 
+--- Revision of this module's functions, for a plugin that uses them when they
+--- are there and keeps its own otherwise (hover.nvim). 2: `rect_for` rounds the
+--- corner down, exactly like hover's `zoom_rect`.
+---@type integer
+M.API = 2
+
 ---@type number What one zoom step divides the visible rectangle by.
 M.ZOOM_STEP = 1.5
 
@@ -96,7 +102,9 @@ end
 --- (fractions 0..1 of the picture). A fraction rather than a pixel survives a
 --- level change, so stepping keeps looking at the same place. Same result as
 --- hover.nvim's `zoom_rect`, except that level 0 is the full rectangle instead
---- of nil.
+--- of nil -- the corner rounds DOWN like there (`clamp` alone would round to
+--- the nearest pixel, one off whenever the centre falls on a half or more),
+--- so hover can use this one without its crops moving by a pixel.
 ---@param px Images.Scale.Dims
 ---@param level integer
 ---@param cx number
@@ -107,7 +115,7 @@ function M.rect_for(px, level, cx, cy)
   local factor = M.ZOOM_STEP ^ level
   local w = math.min(px.width, math.max(M.FLOOR_PX, math.floor(px.width / factor)))
   local h = math.min(px.height, math.max(M.FLOOR_PX, math.floor(px.height / factor)))
-  return clamp(px, cx * px.width - w / 2, cy * px.height - h / 2, w, h)
+  return clamp(px, math.floor(cx * px.width - w / 2), math.floor(cy * px.height - h / 2), w, h)
 end
 
 --- Zoom `rect` by `factor` (> 1 in, < 1 out) so that the picture point at

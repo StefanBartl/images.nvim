@@ -74,6 +74,8 @@ return function(H)
   local wide = { width = 1000, height = 20 }
   local first = vp.rect_for(wide, 1, 0.5, 0.5)
   H.eq(show(first), "666x20+167+0", "rect_for: a picture lower than the floor keeps its height")
+  -- 0.5006 * 1000 - 333 = 167.6: hover.nvim's zoom_rect says 167, so this does too.
+  H.eq(show(vp.rect_for(wide, 1, 0.5006, 0.5)), "666x20+167+0", "rect_for: the corner rounds down, like hover's zoom_rect")
   H.ok(vp.zoom_at(wide, first, 1.5) == first, "zoom_at: zooming in on it does not jump back out")
 
   -- NaN never reaches the clamps (under LuaJIT math.min(1, NaN) is NaN).
