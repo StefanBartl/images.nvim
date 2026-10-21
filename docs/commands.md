@@ -174,8 +174,10 @@ that already points at it.
 
 ### `:Image redact [path]`
 
-Censor mode in a zen window: every zen key works (zoom, pan, `?`), and a
-selection marks a box instead of opening a part.
+Censor mode in a zen window: zoom, pan and `?` work as there, a selection
+marks a box instead of opening a part, and `gs`/`gy`/`<BS>` are not bound
+(they would hand out the picture with the boxes not burned in yet). The `?`
+list does not show `w` and `u`, which belong to redact.
 
 | Key | Does |
 | --- | --- |

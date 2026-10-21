@@ -126,19 +126,37 @@ local function refresh(s)
   require("images.convert").redact(s.file, s.boxes, function(path, err)
     if state ~= s or seq ~= s.seq then return end
     if not path then
-      notify().error(err or "could not draw the preview")
+      -- The window still shows the previous set: say that it is not what `w`
+      -- writes now.
+      notify().error(
+        ("%s -- the picture shows an older set of boxes, `w` burns in the %d marked now"):format(
+          err or "could not draw the preview",
+          #s.boxes
+        )
+      )
       return
     end
     require("images.zen").show_file(s.win, path)
   end, out)
 end
 
+--- While `w` burns the boxes in, the set is fixed: a box marked now would not
+--- be in the file, and the window closes when it is written.
 ---@param s Images.Redact.State
----@param rect Images.Viewport.Rect
+---@return boolean busy
+local function writing(s)
+  if s.writing then notify().warn("writing the redacted copy … the boxes are fixed until it is done") end
+  return s.writing
+end
+
+---@param s Images.Redact.State
+---@param rect Images.Viewport.Rect in the pixels of the picture the zen window measured
 ---@param cell { w: number, h: number }
-local function add_box(s, rect, cell)
+---@param px Images.Scale.Dims|nil that picture's size (the zen view's), `s.px` without one
+local function add_box(s, rect, cell, px)
+  if writing(s) then return end
   local padding = (cfg().display.redact or {}).padding_cells or 0
-  s.boxes[#s.boxes + 1] = M.pixel_box(rect, cell, padding, s.px)
+  s.boxes[#s.boxes + 1] = M.pixel_box(rect, cell, padding, px or s.px)
   refresh(s)
 end
 
@@ -146,6 +164,7 @@ end
 ---wrong place beats pressing `u` three times. Clamped to what is there.
 ---@param s Images.Redact.State
 local function undo_box(s)
+  if writing(s) then return end
   if #s.boxes == 0 then
     notify().warn("no box to remove")
     return
@@ -163,6 +182,12 @@ local function write_redacted(s)
     return
   end
   if s.writing then return end
+  -- A keyboard selection still open (`v` + hjkl, no <CR> yet) is a box the
+  -- user means and has not taken: writing now would leave it out.
+  if require("images.zen").selection() then
+    notify().warn("a selection is still open -- <CR> takes it, <Esc> drops it, then `w`")
+    return
+  end
   s.writing = true
   -- Asynchronous: the window stays up until the result arrives and is closed
   -- only then, so a failure leaves the boxes to try again with.
@@ -172,6 +197,8 @@ local function write_redacted(s)
       notify().error(err or "redaction failed")
       return
     end
+    -- Closing the window while it ran does not undo it: the file is written,
+    -- and saying so beats a copy nobody expects.
     notify().info("redacted copy saved: " .. vim.fn.fnamemodify(out, ":~"))
     if state == s then M.close() end
   end)
@@ -188,6 +215,13 @@ function M.open(path)
   end
   if not require("lib.nvim.cross.executable").exists("magick") then
     notify().error("`:Image redact` needs ImageMagick (`magick` not found)")
+    return false
+  end
+  -- A vector image has no pixels to box: its header says no size the zen
+  -- window could map a selection onto, and burning a rectangle into an SVG
+  -- through magick rasterizes it anyway.
+  if target:lower():match("%.svgz?$") then
+    notify().error("`:Image redact` works on raster images -- convert the SVG first (`:Image convert png`)")
     return false
   end
 
@@ -215,17 +249,21 @@ function M.open(path)
 
   local zen = require("images.zen")
   local ok = zen.open(target, {
-    on_select = function(_, rect, cell)
-      if state == s then add_box(s, rect, cell) end
+    on_select = function(view, rect, cell)
+      if state == s then add_box(s, rect, cell, view.px) end
     end,
     label = function()
       if state ~= s then return nil end
       return ("redact · %d box%s"):format(#s.boxes, #s.boxes == 1 and "" or "es")
     end,
+    -- The block-graphics fallback has no selection: on a terminal that does not
+    -- look image-capable, draw anyway, as `:Image redact` always did.
+    fallback = false,
   })
   local win = ok and zen.win() or nil
   if not win then
     forget(s)
+    notify().error("could not open the redaction window")
     return false
   end
   s.win = win

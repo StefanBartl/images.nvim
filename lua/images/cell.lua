@@ -2,8 +2,8 @@
 ---@brief Pixel aspect ratio of a terminal cell.
 ---@description
 --- `images.scale.CELL_ASPECT` assumes a cell is twice as tall as it is wide
---- (0.5). That is roughly right for common monospace fonts and good enough for
---- `images.redact`, but it is an assumption: if the real cell is 0.46,
+--- (0.5). That is roughly right for common monospace fonts, but it is an
+--- assumption: if the real cell is 0.46,
 --- `images.scale.fit_cells` computes a box one or two rows taller than the
 --- image inside it can ever fill. The terminal scales to "contain" under
 --- `preserveAspectRatio=1` and the remainder stays visibly empty — in a hover
@@ -29,7 +29,7 @@
 ---
 --- The value is written into `images.scale.CELL_ASPECT` rather than passed to
 --- every caller: `fit_cells` has six of them (`anchor` — every windowed draw —
---- `init`'s overlay, `ascii`, `redact`, `zen` and markdown.nvim's hover
+--- `init`'s overlay, `ascii`, `zen` (and with it `redact`) and markdown.nvim's hover
 --- canvas), and an extra signature slot all six would have to carry would hold
 --- the same value in every single case. It also keeps
 --- `images.scale` the pure, terminal-free computation module its own docs say

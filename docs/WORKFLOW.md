@@ -75,7 +75,7 @@ touched a lot of images, not on every save.
 
 `:Image redact` on a screenshot with something sensitive in it (an API
 key, a face, an address in a map screenshot): opens the same full-screen
-window as `:Image zen`, then `v`/`<C-v>` + move + `<CR>` marks a box,
+window as `:Image zen`, then a left-button drag (or `v` + hjkl + `<CR>`) marks a box,
 repeat for more, `u` undoes the last mark, `w` burns every box in and
 writes `<name>.redacted.png` next to the original — **the source file is
 never touched**, so a mis-drawn box costs nothing but re-running the
@@ -149,9 +149,10 @@ robust default, and it costs one cell. Set it to `0` — together with
 `cell_aspect` and `terminal_padding` — once you have actually measured your
 setup and want a flush image.
 
-`images.redact` opts out explicitly (`inset = 0`), and that is not
-inconsistency: its draw box is not a presentation choice, it is the basis for
-mapping marked cells back to image pixels.
+`images.redact` used to opt out (`inset = 0`), because its own cell grid was
+the basis for mapping marked cells back to image pixels. It is a zen window
+now and maps through `images.viewport`, which reads the box actually drawn,
+so it takes the inset like any zen window.
 
 ## `:Image calibrate` instead of guessing an offset
 

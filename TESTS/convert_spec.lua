@@ -149,6 +149,38 @@ return function(H)
   H.ok(redacted ~= png, "…as its own file, not overwriting the original")
   H.ok(vim.uv.fs_stat(assert(png)) ~= nil, "…the original stays untouched")
 
+  -- ── redact: an optimised animated GIF is blacked out on every frame ──────
+  -- Frame 2 of such a GIF is a 20x20 sub-image at +50+50: `-draw` in frame
+  -- coordinates put the box beside it, and the red square stayed readable.
+  local gif = vim.fs.dirname(assert(png)) .. "/anim.gif"
+  vim
+    .system({
+      "magick",
+      "-size",
+      "100x100",
+      "xc:white",
+      "(",
+      "-size",
+      "20x20",
+      "xc:red",
+      "-set",
+      "page",
+      "+50+50",
+      ")",
+      "-loop",
+      "0",
+      gif,
+    })
+    :wait()
+  if vim.uv.fs_stat(gif) then
+    local gif_out = await(function(cb)
+      convert.redact(gif, { { x1 = 50, y1 = 50, x2 = 69, y2 = 69 } }, cb, vim.fs.dirname(gif) .. "/anim.out.gif")
+    end)
+    H.eq(gif_out, vim.fs.dirname(gif) .. "/anim.out.gif", "redact writes to the target it is given")
+    local probe = vim.system({ "magick", assert(gif_out), "-coalesce", "-format", "%[pixel:p{60,60}];", "info:" }):wait()
+    H.eq(probe.stdout, "srgb(0,0,0);srgb(0,0,0);", "the box is black on the second frame too")
+  end
+
   -- == Image operations as file operations ==================================
 
   -- ── valid_geometry: pure, so it runs before anything touches disk ────────

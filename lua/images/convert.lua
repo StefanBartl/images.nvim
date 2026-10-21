@@ -38,7 +38,7 @@
 --- plain `magick` path is the only option, also asynchronous (see `M.to_pdf`). A
 --- soft dependency via `pcall`, as everywhere in this repo.
 ---
---- `M.redact` — paint rectangles (pixel coordinates, see `images.scale`) black
+--- `M.redact` — paint rectangles (pixel coordinates, see `images.redact.pixel_box`) black
 --- and write the result as a new file (motivation: casedesk attachments containing customer data that has
 --- to be made unrecognisable before any future handover to an AI). No cache,
 --- like `M.to_pdf` — a one-off export, not a draw path.
@@ -214,7 +214,12 @@ function M.redact(path, boxes, on_done, out)
   -- a JPEG's EXIF thumbnail and a PNG's text chunks (a screenshot tool's
   -- window title) still carry the unredacted content. Measured with
   -- ImageMagick 7.1: without it both survive into the result.
-  local args = { "magick", path, "-strip", "-fill", "black" }
+  -- `-coalesce`: in an optimised animated GIF every frame after the first is
+  -- a sub-image at an offset, and `-draw` uses the frame's own coordinates --
+  -- the box landed beside the area on every later frame and left it readable
+  -- (measured, ImageMagick 7.1.2). Coalesced, each frame is the full canvas.
+  -- A no-op for a single-frame image.
+  local args = { "magick", path, "-coalesce", "-strip", "-fill", "black" }
   for _, box in ipairs(boxes) do
     table.insert(args, "-draw")
     table.insert(args, ("rectangle %d,%d %d,%d"):format(box.x1, box.y1, box.x2, box.y2))

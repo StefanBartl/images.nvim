@@ -239,8 +239,9 @@ local function draw_now(winid, position, file, scale, inset, padding)
   -- never showed before: for a picture wider than its box -- every screenshot,
   -- which is what this plugin was built on -- the width is the binding axis
   -- and fitting to it is already correct; a portrait page is the first case
-  -- where it is not. `zen` and `redact` shape their own window with
-  -- `fit_cells` before drawing into it, so for them the fit is a no-op.
+  -- where it is not. `zen` (and `redact`, which is a zen window) shapes its
+  -- own window with `fit_cells` before drawing into it, so for it the fit is
+  -- a no-op.
   local cols, rows, col_off, row_off, box_err =
     require("images.scale").draw_box(width, height, position, scale, draw_inset(inset), require("images.pixels").read(file))
   if not (cols and rows and col_off and row_off) then return false, box_err end

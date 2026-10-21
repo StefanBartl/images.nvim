@@ -194,17 +194,18 @@ Calling |images.setup()| is optional when using `opts`.
                         ImageMagick is required (see |images-magick|).
 
 :Image redact [{path}]  Open {path} — or the image under the cursor — in a
-                        censor mode: a full-screen window (like |:Image|
-                        zen) with a selection grid over the image. Enter
-                        Visual mode (`v`/<C-v>), move to the opposite
-                        corner of what needs blacking out, <CR> marks it —
-                        repeat for more boxes, `u` removes the last one,
+                        censor mode in a zen window (|:Image| zen): drag
+                        with the left button over what needs blacking out,
+                        or `v`, then hjkl/HJKL and <CR>; it shows black
+                        right away. Zoom and pan work as in zen. Repeat for
+                        more boxes, `u` removes the last one,
                         `w` burns them in (ImageMagick) and writes a new
                         file (`photo.png` -> `photo.redacted.png`); the
                         source file is never touched and the copy carries
                         no metadata (`-strip`: EXIF thumbnail, PNG text
                         chunks, profiles). `q`/<Esc> cancels
-                        without writing. Selection happens entirely in
+                        without writing (a `w` already running still
+                        writes). SVG is refused: convert it first. Selection happens entirely in
                         terminal cells (no pixel-precise mouse input exists
                         in a terminal), so each box is grown by a
                         configurable safety margin before burning

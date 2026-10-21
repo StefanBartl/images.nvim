@@ -568,9 +568,9 @@ function M.ocr(path, opts)
   return true
 end
 
---- Open an image — or the one under the cursor — in redaction mode: mark boxes
---- (visual mode + `<CR>`), black them out with `w` and save as a new file; the
---- original stays unchanged.
+--- Open an image — or the one under the cursor — in redaction mode, a zen
+--- window: mark boxes (left-button drag, or `v` + hjkl + `<CR>`), black them
+--- out with `w` and save as a new file; the original stays unchanged.
 ---@param path string|nil nil = the image under the cursor
 ---@return boolean ok
 function M.redact(path)

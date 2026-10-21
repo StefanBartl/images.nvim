@@ -397,8 +397,7 @@ function M.dimensions(zen_cfg)
 end
 
 --- Window size for ONE specific image: the maximum box from `M.dimensions`,
---- shrunk to the image's aspect ratio (`images.scale.fit_cells`, the same
---- function `images.redact` already uses for this). Without real pixel
+--- shrunk to the image's aspect ratio (`images.scale.fit_cells`). Without real pixel
 --- dimensions (no ImageMagick, or a format `images.info` cannot read) the
 --- maximum box stands — unchanged behaviour.
 ---
@@ -882,13 +881,13 @@ local ACTIONS = {
     end),
   },
   select = {
-    desc = "select a part by keyboard (hjkl move the corner, <CR> opens, <Esc> drops)",
+    desc = "select a part by keyboard (hjkl move the corner, <CR> takes it, <Esc> drops)",
     rhs = function()
       M.select_keys()
     end,
   },
   select_drag = {
-    desc = "drag with the left button: open that part in its own window",
+    desc = "drag with the left button: select a part (zen opens it, redact blacks it out)",
     -- A mouse key is bound per variant in `map_fixed_keys`, over this; a
     -- keyboard key configured here starts the keyboard selection instead of
     -- doing nothing.
@@ -1043,6 +1042,20 @@ local function map_keys(buf, keys, plain, hosted)
     user = vim.deepcopy(user or {})
     for _, name in ipairs(ORDER) do
       if (plain and not PLAIN_KEEPS[name]) or (hosted and HOSTED_DROPS[name]) then user[name] = false end
+    end
+  end
+  -- A host's window is there to select in: `keys = false`, or a disabled
+  -- `select`/`select_drag`, would leave `:Image redact` without any way to
+  -- mark a box. Those two come back at their defaults; nothing else does.
+  if hosted then
+    if user == false then
+      user = {}
+      for _, name in ipairs(ORDER) do
+        user[name] = false
+      end
+    end
+    for _, name in ipairs({ "select", "select_drag" }) do
+      if user[name] == false then user[name] = nil end
     end
   end
   local keymap = require("lib.nvim.bindings.keymap")
@@ -1325,9 +1338,13 @@ end
 ---
 --- `opts.on_select` hands a confirmed selection to the caller instead of
 --- opening it (see `ImagesNvim.ZenOnSelect`); such a window binds no `back`,
---- `save` or `yank`. `opts.label` adds the caller's part to the title.
+--- `save` or `yank`, and always binds the two selection keys (with
+--- `keys = false` too: selecting is what such a window is for).
+--- `opts.label` adds the caller's part to the title. `opts.fallback = false`
+--- opens the window even where the terminal does not look image-capable,
+--- instead of the block-graphics fallback, which has no selection.
 ---@param path string|nil nil = the image under the cursor
----@param opts { width?: number, height?: number, viewport?: boolean, on_select?: ImagesNvim.ZenOnSelect, label?: fun(view: ImagesNvim.ZenView): string|nil }|nil
+---@param opts { width?: number, height?: number, viewport?: boolean, on_select?: ImagesNvim.ZenOnSelect, label?: fun(view: ImagesNvim.ZenView): string|nil, fallback?: boolean }|nil
 ---@return boolean ok
 function M.open(path, opts)
   local file = require("images.resolve").path_or_cursor(path)
@@ -1340,7 +1357,8 @@ function M.open(path, opts)
   -- and the block-graphics fallback is there, show that instead of an empty
   -- window. Otherwise draw anyway (`images.guard`: detection is a heuristic).
   local display = cfg().display
-  if not require("images.terminal").capability(display.assume_supported).ok then
+  opts = opts or {}
+  if opts.fallback ~= false and not require("images.terminal").capability(display.assume_supported).ok then
     local ascii_cfg = display.ascii_fallback or {}
     if ascii_cfg.enabled ~= false and require("images.ascii").available() then return require("images").show(file) end
   end
@@ -1348,7 +1366,6 @@ function M.open(path, opts)
   require("images.guard").check()
 
   -- Replace an already open zen window (stack and all) rather than stacking.
-  opts = opts or {}
   return open_view(file, {
     width = opts.width,
     height = opts.height,

@@ -17,12 +17,15 @@ return function(H)
     "lib.nvim.cross.executable",
     "images.zen",
     "images.redact",
+    "images",
   }
   local saved = {}
   for _, name in ipairs(stubbed) do
     saved[name] = package.loaded[name]
   end
 
+  local capable = true
+  local shown = 0
   package.loaded["images.anchor"] = nil
   local real_anchor = require("images.anchor")
   local drawn = {}
@@ -34,7 +37,7 @@ return function(H)
   package.loaded["images.terminal"] = {
     clear = function() end,
     capability = function()
-      return { ok = true }
+      return { ok = capable }
     end,
   }
   package.loaded["images.guard"] = { check = function() end }
@@ -180,15 +183,61 @@ return function(H)
     mark(0.1, 0.2, 0.5, 0.7)
     finish(#burns)
     local preview_dir = vim.fs.dirname(burns[#burns].out)
+
+    -- A keyboard selection still open is a box not taken yet: w waits for it.
+    vim.api.nvim_feedkeys("v", "x", false)
     n = #burns
+    vim.api.nvim_feedkeys("w", "x", false)
+    H.eq(#burns, n, "w with a selection still open writes nothing")
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, true, true), "x", false)
+
     vim.api.nvim_feedkeys("w", "x", false)
     H.eq(#burns, n + 1, "w burns the boxes in")
     H.eq(burns[n + 1].out, nil, "... to the default target next to the original")
     H.ok(vim.api.nvim_win_is_valid(win), "the window stays up until it is written")
+    -- While it is written the set is fixed: a box marked now would not be in the file.
+    mark(0.6, 0.6, 0.9, 0.9)
+    H.eq(#redact.boxes(), 1, "no box is added while w is writing")
+    H.eq(#burns, n + 1, "... and no preview asked for")
+    vim.api.nvim_feedkeys("u", "x", false)
+    H.eq(#redact.boxes(), 1, "u removes none either")
     finish(n + 1)
     H.falsy(vim.api.nvim_win_is_valid(win), "then it closes")
     H.falsy(redact.is_open(), "is_open is false again")
     H.eq(vim.fn.isdirectory(preview_dir), 0, "the previews are deleted")
+
+    -- ── A terminal that does not look image-capable: still a redact window ─
+    -- (zen alone shows the block-graphics fallback there, which has no selection.)
+    capable = false
+    package.loaded["images"] = setmetatable({
+      show = function()
+        shown = shown + 1
+        return true
+      end,
+    }, { __index = package.loaded["images"] })
+    H.ok(redact.open(file), "redact opens on an unrecognised terminal")
+    H.eq(shown, 0, "... as a redact window, not the fallback")
+    redact.close()
+    capable = true
+
+    -- ── keys = false still leaves the selection keys ─────────────────────
+    local zen_cfg = cfg.display.zen
+    local saved_keys = zen_cfg.keys
+    zen_cfg.keys = false
+    H.ok(redact.open(file), "redact opens with display.zen.keys = false")
+    settle()
+    vim.api.nvim_feedkeys("v", "x", false)
+    H.ok(zen.selection() ~= nil, "... and v still starts a selection")
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, true, true), "x", false)
+    H.eq(vim.fn.maparg("+", "n"), "", "... while the other zen keys stay off")
+    redact.close()
+    zen_cfg.keys = saved_keys
+
+    -- ── A vector image is refused, not opened without a way to select ──────
+    local svg = dir .. "/logo.svg"
+    vim.fn.writefile({ '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' }, svg)
+    H.falsy(redact.open(svg), "an SVG is refused")
+    H.falsy(redact.is_open(), "... and nothing is left open")
   end)
 
   cfg.display.redact.padding_cells = saved_padding
