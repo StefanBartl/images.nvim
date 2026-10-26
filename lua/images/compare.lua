@@ -49,9 +49,7 @@ function M.open(scope, arg)
   -- the uncaught `module 'ui.kit' not found` error this used to raise.
   local ok_kit, kit = pcall(require, "ui.kit")
   if not ok_kit or type(kit.compare) ~= "function" then
-    notify().error(
-      "`:Image compare` needs ui.nvim (optional dependency, not installed) — https://github.com/WKDSteve/ui.nvim"
-    )
+    notify().error("`:Image compare` needs ui.nvim (optional dependency, not installed) — https://github.com/WKDSteve/ui.nvim")
     return
   end
 
