@@ -167,7 +167,7 @@ has to keep a count:
 | the block-graphics fallback | reading pixel colours out of an arbitrary raster file needs a real decoder, which plain Lua does not have |
 | `:Image redact` | the boxes are burned in by an image operation |
 | `:Image scale` / `optimise` / `convert` | they *are* image operations end to end — an image operation without an image library is not a degraded feature, it is no feature |
-| `:Image export` | **unless** [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) is installed, in which case it routes through that instead |
+| `:Image export` | **unless** [pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim) is installed, in which case it routes through that instead |
 
 Everywhere else ImageMagick only unlocks detail — `:Image info`'s dimensions,
 `:Image compare`'s relative scaling — and its absence degrades the result

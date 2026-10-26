@@ -1,7 +1,7 @@
 # Command reference
 
 images.nvim registers exactly **one** user command — `:Image <subcommand>` —
-built with [`lib.nvim.bindings.usercmd.composer`](https://github.com/StefanBartl/lib.nvim),
+built with [`lib.nvim.bindings.usercmd.composer`](https://github.com/WKDSteve/lib.nvim),
 so dispatch, `<Tab>` completion and the cheatsheet all come from the same spec
 and cannot drift apart. The name follows the `command` option.
 
@@ -30,7 +30,7 @@ and `:'<,'>Image list` filters the picker. Everything else ignores a range.
 argument, `show`, `info`, `replace`, `export`, `redact`, `ocr`, `scale`,
 `optimise`, `convert`, `zen` and `draw` all act on the image link under the
 cursor. Resolution order is: a Markdown link, a `<figure>`/`<figcaption>` block
-(with markdown.nvim installed), [gopath.nvim](https://github.com/StefanBartl/gopath.nvim)'s
+(with markdown.nvim installed), [gopath.nvim](https://github.com/WKDSteve/gopath.nvim)'s
 cursor resolver, then Vim's own `<cfile>`.
 
 ## Showing
@@ -230,7 +230,7 @@ ImageMagick.
 ### `:Image export [path]`
 
 Export as PDF next to the source. Routes through
-[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)'s `create()` API
+[pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim)'s `create()` API
 when that plugin is installed — asynchronous, lossless via `img2pdf` if
 available. Without it, the ImageMagick-only path, also asynchronous.
 

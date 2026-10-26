@@ -196,7 +196,7 @@ buffer's link count.
 ## A PDF entry in another plugin's picker previews as bytes
 
 Three states look the same from outside, and `:checkhealth images` separates
-them: `pdf.enabled = false`, [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)
+them: `pdf.enabled = false`, [pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim)
 missing, or poppler's `pdftoppm` missing. With any of the three, a PDF is
 simply not claimed and the host keeps its own preview — see
 [FEATURES/INTEGRATIONS.md](FEATURES/INTEGRATIONS.md#pickersnvim-image-and-pdf-previews).

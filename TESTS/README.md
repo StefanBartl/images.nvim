@@ -2,7 +2,7 @@
 
 The headless test suite for images.nvim. No plenary, no busted — a small
 framework-free harness (`harness.lua`) whose specs are run by
-[testing.nvim](https://github.com/StefanBartl/testing.nvim) (`.testing.lua`,
+[testing.nvim](https://github.com/WKDSteve/testing.nvim) (`.testing.lua`,
 dialect `h`). See [docs/CONTRIBUTING.md](../docs/CONTRIBUTING.md) for the
 workflow this fits into; this file is about what is actually covered.
 
@@ -14,8 +14,8 @@ bash scripts/test.sh --file config    # only spec files whose name contains "con
 bash scripts/test.sh --json ir.json   # also write the machine-readable result
 ```
 
-Needs [`testing.nvim`](https://github.com/StefanBartl/testing.nvim),
-and [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) (a real dependency,
+Needs [`testing.nvim`](https://github.com/WKDSteve/testing.nvim),
+and [`lib.nvim`](https://github.com/WKDSteve/lib.nvim) (a real dependency,
 not a test-only one). Each is looked up in `$<NAME>_DIR`
 (e.g. `$LIB_NVIM_DIR`), `.deps/<name>`, `../<name>` and
 `stdpath("data")/lazy/<name>`, in that order; a missing one is a hard error.

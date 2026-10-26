@@ -54,7 +54,7 @@ only through `&path`/rtp/a tail search. Worth having for `:Image show` on
 whatever the cursor happens to be on; not the thing that makes a bare path
 *hover*.
 
-**The hover itself is [hover.nvim](https://github.com/StefanBartl/hover.nvim)**,
+**The hover itself is [hover.nvim](https://github.com/WKDSteve/hover.nvim)**,
 and images.nvim is one provider inside it — `hover.preview.media` calls
 `images.info` for the metadata, `images.scale.fit_cells` for the geometry (the
 same function `images.zen` and `images.redact` size their windows with) and
@@ -127,7 +127,7 @@ preview.
 
 The inverse direction of `:Image pickers`. There, images.nvim owns the
 picker and every item in it is an image. Here,
-[pickers.nvim](https://github.com/StefanBartl/pickers.nvim) owns the picker
+[pickers.nvim](https://github.com/WKDSteve/pickers.nvim) owns the picker
 and lists whatever it lists — and for the entries that happen to be images,
 it asks images.nvim to draw the picture into its own preview window instead
 of previewing a binary file as text.
@@ -159,7 +159,7 @@ is about to happen) and `on_done` (it settled, or it failed) — see below.
 ### A PDF is one of ours too
 
 `is_previewable()` answers yes for a `.pdf` whenever
-[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) and poppler's
+[pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim) and poppler's
 `pdftoppm` are both installed; `preview()` then rasterizes the first page
 through `images.pdf` and draws *that*. From the draw down there is no PDF any
 more, only a PNG like every other, and a host writes no PDF code of its own.

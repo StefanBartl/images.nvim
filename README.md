@@ -19,10 +19,10 @@
 [![Lua](https://img.shields.io/badge/Lua-5.1%2FLuaJIT-2C2D72?logo=lua&logoColor=white)](https://www.lua.org)
 ![Status](https://img.shields.io/badge/status-beta-orange)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey)
-[![CI](https://github.com/StefanBartl/images.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanBartl/images.nvim/actions/workflows/ci.yml)
-[![wkd](https://img.shields.io/badge/wkd-family-c6ff3d)](https://stefanbartl.github.io/wkd/p/images/)
+[![CI](https://github.com/WKDSteve/images.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/WKDSteve/images.nvim/actions/workflows/ci.yml)
+[![wkd](https://img.shields.io/badge/wkd-family-c6ff3d)](https://wkdsteve.github.io/wkd/p/images/)
 
-> Part of the [wkd](https://stefanbartl.github.io/wkd/) family — see this plugin's [page](https://stefanbartl.github.io/wkd/p/images/) on the site.
+> Part of the [wkd](https://wkdsteve.github.io/wkd/) family — see this plugin's [page](https://wkdsteve.github.io/wkd/p/images/) on the site.
 
 images.nvim shows images in the terminal without leaving Neovim: hover a
 markdown link, double-click it, or paste a screenshot straight from the
@@ -33,20 +33,20 @@ where they do not.
 
 ---
 
-> **[markdown.nvim](https://github.com/StefanBartl/markdown.nvim)** — resolves
+> **[markdown.nvim](https://github.com/WKDSteve/markdown.nvim)** — resolves
 > the link targets this plugin renders: Markdown links, `<img>` tags, `<figure>`
 > blocks. It prefers images.nvim as its own in-Neovim preview provider in return.
 >
-> **[hover.nvim](https://github.com/StefanBartl/hover.nvim)** — answers "what is
+> **[hover.nvim](https://github.com/WKDSteve/hover.nvim)** — answers "what is
 > this" about whatever the cursor rests on, in any filetype. images.nvim is its
 > picture provider, so a path to a PNG previews as the PNG.
 >
-> **[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim)** — meets it from
+> **[pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim)** — meets it from
 > both sides: it turns an image into a PDF for `:Image export`, and a PDF page
 > back into an image so a `.pdf` entry previews as its first page.
 >
 > All of the above are soft: without them everything else works unchanged.
-> [lib.nvim](https://github.com/StefanBartl/lib.nvim) is the one real
+> [lib.nvim](https://github.com/WKDSteve/lib.nvim) is the one real
 > dependency — see [Requirements](docs/installation.md#requirements).
 
 ---
@@ -76,7 +76,7 @@ each page answers.
 - [Health check](docs/health.md) — what `:checkhealth images` reports, check by check.
 - [Troubleshooting](docs/troubleshooting.md) — the symptoms that have a cause rather than a bug behind them.
 - [Contributing](docs/CONTRIBUTING.md)
-- [Feedback](https://github.com/StefanBartl/images.nvim/issues)
+- [Feedback](https://github.com/WKDSteve/images.nvim/issues)
 
 `:help images` is the same reference inside the editor.
 

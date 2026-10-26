@@ -1,7 +1,7 @@
 # Contributing to images.nvim
 
 Thank you for your interest! Bugs, ideas and questions are welcome in the
-[issue tracker](https://github.com/StefanBartl/images.nvim/issues); pull requests
+[issue tracker](https://github.com/WKDSteve/images.nvim/issues); pull requests
 very welcome.
 
 **Read [`architecture.md`](architecture.md) first.** It carries the OSC 1337
@@ -88,7 +88,7 @@ git config core.hooksPath scripts/hooks         # once per clone
 
 ## Tests
 
-`bash scripts/test.sh` runs the specs headless with [testing.nvim](https://github.com/StefanBartl/testing.nvim).
+`bash scripts/test.sh` runs the specs headless with [testing.nvim](https://github.com/WKDSteve/testing.nvim).
 [GitHub Actions](../.github/workflows/ci.yml) runs it, luacheck and the module-map
 check on every push and PR to `main`.
 

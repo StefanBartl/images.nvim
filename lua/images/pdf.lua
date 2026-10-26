@@ -4,7 +4,7 @@
 ---@description
 --- images.nvim draws pictures; it does not read PDFs, and it does not want to.
 --- What it needs to show a page is a PNG of that page, and
---- [pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) already
+--- [pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim) already
 --- produces exactly that through `pdfport.render_page` (poppler's `pdftoppm`
 --- underneath). This module is the whole of the seam between the two: it turns
 --- a path into a PNG path and caches the result. Everything above it — the

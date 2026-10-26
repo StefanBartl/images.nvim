@@ -50,7 +50,7 @@ function M.open(scope, arg)
   local ok_kit, kit = pcall(require, "ui.kit")
   if not ok_kit or type(kit.compare) ~= "function" then
     notify().error(
-      "`:Image compare` needs ui.nvim (optional dependency, not installed) — https://github.com/StefanBartl/ui.nvim"
+      "`:Image compare` needs ui.nvim (optional dependency, not installed) — https://github.com/WKDSteve/ui.nvim"
     )
     return
   end

@@ -189,7 +189,7 @@ local function check_pdf()
   local ok_pdfport, pdfport = pcall(require, "pdfport")
   if not ok_pdfport or type(pdfport.render_page) ~= "function" then
     h_info("`pdfport.nvim` not present — a PDF entry keeps a host's own preview", {
-      "https://github.com/StefanBartl/pdfport.nvim draws its first page instead",
+      "https://github.com/WKDSteve/pdfport.nvim draws its first page instead",
     })
     return
   end
@@ -231,7 +231,7 @@ local function check_deps()
   if pcall(require, "lib.nvim.bindings.usercmd.composer") then
     vim.health.ok("`lib.nvim` found")
   else
-    vim.health.error("`lib.nvim` is missing", { "add StefanBartl/lib.nvim as a dependency" })
+    vim.health.error("`lib.nvim` is missing", { "add WKDSteve/lib.nvim as a dependency" })
   end
 
   if pcall(require, "markdown.util.path") then

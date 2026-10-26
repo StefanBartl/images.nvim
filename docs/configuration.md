@@ -138,7 +138,7 @@ require("images").setup({
 | `zen.keys` | see [BINDINGS](BINDINGS.md#zen-window) | Keys inside the zen window: `grow`, `shrink`, `zoom_in`, `zoom_out`, `zoom_reset`, `pan_left`/`right`/`up`/`down`, `edge_left`/`right`/`up`/`down`, `help`, and the mouse: `wheel_in`, `wheel_out`, `drag` (its drag/release events are derived); selecting: `select_drag`, `select`, `back`; saving: `save`, `yank`; each a key, a list, or `false` |
 | `zen.save` | `{ dir = nil, ask = false }` | Where `gs` writes: next to the original, or in `dir`; `ask = true` offers the file name first. Never overwrites |
 | `zen.legend` | `true` | The zoom factor in the window title and `? help` in its footer. `false` leaves the frame at the file name |
-| `gopath_fallback` | `true` | Ask [gopath.nvim](https://github.com/StefanBartl/gopath.nvim)'s cursor resolver about a bare filesystem path before falling back to Vim's `<cfile>`. A no-op without gopath.nvim; `false` disables it even with it installed |
+| `gopath_fallback` | `true` | Ask [gopath.nvim](https://github.com/WKDSteve/gopath.nvim)'s cursor resolver about a bare filesystem path before falling back to Vim's `<cfile>`. A no-op without gopath.nvim; `false` disables it even with it installed |
 
 ### Placement: `draw_inset`, `terminal_padding`, `cell_aspect`
 
@@ -338,7 +338,7 @@ which of the three lookup routes found the binary.
 
 A PDF page drawn as a picture, wherever a host asks this plugin to draw one
 (today: `images.integrations.picker`). Needs
-[pdfport.nvim](https://github.com/StefanBartl/pdfport.nvim) plus poppler's
+[pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim) plus poppler's
 `pdftoppm`; with either missing, a PDF is simply not claimed and the host keeps
 its own preview.
 

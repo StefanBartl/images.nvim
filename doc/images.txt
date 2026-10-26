@@ -2,7 +2,7 @@
                                                                  *images.nvim*
 
 Author:  Stefan Bartl
-Repo:    https://github.com/StefanBartl/images.nvim
+Repo:    https://github.com/WKDSteve/images.nvim
 
 ==============================================================================
 CONTENTS                                                     *images-contents*
@@ -58,7 +58,7 @@ hovering a markdown link, but off by default — see |images-remote-config|.
     - Neovim 0.10+ for |vim.base64|
     - API level 14 for |nvim_ui_send()|
     - A terminal that implements OSC 1337 (WezTerm, iTerm2, Konsole)
-    - lib.nvim  https://github.com/StefanBartl/lib.nvim
+    - lib.nvim  https://github.com/WKDSteve/lib.nvim
 
 For `:Image paste` additionally:
 
@@ -94,8 +94,8 @@ Run `:checkhealth images` to verify all of the above.
 
 >lua
     {
-      "StefanBartl/images.nvim",
-      dependencies = { "StefanBartl/lib.nvim" },
+      "WKDSteve/images.nvim",
+      dependencies = { "WKDSteve/lib.nvim" },
       cmd = { "Image" },
       ft = { "markdown", "vimwiki", "norg", "text" },
       opts = {},

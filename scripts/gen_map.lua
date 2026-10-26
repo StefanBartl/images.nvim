@@ -58,7 +58,7 @@ local opts = require("docmap.config").build(root, {
   source = "lua/images",
   title = "images.nvim",
   out_dir = "docs/map",
-  repo_url = "https://github.com/StefanBartl/images.nvim",
+  repo_url = "https://github.com/WKDSteve/images.nvim",
   branch = "main",
 
   -- Two invariants that would otherwise rot in silence. Both are stated as

@@ -10,8 +10,8 @@
   what your terminal actually supports, and
   [architecture.md](architecture.md#detection-is-a-heuristic-and-stays-one)
   explains why that answer is a guess rather than a query.
-- [`lib.nvim`](https://github.com/StefanBartl/lib.nvim) — **required**.
-- [`ui.nvim`](https://github.com/StefanBartl/ui.nvim) — **optional**. Backs
+- [`lib.nvim`](https://github.com/WKDSteve/lib.nvim) — **required**.
+- [`ui.nvim`](https://github.com/WKDSteve/ui.nvim) — **optional**. Backs
   `:Image list`'s picker when present; falls back to `vim.ui.select` without it
   (`images/init.lua`'s own `kit()` pcalls the require). `:Image compare` has no
   such fallback — its SEARCH->MARKED->COMPARE flow is `ui.kit.compare`, which
@@ -35,7 +35,7 @@ requirement in others; the full split is in
 | **ImageMagick** (`magick`) | `:Image info` dimensions, `:Image compare`'s relative scaling | SVG display, the block-graphics fallback, `:Image redact`, `:Image export` (unless pdfport.nvim is installed), and `:Image scale` / `optimise` / `convert` |
 | **`tesseract`** | — | `:Image ocr` |
 | **`pdftoppm`** (poppler) | a `.pdf` entry in a host's picker previewing as its first page | — |
-| [**pdfport.nvim**](https://github.com/StefanBartl/pdfport.nvim) | makes `:Image export` lossless via `img2pdf` (the export is asynchronous either way); and, with `pdftoppm`, the PDF preview above | — |
+| [**pdfport.nvim**](https://github.com/WKDSteve/pdfport.nvim) | makes `:Image export` lossless via `img2pdf` (the export is asynchronous either way); and, with `pdftoppm`, the PDF preview above | — |
 
 `tesseract`'s language data installs separately, per language
 (`tesseract-ocr-deu` and friends) — `:checkhealth images` lists what you have.
@@ -56,8 +56,8 @@ the viewers that use the same technique.
 
 ```lua
 {
-  "StefanBartl/images.nvim",
-  dependencies = { "StefanBartl/lib.nvim" },
+  "WKDSteve/images.nvim",
+  dependencies = { "WKDSteve/lib.nvim" },
   cmd = { "Image" },
   ft = { "markdown", "vimwiki", "norg", "text" },
   opts = {},
@@ -72,8 +72,8 @@ command in yet.
 
 ```lua
 use {
-  "StefanBartl/images.nvim",
-  requires = { "StefanBartl/lib.nvim" }, -- required
+  "WKDSteve/images.nvim",
+  requires = { "WKDSteve/lib.nvim" }, -- required
   config = function()
     require("images").setup()
   end,
@@ -83,8 +83,8 @@ use {
 ## vim-plug
 
 ```vim
-Plug 'StefanBartl/lib.nvim' " required
-Plug 'StefanBartl/images.nvim'
+Plug 'WKDSteve/lib.nvim' " required
+Plug 'WKDSteve/images.nvim'
 
 lua require("images").setup()
 ```
