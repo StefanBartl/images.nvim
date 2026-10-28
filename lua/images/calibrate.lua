@@ -253,28 +253,19 @@ local function offer_save(row, col, aspect)
     notify().info("Not saved. For your own setup() spec:\ndisplay = { " .. summary:gsub("\n", ", ") .. " }")
   end
 
-  local ok_confirm, confirm = pcall(require, "ui.kit.confirm")
-  if ok_confirm and type(confirm.open) == "function" then
-    confirm.open({
-      question = "Apply this calibration?\n" .. summary,
-      on_answer = function(answer)
-        if answer == true then
-          persist()
-        else
-          decline()
-        end
-      end,
-    })
-    return
-  end
-
-  vim.ui.select({ "Save", "Just show me the values" }, { prompt = "Apply this calibration? " .. summary }, function(_, idx)
-    if idx == 1 then
-      persist()
-    else
-      decline()
+  -- Not saving is the first and focused answer: a stray <CR> writes nothing.
+  require("lib.nvim.ui.dialog").choose(
+    "Apply this calibration?\n" .. summary,
+    { "Just show me the values", "Save" },
+    1,
+    function(index)
+      if index == 2 then
+        persist()
+      else
+        decline()
+      end
     end
-  end)
+  )
 end
 
 ---@internal

@@ -470,32 +470,16 @@ local function insert_link(buf, win, rel, alt)
   notify().info("image saved: " .. rel)
 end
 
---- Await the alt-text prompt: ui.kit's `input` when available -- its
---- `on_submit`/`on_cancel` fire from the input float's own context, the
---- main loop, same as every other kit-backed callback in this file --
---- otherwise the already-synchronous `vim.fn.input` fallback, which needs
---- no await at all.
+--- Await the alt-text prompt, asked through lib.nvim's shared dialog (`dialog.input`: the kit's input, `vim.ui.input`
+--- natively). Cancelling still inserts the link, just without alt text: by this point the image is already on disk, and a
+--- lost link would be the worse surprise than a link without alt text.
 ---@return string|nil alt empty/nil = no alt text (also nil on cancel)
 local function await_alt_text()
-  local k = kit()
-  if k and k.input then
-    return async_mod().await(function(resume)
-      k.input({
-        title = "Alt text (empty = none)",
-        on_submit = function(alt)
-          resume(alt)
-        end,
-        -- Cancelling should still insert the link, just without alt text — by
-        -- this point the image is already on disk, and a lost link (kit.input
-        -- calls nothing at all on <Esc> without on_cancel) would be the worse
-        -- surprise than a link without alt text.
-        on_cancel = function()
-          resume(nil)
-        end,
-      })
+  return async_mod().await(function(resume)
+    require("lib.nvim.ui.dialog").input({ title = "Alt text (empty = none)" }, function(alt)
+      resume(alt)
     end)
-  end
-  return vim.fn.input("Alt text (empty = none): ")
+  end)
 end
 
 --- The second half of `M.run`/`M.screenshot`, after an optional name prompt:
@@ -604,29 +588,15 @@ local function capture_with_optional_name(capture, direct_name, force_ask, path_
   end
 
   local suggested = default_filename(buf)
-  local k = kit()
-  if k and k.input then
-    k.input({
-      title = "File name",
-      default = suggested,
-      on_submit = function(name)
-        paste_with_name(buf, sanitize_filename(name), capture, path_mode)
-      end,
-      -- Unlike the alt-text prompt: nothing has been captured or written yet, so
-      -- cancelling really does mean "do nothing" rather than "carry on with
-      -- defaults".
-      on_cancel = function()
-        notify().info("cancelled")
-      end,
-    })
-  else
-    local name = vim.fn.input("File name: ", suggested or "")
-    if name == "" then
+  require("lib.nvim.ui.dialog").input({ title = "File name", default = suggested }, function(name)
+    -- Unlike the alt-text prompt: nothing has been captured or written yet, so cancelling really does mean "do
+    -- nothing" rather than "carry on with defaults".
+    if name == nil or name == "" then
       notify().info("cancelled")
       return
     end
     paste_with_name(buf, sanitize_filename(name), capture, path_mode)
-  end
+  end)
 end
 
 --- Choose the path mode for the link (see `resolve_link_path`): an explicit
@@ -661,21 +631,9 @@ local function resolve_path_mode(explicit_mode, on_resolved)
   }
 
   local function ask_custom_prefix()
-    local k = kit()
-    if k and k.input then
-      k.input({
-        title = "Custom path prefix",
-        on_submit = function(prefix)
-          on_resolved((prefix and prefix ~= "") and prefix or nil)
-        end,
-        on_cancel = function()
-          on_resolved(nil)
-        end,
-      })
-    else
-      local prefix = vim.fn.input("Custom path prefix: ")
-      on_resolved(prefix ~= "" and prefix or nil)
-    end
+    require("lib.nvim.ui.dialog").input({ title = "Custom path prefix" }, function(prefix)
+      on_resolved((prefix and prefix ~= "") and prefix or nil)
+    end)
   end
 
   local function handle_choice(choice)

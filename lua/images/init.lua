@@ -609,21 +609,12 @@ function M.orphans()
       end
     end
 
-    local k = kit()
-    if k and k.confirm then
-      -- Explicit `choices`: without them `on_answer` yields a boolean rather
-      -- than the label (see kit.confirm's M.confirm — `custom` switches between
-      -- the two), and being explicit keeps both paths' wording identical.
-      k.confirm({
-        question = ("Delete '%s'?"):format(choice.rel),
-        choices = { "Yes", "No" },
-        on_answer = function(answer)
-          delete_if_confirmed(answer == "Yes")
-        end,
-      })
-    else
-      delete_if_confirmed(vim.fn.confirm(("Delete '%s'?"):format(choice.rel), "&Yes\n&No", 2) == 1)
-    end
+    require("lib.nvim.ui.dialog").yesno(
+      ("Delete '%s'?"):format(choice.rel),
+      "delete",
+      delete_if_confirmed,
+      { kind = "danger" }
+    )
   end
 
   local k = kit()

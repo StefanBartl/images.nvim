@@ -494,8 +494,7 @@ return function(H)
     end)
     H.eq(got, "absolute", "resolve_path_mode: default_path_mode=false asks via vim.ui.select, picking a built-in choice")
 
-    -- Choosing "custom" asks a second time, for the literal prefix
-    -- (vim.fn.input, since ui.kit is unavailable here too).
+    -- Choosing "custom" asks a second time, for the literal prefix (through the shared dialog's `input`).
     vim.ui.select = function(items, _opts, on_choice)
       for _, item in ipairs(items) do
         if item.value == "custom" then
@@ -504,9 +503,10 @@ return function(H)
         end
       end
     end
-    local original_input = vim.fn.input
-    vim.fn.input = function()
-      return "/cdn/assets"
+    local dialog = require("lib.nvim.ui.dialog")
+    local original_input = dialog.input
+    dialog.input = function(_opts, cb)
+      cb("/cdn/assets")
     end
     got = nil
     resolve_path_mode(nil, function(mode)
@@ -526,7 +526,7 @@ return function(H)
     H.eq(got, nil, "resolve_path_mode: cancelling the select resolves to nil, not a default")
 
     vim.ui.select = original_select
-    vim.fn.input = original_input
+    dialog.input = original_input
     config.setup({}) -- restore the plain default for any spec running after this one
   end
 
