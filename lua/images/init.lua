@@ -609,12 +609,7 @@ function M.orphans()
       end
     end
 
-    require("lib.nvim.ui.dialog").yesno(
-      ("Delete '%s'?"):format(choice.rel),
-      "delete",
-      delete_if_confirmed,
-      { kind = "danger" }
-    )
+    require("lib.nvim.ui.dialog").yesno(("Delete '%s'?"):format(choice.rel), "delete", delete_if_confirmed, { kind = "danger" })
   end
 
   local k = kit()
