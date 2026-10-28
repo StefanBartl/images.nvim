@@ -207,8 +207,8 @@ return {
     existing_dir_names = { "Resources", "Ressourcen" },
     name_template = "%s-%d.png",
     link_template = "![](%s)",
-    -- true asks for alt text before inserting (UI kit, otherwise
-    -- vim.fn.input). Default false: the everyday case is screenshot -> one
+    -- true asks for alt text before inserting (lib.nvim's shared
+    -- dialog). Default false: the everyday case is screenshot -> one
     -- keypress -> done, without an interruption.
     ask_alt_text = false,
     alt_link_template = "![%s](%s)",

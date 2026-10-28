@@ -605,8 +605,7 @@ end
 --- `"relative"`, the only behaviour before this existed, so a plain
 --- `:Image paste`/keymap paste stays a one-keypress, no-prompt action.
 --- Setting that option to `false` means "ask me every time", and only then
---- does the interactive choice (ui.nvim's UI kit, falling back to
---- `vim.ui.select`/`vim.fn.input`) appear.
+--- does the interactive choice (lib.nvim's shared dialog) appear.
 ---@param explicit_mode string|nil already given via `path=...`
 ---@param on_resolved fun(mode: string|nil) mode = nil means "cancelled"
 ---@return nil
