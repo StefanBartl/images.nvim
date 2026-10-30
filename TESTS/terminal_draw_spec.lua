@@ -25,7 +25,10 @@ return function(H)
   local terminal = require("images.terminal")
 
   -- Without `nvim_ui_send` (API level < 14) there is no ordering to check.
-  if not terminal.available() then return end
+  if not terminal.available() then
+    print("n/a  the draw order checks need nvim_ui_send (API level 14)")
+    return
+  end
 
   --- Run `draw`/`draw_many` with its side effects recorded.
   ---@param fn fun()

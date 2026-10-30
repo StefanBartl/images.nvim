@@ -37,7 +37,11 @@ return function(H)
   end
 
   local ui_nvim = find_ui_nvim()
-  if not ui_nvim then return end -- no sibling checkout: nothing to test against
+  if not ui_nvim then
+    -- no sibling checkout: nothing to test against
+    print("n/a  the menu checks need a ui.nvim checkout")
+    return
+  end
 
   local original_package_path = package.path
   package.path = table.concat({ ui_nvim .. "/lua/?.lua", ui_nvim .. "/lua/?/init.lua", package.path }, ";")

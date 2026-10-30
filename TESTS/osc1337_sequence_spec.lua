@@ -10,7 +10,10 @@
 return function(H)
   local terminal = require("images.terminal")
 
-  if not terminal.available() then return end
+  if not terminal.available() then
+    print("n/a  the OSC 1337 sequence checks need nvim_ui_send (API level 14)")
+    return
+  end
 
   local ESC, BEL = string.char(27), string.char(7)
 

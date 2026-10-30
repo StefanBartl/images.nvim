@@ -20,7 +20,10 @@ return function(H)
   H.falsy(expr:find("; Write-Output", 1, true), "…nor an injected statement")
   H.contains(expr, "FromBase64String('", "…it travels as Base64")
 
-  if vim.fn.executable("powershell.exe") == 0 then return end
+  if vim.fn.executable("powershell.exe") == 0 then
+    print("n/a  the round trip through a real PowerShell needs powershell.exe")
+    return
+  end
 
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")

@@ -55,7 +55,10 @@ return function(H)
 
   -- Without `nvim_ui_send` (API level < 14) there is nothing to count — the
   -- same restraint as terminal_draw_spec.lua.
-  if not require("images.terminal").available() then return end
+  if not require("images.terminal").available() then
+    print("n/a  the drawing checks need nvim_ui_send (API level 14)")
+    return
+  end
 
   -- ── draw(): an unknown position fails without drawing ────────────────────
   H.tmpdir(function(dir)
