@@ -70,6 +70,10 @@ end
 ---@field terminal string|nil detected terminal name
 ---@field reason string|nil why, when `ok` is false
 ---@field hint string|nil concrete next step for the user
+---@field source "environment"|"terminal"|"assumed"|nil what decided `ok`: the environment heuristic, the terminal's own XTVERSION reply, or `display.assume_supported`
+---@field env_terminal string|nil the terminal the environment names
+---@field reply string|nil the terminal's XTVERSION reply (name and version), once it arrived
+---@field conflict string|nil set when the environment and the reply name different terminals
 
 --- Results of the capability check, determined once per session and per `force`
 --- value: the first call must not decide for the others (`:checkhealth images` asks
@@ -79,13 +83,21 @@ local capability = {}
 
 --- Check whether this terminal can display images.
 ---
---- Deliberately *not* a hard block: detection is a heuristic over environment
---- variables, because OSC 1337 has no query. A false negative would otherwise
---- break a working setup. The caller decides what to do with `ok = false` —
---- this only reports.
+--- Deliberately *not* a hard block: detection is a heuristic, because OSC 1337
+--- has no capability query. A false negative would otherwise break a working
+--- setup. The caller decides what to do with `ok = false` -- this only reports.
 ---
---- The result is memoized: the environment does not change within a session,
---- and this call sits in front of every draw.
+--- Two sources, in order of strength. The environment variables
+--- (`lib.nvim.terminal.host`) are read synchronously and answer the first
+--- draw. The terminal's XTVERSION reply (`images.xtversion`) arrives a moment
+--- later and, when it names a terminal with a known verdict, overrides them:
+--- it comes from the terminal itself, so it holds over SSH (where the
+--- variables are not forwarded) and when the variables were inherited from a
+--- different terminal. A reply naming an unlisted terminal has no opinion and
+--- leaves the environment's verdict standing.
+---
+--- The result is memoized; `images.xtversion`'s answer drops the memo (see
+--- `images.init.setup`), so the first draw after the reply sees it.
 ---@param force boolean|nil skip detection and assume support
 ---@return Images.Capability
 function M.capability(force)
@@ -101,23 +113,40 @@ function M.capability(force)
     return capability[force]
   end
 
-  -- Detection lives in lib.nvim: OSC 1337 has no query, so it is a list of known terminals.
+  -- The environment half lives in lib.nvim: a list of known terminals.
   local host = require("lib.nvim.terminal.host").detect()
-  local detected = host.osc1337 and host.name or nil
+  local env_ok = host.osc1337 == true
+  local answer = require("images.xtversion").status().answer
+  local reply = answer and not answer.tmux and answer or nil
 
   local result
-  if detected then
-    result = { ok = true, terminal = detected }
-  elseif force then
-    result = { ok = true, terminal = nil }
+  if reply and reply.osc1337 ~= nil then
+    result = { ok = reply.osc1337, terminal = reply.terminal, source = "terminal" }
+    if not reply.osc1337 then result.reason = ("the terminal answered `%s`, which does not speak OSC 1337"):format(reply.raw) end
+  elseif env_ok then
+    result = { ok = true, terminal = host.name, source = "environment" }
   else
     result = {
       ok = false,
       reason = "terminal not recognised (TERM_PROGRAM=" .. (vim.env.TERM_PROGRAM or "empty") .. ")",
-      hint = "test with `imgcat image.png` or your terminal's own OSC 1337 tool "
-        .. "(see :help images-troubleshooting). "
-        .. "If that works, set `display.assume_supported = true`.",
     }
+    if reply then result.reason = ("terminal not recognised (it answered `%s`)"):format(reply.raw) end
+  end
+  if not result.ok then
+    result.hint = "test with `imgcat image.png` or your terminal's own OSC 1337 tool "
+      .. "(see :help images-troubleshooting). "
+      .. "If that works, set `display.assume_supported = true`."
+    if force then
+      -- `terminal` stays set only for a positive detection: the override
+      -- does not make a terminal that was named as incapable a capable one.
+      result = { ok = true, source = "assumed" }
+    end
+  end
+
+  result.env_terminal = host.name
+  result.reply = reply and reply.raw or nil
+  if reply and reply.terminal and host.name and reply.terminal ~= host.name then
+    result.conflict = ("the environment names %s, the terminal answered `%s`; the answer decides"):format(host.name, reply.raw)
   end
 
   -- tmux only forwards the sequences with allow-passthrough. That holds for a
@@ -126,6 +155,47 @@ function M.capability(force)
 
   capability[force] = result
   return result
+end
+
+--- Lines saying what decided the capability check, and from where. Shared
+--- by `:Image check` and `:checkhealth images`, so both say the same thing.
+---@param cap Images.Capability
+---@param probe Images.XtversionStatus
+---@return string
+function M.describe(cap, probe)
+  local verdict
+  if cap.source == "terminal" then
+    verdict = ("`%s` decided by the terminal's own reply (XTVERSION: `%s`) -- OSC 1337 %s"):format(
+      cap.terminal or "?",
+      cap.reply or "?",
+      cap.ok and "known to work" or "not supported"
+    )
+  elseif cap.source == "environment" then
+    verdict = ("`%s` detected from the environment -- OSC 1337 assumed to work"):format(cap.terminal or "?")
+  elseif cap.source == "assumed" then
+    verdict = "support is being assumed (`display.assume_supported`)"
+  else
+    verdict = "terminal not recognised from the environment"
+  end
+  local state = probe.state
+  local probe_line
+  if state == "answered" then
+    -- When the reply decided, the verdict line already quotes it.
+    if cap.source ~= "terminal" then
+      probe_line = ("terminal answered `%s` (not on the list, the environment decides)"):format(
+        cap.reply or (probe.answer and probe.answer.raw) or "?"
+      )
+    end
+  elseif state == "pending" then
+    probe_line = "terminal query (XTVERSION) pending -- run `:Image check` again"
+  elseif state == "silent" then
+    probe_line = "terminal did not answer XTVERSION -- the environment decides"
+  elseif state == "skipped" then
+    probe_line = "terminal query skipped: " .. (probe.why or "?")
+  else
+    probe_line = "terminal query not sent (`display.terminal_probe = false`, or `setup()` has not run)"
+  end
+  return probe_line and (verdict .. "\n" .. probe_line) or verdict
 end
 
 --- Discard the memoized check results. For tests, and for the case where the

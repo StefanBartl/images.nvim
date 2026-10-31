@@ -36,6 +36,7 @@
 ---@field terminal_padding { row: integer, col: integer } fixed row/column offset in whole cells, compensating terminals whose window_padding is not cell-aligned (see images.anchor)
 ---@field hover_mode "overlay"|"float" how `:Image show`/hover presents (not the gallery)
 ---@field assume_supported boolean skip terminal detection (affects the warning only)
+---@field terminal_probe boolean ask the terminal its name with XTVERSION at startup
 ---@field clear_events string[] autocmd events that remove the image again
 ---@field browse_exclude string[] directory names `:Image pickers` skips while scanning
 ---@field browse_max_entries integer upper bound on entries that scan visits (default 20000); a safety net, not an error
@@ -151,6 +152,7 @@
 ---@field terminal_padding?   { row: integer, col: integer } fixed row/column offset in whole cells, compensating terminals whose window_padding is not cell-aligned (see images.anchor)
 ---@field hover_mode?         "overlay"|"float" how `:Image show`/hover presents (not the gallery)
 ---@field assume_supported?   boolean skip terminal detection (affects the warning only)
+---@field terminal_probe?     boolean ask the terminal its name with XTVERSION at startup
 ---@field clear_events?       string[] autocmd events that remove the image again
 ---@field browse_exclude?     string[] directory names `:Image pickers` skips while scanning
 ---@field browse_max_entries? integer upper bound on entries that scan visits (default 20000); a safety net, not an error

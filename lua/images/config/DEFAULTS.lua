@@ -50,6 +50,11 @@ return {
     -- Forces OSC 1337: silences the warning and skips the block-graphics
     -- fallback (`ascii_fallback`).
     assume_supported = false,
+    -- Ask the terminal its name with XTVERSION (`CSI > q`) once at startup.
+    -- The reply refines the environment heuristic -- it holds over SSH and
+    -- outlives inherited variables -- and `:Image check` shows which of the
+    -- two decided. Skipped under tmux, which answers for itself.
+    terminal_probe = true,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     -- Directory names `:Image pickers` skips while scanning, in addition to
     -- ".git", which is always excluded.

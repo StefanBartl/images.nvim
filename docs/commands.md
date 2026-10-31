@@ -284,9 +284,12 @@ the pixel dimensions of the other.
 
 Re-run the terminal detection and report its result: the cached capability is
 dropped and the same environment variables are read again, so a changed
-`display.assume_supported` takes effect. Nothing is sent to the terminal —
-OSC 1337 has no capability query, so whether images really get through only
-shows when one is drawn.
+`display.assume_supported` takes effect. The report says what decided — the
+environment, the terminal's own XTVERSION reply, or the override — and warns
+when the environment and the reply name different terminals. If the startup
+query went unanswered it is sent again; the reply arrives asynchronously, so
+a second `:Image check` reports it. OSC 1337 itself has no capability query, so
+whether images really get through only shows when one is drawn.
 
 ### `:Image calibrate`
 

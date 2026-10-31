@@ -37,20 +37,27 @@ function M.check_terminal()
   -- heuristic (or `false` here) would drift apart from it: a user who set
   -- `display.assume_supported` would be told to set it, and the "being assumed"
   -- branch below could never be reached.
-  local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
+  local terminal = require("images.terminal")
+  local cap = terminal.capability(require("images.config").get().display.assume_supported)
+  local said = terminal.describe(cap, require("images.xtversion").status())
 
   if cap.ok and cap.terminal then
-    vim.health.ok(("`%s` detected from the environment — OSC 1337 assumed to work"):format(cap.terminal))
+    vim.health.ok(said)
   elseif cap.ok then
-    vim.health.warn("support is being assumed (`display.assume_supported`)", {
+    vim.health.warn(said, {
       "Unset `display.assume_supported` if images fail to render — your terminal may not speak OSC 1337.",
     })
   else
-    vim.health.warn(cap.reason or "terminal not recognised", {
+    vim.health.warn((cap.reason or "terminal not recognised") .. "\n" .. said, {
       cap.hint or "",
       "images.nvim needs a terminal that speaks the iTerm2 protocol (OSC 1337).",
     })
   end
+
+  -- The environment and the terminal's own reply disagree: the reply decided,
+  -- but a wrong variable is worth knowing about (inherited from another
+  -- terminal, or forwarded over SSH from a different one).
+  if cap.conflict then vim.health.warn(cap.conflict) end
 
   if cap.hint and cap.ok then vim.health.warn(cap.hint) end
 end

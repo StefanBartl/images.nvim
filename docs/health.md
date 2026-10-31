@@ -10,7 +10,7 @@ running on:
 | Check | Answers |
 | --- | --- |
 | **output** | Is `nvim_ui_send` available at all — without it no image can be drawn, on any terminal |
-| **terminal** | Which terminal was detected, and whether it is believed to speak OSC 1337 (or whether support is only being assumed via `display.assume_supported`) |
+| **terminal** | Which terminal was detected, and whether it is believed to speak OSC 1337 (or whether support is only being assumed via `display.assume_supported`); whether that came from the environment or from the terminal's own XTVERSION reply, and a warning when the two disagree |
 | **clipboard** | Which platform-specific tool `:Image paste` will use — `powershell.exe` on Windows, `pngpaste` on macOS, `wl-paste`/`xclip` on Linux |
 | **screenshot** | Whether `:Image screenshot` has a tool to call on this platform; its absence only costs that one command, `:Image paste` keeps working either way |
 | **ImageMagick** | Whether `magick` is on `PATH`, and what stays on without it (`:Image info` dimensions, `:Image compare`'s relative scaling, SVG display) versus what needs it outright (`:Image export`/`redact`/`scale`/`optimise`/`convert`, zoom in `:Image zen`) |
@@ -29,10 +29,11 @@ running on:
 questions need a different command:
 
 - `:Image check` — re-reads the environment and reports what the detection
-  heuristic concludes from it, after a configuration change such as
-  `display.assume_supported`. It sends nothing to the terminal: the protocol
-  has no capability query, so whether OSC 1337 actually gets through is only
-  proven by an image appearing.
+  concludes, after a configuration change such as `display.assume_supported`,
+  and whether the environment or the terminal's XTVERSION reply decided. The
+  only thing it sends is that name query (again, if it went unanswered): the
+  protocol has no capability query, so whether OSC 1337 actually gets through
+  is only proven by an image appearing.
 - `:Image debug <mode>` — measures where a draw actually landed, when an
   image appears but not where it was asked to be.
 

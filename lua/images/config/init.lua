@@ -29,6 +29,7 @@ local KNOWN = {
     gallery_gap = true,
     hover_mode = true,
     assume_supported = true,
+    terminal_probe = true,
     clear_events = true,
     browse_exclude = true,
     browse_max_entries = true,

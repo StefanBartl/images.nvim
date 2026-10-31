@@ -382,7 +382,10 @@ Calling |images.setup()| is optional when using `opts`.
 :Image check            Re-run the terminal detection and report its
                         result (useful after setting
                         `display.assume_supported`). It re-reads the
-                        environment; nothing is sent to the terminal.
+                        environment and says whether the environment or
+                        the terminal's XTVERSION reply decided; it warns
+                        when the two disagree. An unanswered query is sent
+                        again; run it twice to see that reply.
 
 :Image clear            Remove displayed images and release a pin. Also
                         closes an open `:Image zen` window.
@@ -439,6 +442,7 @@ under the same key).
         gallery_gap = 1,
         hover_mode = "overlay",
         assume_supported = false,
+        terminal_probe = true,
         clear_events = {
           "CursorMoved", "CursorMovedI", "InsertEnter",
           "BufLeave", "WinScrolled",
@@ -610,7 +614,14 @@ Deliberately not a hard block: the protocol has no capability query, so the
 detection is a heuristic, and a false negative would break a working setup.
 Set `display.assume_supported = true` on a terminal that works but is not on
 the list: it forces OSC 1337, silencing the warning and skipping the block
-fallback. `:Image check` re-runs the detection (environment only).
+fallback. `:Image check` re-runs the detection.
+
+At startup the terminal is also asked its name with XTVERSION (`CSI > q`,
+`display.terminal_probe`, default `true`). Its reply arrives through
+|TermResponse| and, when it names a known terminal, overrides the environment:
+it holds over SSH and against variables inherited from another terminal.
+Nothing is sent under tmux, which would answer for itself. The reply is a
+name, not a capability: only an image appearing proves OSC 1337 gets through.
 
                                                         *images-ascii-config*
 When the capability check fails (and only then), `:Image show`/hover try

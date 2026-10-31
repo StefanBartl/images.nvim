@@ -106,6 +106,7 @@ local specs = {
   "info_spec.lua",
   "config_spec.lua",
   "capability_spec.lua",
+  "xtversion_spec.lua",
   "orphans_spec.lua",
   "keymaps_spec.lua",
   "usrcmds_spec.lua",

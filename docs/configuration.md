@@ -44,6 +44,7 @@ require("images").setup({
     gallery_gap = 1,
     hover_mode = "overlay",
     assume_supported = false,
+    terminal_probe = true,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     browse_exclude = { ".deps", "node_modules" },
     browse_max_entries = 20000,
@@ -130,6 +131,7 @@ require("images").setup({
 | `gallery_gap` | `1` | Cells between two gallery tiles |
 | `hover_mode` | `"overlay"` | `"overlay"` draws over the text and clears on the next `clear_events` event; `"float"` shows the same image in a small unfocused window instead. Affects `:Image show`/hover only — the gallery keeps its own layout either way |
 | `assume_supported` | `false` | `true` forces OSC 1337: it silences the "unknown terminal" warning and skips the block-graphics fallback (`ascii_fallback`) — see [architecture.md](architecture.md#detection-is-a-heuristic-and-stays-one) |
+| `terminal_probe` | `true` | Ask the terminal its name with XTVERSION (`CSI > q`) once at startup. A reply naming a known terminal overrides the environment heuristic; `:Image check` says which decided. Skipped under tmux. `false` sends nothing |
 | `clear_events` | `CursorMoved`, `CursorMovedI`, `InsertEnter`, `BufLeave`, `WinScrolled` | The events that take a displayed image down again. `:Image pin` suspends them for the current image |
 | `browse_exclude` | `{ ".deps", "node_modules" }` | Directory names `:Image pickers` skips while scanning. `.git` is always skipped |
 | `browse_max_entries` | `20000` | Upper bound on entries that scan visits. A safety net against a `cwd` that turns out to be your home directory, not an error: what was found so far is still shown |

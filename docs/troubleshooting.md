@@ -10,7 +10,7 @@ Three probes, three different questions:
 | | Answers |
 | --- | --- |
 | `:checkhealth images` | is everything this plugin needs present |
-| `:Image check` | which terminal the environment heuristic detects, re-read now (sends nothing; only a drawn image proves OSC 1337 gets through) |
+| `:Image check` | which terminal was detected, re-read now, and whether the environment or the terminal's XTVERSION reply decided (only a drawn image proves OSC 1337 gets through) |
 | `:Image debug <mode>` | where did that draw go, and why is it not where it was asked to be |
 
 ## Nothing is drawn at all
@@ -53,7 +53,9 @@ work (the probe above draws) and is only misdetected, set
 `display.assume_supported = true` (it forces OSC 1337 and skips the block
 fallback) rather than fighting the heuristic — the
 protocol has no capability query, so detection is a best guess from environment
-variables. See
+variables and the terminal's XTVERSION name reply. If `:Image check` reports a
+conflict, a variable was inherited from a different terminal (or forwarded over
+SSH); the reply decided. See
 [architecture.md](architecture.md#detection-is-a-heuristic-and-stays-one).
 
 ## The image appears below the statusline

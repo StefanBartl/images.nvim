@@ -123,9 +123,27 @@ checked against the small set known to implement it (WezTerm, iTerm2, Konsole),
 detected from environment variables. An unknown terminal produces a warning
 **once per session** and the image is still drawn — a false negative must not
 break a working setup. `display.assume_supported = true` forces OSC 1337: it
-silences the warning and skips the block-graphics fallback. `:Image check`
-re-runs the detection — it re-reads the environment, it does not query the
-terminal.
+silences the warning and skips the block-graphics fallback.
+
+The terminal *can* be asked its name, though. At startup (`UIEnter`)
+`images.xtversion` sends XTVERSION (`CSI > q`); the reply is a DCS string,
+which Neovim forwards to `TermResponse` (measured: WezTerm on Windows answers
+`WezTerm 20240203-…` through ConPTY). When the reply names a terminal on the
+`KNOWN` list in `images.xtversion` (WezTerm, iTerm2, Konsole and mintty draw
+OSC 1337; kitty, Ghostty, foot and XTerm do not), it overrides the environment —
+it comes from the terminal itself, so it holds over SSH, where the variables are
+not forwarded, and against variables inherited from another terminal. An
+unlisted reply, or none at all, leaves the environment's verdict standing. The
+environment stays the synchronous path: the reply arrives a moment later and
+drops the memoized result, so the next draw uses it. Under tmux nothing is sent,
+because tmux answers XTVERSION itself. `display.terminal_probe = false` switches
+the query off. This is still a name, not a capability: a listed name that draws
+nothing is possible, and only an image appearing proves the protocol gets
+through.
+
+`:Image check` re-runs the detection, re-sends the query if it went unanswered,
+and says which source decided — and warns when the environment and the reply
+name different terminals.
 
 There is exactly one place where a failed check means *no*:
 `images.integrations.picker.available()`. Taking a foreign preview window over
@@ -153,7 +171,7 @@ draws at all on this platform.
 | **No images inline in the text flow** | Inline placement needs Unicode placeholders, which only Kitty and Ghostty implement — and neither ships for Windows | `display.hover_mode = "overlay"` draws *over* the text and clears on the next cursor move; `"float"` puts the same image in a small window instead |
 | **Placement is whole-cell** | `CSI row;col H` has no pixel offset, and neither cell size nor window padding is readable from Neovim | `display.draw_inset`, `display.terminal_padding`, `:Image calibrate` |
 | **SVG needs ImageMagick** | WezTerm decodes PNG/JPEG/GIF/WebP/BMP itself but not SVG; an `.svg` is rasterized to a cached PNG first, and without ImageMagick opening one reports a clear error rather than failing silently | `extensions`, `images.convert` |
-| **Terminal support is guessed** | the protocol has no capability query | `display.assume_supported`, `:Image check`, and the block-graphics fallback in `display.ascii_fallback` |
+| **Terminal support is guessed** | the protocol has no capability query; the XTVERSION reply names the terminal, not what it can draw | `display.assume_supported`, `display.terminal_probe`, `:Image check`, and the block-graphics fallback in `display.ascii_fallback` |
 
 ### Where ImageMagick is a requirement rather than an improvement
 

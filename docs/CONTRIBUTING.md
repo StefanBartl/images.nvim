@@ -52,8 +52,10 @@ git config core.hooksPath scripts/hooks         # once per clone
   ones in [`install.json`](install.json) with the reasoning.
 - **Terminal support is guessed, and the guess is admitted.** The protocol has no
   capability query. Where the code assumes, it says so: `:Image check` and
-  `:checkhealth` report what the environment heuristic concluded, never a
-  verified fact, and `display.assume_supported` is the user's override.
+  `:checkhealth` report what the environment heuristic or the terminal's
+  XTVERSION name reply concluded, and which of the two, never a verified fact;
+  `display.assume_supported` is the user's override. A terminal joins
+  `images.xtversion`'s `KNOWN` list with evidence for its OSC 1337 support.
 - Commands are registered through `lib.nvim.bindings.usercmd.composer`.
 - Descriptive commit messages.
 

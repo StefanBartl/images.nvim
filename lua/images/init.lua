@@ -737,21 +737,24 @@ function M.clear()
 end
 
 --- Run the capability check again. Needed when `assume_supported` was set after
---- the fact — otherwise the memoized result stands.
+--- the fact -- otherwise the memoized result stands. Also asks the terminal
+--- again when its XTVERSION probe went unanswered or was never sent; that
+--- reply arrives asynchronously, so a second `:Image check` reports it.
 ---@return Images.Capability
 function M.recheck()
   require("images.guard").reset()
   require("images.terminal").reset_capability()
-  local cap = require("images.terminal").capability(require("images.config").get().display.assume_supported)
-  if cap.ok then
-    -- A guess from environment variables (or the user's override), never a
-    -- verified fact: OSC 1337 has no capability query and nothing is sent.
-    notify().info(
-      cap.terminal and ("`%s` detected from the environment — OSC 1337 assumed to work"):format(cap.terminal)
-        or "OSC 1337 assumed to work (`display.assume_supported`), terminal not detected"
-    )
+  local display = require("images.config").get().display
+  local xtversion = require("images.xtversion")
+  if display.terminal_probe ~= false then xtversion.start() end
+  local cap = require("images.terminal").capability(display.assume_supported)
+  local lines = { require("images.terminal").describe(cap, xtversion.status()) }
+  if cap.conflict then lines[#lines + 1] = "conflict: " .. cap.conflict end
+  if cap.ok and not cap.conflict then
+    notify().info(table.concat(lines, "\n"))
   else
-    notify().warn(table.concat({ cap.reason or "", cap.hint or "" }, "\n"))
+    if not cap.ok then vim.list_extend(lines, { cap.reason or "", cap.hint or "" }) end
+    notify().warn(table.concat(lines, "\n"))
   end
   return cap
 end
@@ -769,6 +772,27 @@ function M.setup(opts)
   -- rather than around the 0.5 assumption. Configured, not measured — why
   -- measuring is impossible from inside Neovim is explained in images.cell.
   require("images.cell").apply()
+
+  -- Ask the terminal its name (XTVERSION) once the UI is up: the reply
+  -- refines the environment heuristic, see images.xtversion. A new answer
+  -- drops the memoized capability, so the next draw decides with it.
+  if conf.display.terminal_probe ~= false then
+    local xtversion = require("images.xtversion")
+    xtversion.on_answer(function()
+      require("images.terminal").reset_capability()
+    end)
+    if vim.v.vim_did_enter == 1 then
+      xtversion.start()
+    else
+      vim.api.nvim_create_autocmd("UIEnter", {
+        group = vim.api.nvim_create_augroup("images.xtversion.start", { clear = true }),
+        once = true,
+        callback = function()
+          xtversion.start()
+        end,
+      })
+    end
+  end
 
   -- A one-off popup (persisted across restarts) on the first `setup()` after
   -- installation: which CLI tools unlock what, and why (docs/install.json).
