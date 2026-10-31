@@ -540,7 +540,7 @@ end
 --- `filetype=markdown` is what makes `language.nvim`'s spell checking and
 --- `:Translate` treat the contents as prose without any further wiring.
 ---@param path string|nil nil = the image under the cursor
----@param opts { lang?: string, args?: string[] }|nil  nil = the configured language (`ocr.lang`)
+---@param opts { lang?: string, args?: string[], upscale?: boolean|number }|nil  nil = the configured `ocr` settings
 ---@return boolean ok  true = OCR was started (the result arrives asynchronously);
 ---false = never started at all (no image found)
 function M.ocr(path, opts)
@@ -551,7 +551,10 @@ function M.ocr(path, opts)
   end
 
   local ocr = require("images.ocr")
-  ocr.run(file, opts, function(text, err)
+  ocr.run(file, opts, function(text, err, notice)
+    -- The run went ahead in a reduced form (`ocr.upscale` without ImageMagick):
+    -- worth a warning either way, since it may be why the text reads badly.
+    if notice then notify().warn(notice) end
     if not text then
       notify().error(err or "OCR failed")
       return

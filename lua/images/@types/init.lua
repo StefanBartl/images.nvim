@@ -97,6 +97,7 @@
 ---@field lang string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
 ---@field args string[] extra tesseract arguments, appended verbatim (e.g. { "--psm", "6" })
 ---@field bin string|nil absolute path to the tesseract binary; nil = PATH, then the usual Windows install directories
+---@field upscale boolean|number enlarge the image with ImageMagick before recognition: false = off (default), true = 2x, a number > 1 = that factor (see images.ocr)
 
 --- Every keymap entry accepts `false` to disable it.
 ---@class ImagesNvim.KeymapConfig : ImagesNvim.KeymapOpts
@@ -238,6 +239,7 @@
 ---@field lang? string tesseract language code passed to `-l`; several at once as tesseract writes them, e.g. "deu+eng" (see images.ocr)
 ---@field args? string[] extra tesseract arguments, appended verbatim (e.g. { "--psm", "6" })
 ---@field bin?  string absolute path to the tesseract binary; unset = PATH, then the usual Windows install directories
+---@field upscale? boolean|number enlarge the image with ImageMagick before recognition: false = off (default), true = 2x, a number > 1 = that factor (see images.ocr)
 
 ---@class ImagesNvim.KeymapOpts
 ---@field show?         string|false image under the cursor

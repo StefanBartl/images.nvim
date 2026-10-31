@@ -304,6 +304,14 @@ return {
     -- add itself to PATH, see images.ocr. Set this when it lives somewhere
     -- else entirely.
     bin = nil,
+    -- Enlarge the image with ImageMagick before tesseract reads it: false =
+    -- off, true = 2x, a number > 1 = that factor. Pays off on screenshots of
+    -- small text (log windows, terminals): on the reference screenshot 2x
+    -- lifted token recall from 55 % to 73 % and cut `@`-for-`0` misreads from
+    -- 15 to 4. Off by default because it costs an extra `magick` run and a
+    -- slower recognition, and large text gains nothing. Without `magick` the
+    -- image is read as it is, with a warning.
+    upscale = false,
   },
 
   -- One-off "which CLI tools does this plugin want, and why" popup on the

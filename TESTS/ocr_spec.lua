@@ -60,6 +60,135 @@ return function(H)
     return a, b, fired
   end
 
+  -- ── upscale_factor: what `ocr.upscale` means ──────────────────────────────
+  H.eq(ocr.upscale_factor(true), 2, "upscale = true means the measured 2x")
+  H.eq(ocr.upscale_factor(3), 3, "a number above 1 is the factor itself")
+  H.eq(ocr.upscale_factor(1.5), 1.5, "…fractions included")
+  H.eq(ocr.upscale_factor(false), nil, "false is off")
+  H.eq(ocr.upscale_factor(nil), nil, "nil is off")
+  H.eq(ocr.upscale_factor(1), nil, "1 is off: nothing to enlarge")
+  H.eq(ocr.upscale_factor(0.5), nil, "a shrinking factor is off, never passed on")
+  H.eq(ocr.upscale_factor("2"), nil, "a string is off")
+
+  -- ── run with upscale: the pipeline, with both processes stubbed ───────────
+  -- Neither tesseract nor ImageMagick is needed here (CI has neither): the
+  -- point is which argv reaches which process, which file tesseract reads,
+  -- that the temporary copy is gone afterwards, and the fallback notice.
+  do
+    local exe = require("lib.nvim.cross.executable")
+    local real_system, real_exists = vim.system, exe.exists
+    local saved_ocr = vim.deepcopy(config.get().ocr)
+
+    local input = vim.fn.tempname() .. ".png"
+    H.write(input, "not really a png; the processes are stubbed")
+
+    local calls, magick_fails, magick_present = {}, false, true
+    ---@diagnostic disable-next-line: duplicate-set-field
+    exe.exists = function(name)
+      if name == "magick" then return magick_present end
+      return real_exists(name)
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function(argv, _, on_exit)
+      calls[#calls + 1] = vim.deepcopy(argv)
+      local result
+      if argv[1] == "magick" then
+        if magick_fails then
+          result = { code = 1, stdout = "", stderr = "magick: boom" }
+        else
+          H.write(argv[#argv], "enlarged")
+          result = { code = 0, stdout = "", stderr = "" }
+        end
+      else
+        result = { code = 0, stdout = "READ FROM " .. argv[2] .. "\n", stderr = "" }
+      end
+      on_exit(result)
+      return {
+        wait = function()
+          return result
+        end,
+      }
+    end
+
+    local function reset(upscale)
+      calls, magick_fails, magick_present = {}, false, true
+      config.setup({ ocr = { bin = "/fake/tesseract", upscale = upscale } })
+      ocr.clear()
+    end
+
+    local ok_run, run_err = pcall(function()
+      -- Off by default: tesseract reads the original, magick never runs.
+      reset(nil)
+      H.eq(config.get().ocr.upscale, false, "ocr.upscale defaults to off")
+      local text, err, fired, notice
+      local function go(opts)
+        fired, text, err, notice = false, nil, nil, nil
+        ocr.run(input, opts, function(t, e, n)
+          text, err, notice, fired = t, e, n, true
+        end)
+        vim.wait(5000, function()
+          return fired
+        end, 10)
+      end
+
+      go(nil)
+      H.ok(fired, "default run calls back")
+      H.eq(#calls, 1, "default: one process only (tesseract)")
+      H.eq(calls[1][2], input, "default: tesseract reads the original")
+      H.eq(notice, nil, "default: no notice")
+
+      -- upscale = true: magick -resize 200% into a temp copy, tesseract on it.
+      reset(true)
+      go(nil)
+      H.eq(#calls, 2, "upscale: magick, then tesseract")
+      H.eq(calls[1][1], "magick", "upscale: magick runs first")
+      H.eq(calls[1][2], input, "…on the original")
+      H.eq(calls[1][3], "-resize", "…with -resize")
+      H.eq(calls[1][4], "200%", "…by 200% for upscale = true")
+      local copy = calls[1][5]
+      H.eq(calls[2][2], copy, "tesseract reads the enlarged copy")
+      H.ok(copy ~= input, "…which is not the original")
+      H.falsy(vim.uv.fs_stat(copy), "the enlarged copy is deleted afterwards")
+      H.ok(vim.uv.fs_stat(input) ~= nil, "…the original is left alone")
+      H.contains(text or "", copy, "the text comes from the enlarged read")
+      H.eq(err, nil, "upscale: no error")
+      H.eq(notice, nil, "upscale: no notice when it worked")
+
+      -- opts.upscale overrides the configuration, both ways.
+      reset(false)
+      go({ upscale = 1.5 })
+      H.eq(calls[1][4], "150%", "opts.upscale = 1.5 resizes by 150%")
+      reset(true)
+      go({ upscale = false })
+      H.eq(#calls, 1, "opts.upscale = false switches a configured upscale off")
+
+      -- No ImageMagick: the original is read, with a notice, not an error.
+      reset(true)
+      magick_present = false
+      go(nil)
+      H.eq(#calls, 1, "without magick only tesseract runs")
+      H.eq(calls[1][2], input, "…on the original")
+      H.ok(text ~= nil, "…and the text still arrives")
+      H.eq(err, nil, "…with no error")
+      H.contains(notice or "", "magick", "…but a notice naming the missing tool")
+
+      -- magick fails: same fallback, the notice carries its stderr.
+      reset(true)
+      magick_fails = true
+      go(nil)
+      H.eq(#calls, 2, "a failing magick still lets tesseract run")
+      H.eq(calls[2][2], input, "…on the original")
+      H.ok(text ~= nil, "…and the text arrives")
+      H.contains(notice or "", "boom", "…with magick's own error in the notice")
+    end)
+
+    vim.system, exe.exists = real_system, real_exists
+    config.setup({ ocr = saved_ocr })
+    ocr.clear()
+    os.remove(input)
+    if not ok_run then error(run_err, 0) end
+  end
+
   -- ── run: missing file ────────────────────────────────────────────────────
   -- Only meaningful with tesseract present: without it the earlier "no
   -- tesseract" guard fires first, which is the correct order but a different
@@ -122,6 +251,18 @@ return function(H)
   H.ok(fired, "recognition calls back")
   H.ok(text ~= nil, "…with text: " .. tostring(err))
   H.contains((text or ""):upper(), "NEOVIM", "…and the word in the image is in it")
+
+  -- The same image through the real `magick -resize` first.
+  local notice
+  text, err, fired = await(function(cb)
+    ocr.run(img, { lang = "eng", upscale = true }, function(t, e, n)
+      notice = n
+      cb(t, e)
+    end)
+  end)
+  H.ok(fired, "upscaled recognition calls back")
+  H.eq(notice, nil, "…without a fallback notice: " .. tostring(notice))
+  H.contains((text or ""):upper(), "NEOVIM", "…and still reads the word: " .. tostring(err))
 
   -- ── run: a language that is not installed ────────────────────────────────
   -- "zzz" is not a tesseract language code and never will be, so this asserts

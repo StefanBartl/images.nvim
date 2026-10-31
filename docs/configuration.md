@@ -87,6 +87,7 @@ require("images").setup({
     lang = "eng",
     args = {},
     bin = nil,
+    upscale = false, -- true = 2x, or a factor > 1
   },
   pdf = {
     enabled = true,
@@ -332,9 +333,18 @@ this adds. macOS and Linux are unaffected — they never had this cost.
 | `lang` | `"eng"` | Passed to tesseract's `-l`. Further languages are a separate download per language; several at once as tesseract writes them, `"deu+eng"` |
 | `args` | `{}` | Extra tesseract arguments, appended verbatim — e.g. `{ "--psm", "6" }` for a screenshot that is one uniform block of text rather than a page layout |
 | `bin` | `nil` | Absolute path to the tesseract binary. `nil` looks on PATH, then in the usual Windows install directories |
+| `upscale` | `false` | Enlarge the image with ImageMagick (`magick -resize`) before tesseract reads it: `true` = 2x, a number above 1 = that factor. Helps on screenshots of small text (log windows, terminals); see below |
 
 `:checkhealth images` lists which language data is actually installed, and
 which of the three lookup routes found the binary.
+
+`upscale` exists because tesseract reads small screen text badly: on a
+screenshot of 15 JSON log lines, 2x upscaling lifted the share of correctly
+read tokens from 55 % to 73 %, cut `0`-read-as-`@` errors from 15 to 4 and
+stopped lines being cut in two (45 output lines down to 24). It is off by
+default because it adds a `magick` run (~0.7 s) and a slower recognition, and
+large text gains nothing. Without ImageMagick the image is read at its
+original size and `:Image ocr` warns that the upscale was skipped.
 
 ## pdf
 

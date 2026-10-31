@@ -294,6 +294,11 @@ Calling |images.setup()| is optional when using `opts`.
                         SVG->PNG conversion first, since tesseract reads
                         raster formats only.
 
+                        `ocr.upscale` (off by default; `true` = 2x) enlarges
+                        the image with ImageMagick before recognition, which
+                        helps markedly on screenshots of small text. Without
+                        `magick` the image is read as it is, with a warning.
+
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.
                         Only considers `paste.dir`, not the whole project —
@@ -495,6 +500,7 @@ under the same key).
         lang = "eng",
         args = {},
         bin = nil,
+        upscale = false,  -- true = 2x, or a factor > 1
       },
       pdf = {
         enabled = true,
@@ -802,7 +808,7 @@ images.convert({format}, {path})                          *images.convert()*
 images.ocr({path}, {opts})                                    *images.ocr()*
                 Read the text out of {path} — or out of the image under the
                 cursor — and open it in a scratch split. {opts} accepts
-                `lang` and `args`, both overriding the `ocr` configuration
+                `lang`, `args` and `upscale`, overriding the `ocr` configuration
                 for this call. Returns true when OCR was started; the
                 result arrives asynchronously. See |images-ocr|.
 

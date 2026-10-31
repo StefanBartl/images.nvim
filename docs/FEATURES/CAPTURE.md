@@ -186,18 +186,25 @@ the same screenshot twice replaces the previous result instead of stacking
 windows; two different images get two buffers.
 
 - **Module:** `images/ocr.lua` (`M.run`, `M.bin`, `M.languages`,
-  `M.to_lines`), `images/init.lua` (`M.ocr`)
+  `M.upscale_factor`, `M.to_lines`), `images/init.lua` (`M.ocr`)
 - **Usercmds:** `:Image ocr [path] [--lang=<code>]`
   ([usercmds](../BINDINGS.md#user-commands))
 - **Config:** `opts.ocr.lang` (default `"eng"`), `opts.ocr.args`,
-  `opts.ocr.bin`
+  `opts.ocr.bin`, `opts.ocr.upscale` (default `false`)
 - **Needs:** `tesseract`, plus the language data for whatever `ocr.lang`
   names — those install separately from the binary.
   `:checkhealth images` lists what is actually there.
 
 SVG input is converted to PNG through the existing cached
 `images/convert.lua` path first, since tesseract reads raster formats
-only. Everything else goes to tesseract untouched.
+only. Everything else goes to tesseract untouched, unless `ocr.upscale`
+is set: then ImageMagick first enlarges the image into a temporary PNG
+(`magick in -resize 200% tmp.png` for `true`), tesseract reads that, and
+the copy is deleted afterwards. On a reference screenshot of small log
+text this lifted token recall from 55 % to 73 %. Without `magick` the
+original is read and `:Image ocr` warns about the skipped upscale;
+`images.ocr.run` hands that warning to its callback as a third argument
+(`notice`), so other callers can show it too.
 
 ### Why the result is a split, not a popup
 

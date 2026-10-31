@@ -85,7 +85,7 @@ local KNOWN = {
     windows_clipboard_timeout_ms = true,
     windows_persistent_helper = true,
   },
-  ocr = { lang = true, args = true, bin = true },
+  ocr = { lang = true, args = true, bin = true, upscale = true },
   deps_popup = true,
   pdf = { enabled = true, page = true, dpi = true },
   menu = { enable = true },

@@ -26,6 +26,20 @@
 --- is already the plugin's answer to "this is an SVG", reusing it costs one
 --- branch and makes `:Image ocr` work on the same set of files as every other
 --- route.
+---
+--- **Optional upscaling (`ocr.upscale`) goes through ImageMagick first.**
+--- tesseract is trained on text around 20-30 px cap height; a screenshot of a
+--- log window at 100 % sits well below that, and the classic symptom is `0`
+--- read as `@`, `I` as `l` and lines cut in two. Enlarging the image before
+--- recognition is the cheapest fix there is: on the reference screenshot of
+--- the Windows-OCR spike (`windows-ocr-backend`, 15 JSON log lines) a 2x
+--- resize lifted token recall from 55 % to 73 %, cut the `@`-for-`0` errors
+--- from 15 to 4 and the line count from 45 (fragments) to 24. It costs one
+--- extra `magick` run (~0.7 s) and a slower tesseract pass, which is why it is
+--- off by default: a photo of a page or a large dialog gains nothing from it.
+--- Without `magick` the image is read at its original size and the caller is
+--- told so (the third argument of `on_done`) rather than the run failing --
+--- an upscale is an improvement, never a prerequisite.
 
 local M = {}
 
@@ -130,6 +144,80 @@ function M.languages()
   return langs
 end
 
+--- The resize factor `ocr.upscale` (or `opts.upscale`) asks for, or nil when
+--- the image is to be read as it is.
+---
+--- `true` means the measured default, 2x; a number above 1 is taken as the
+--- factor itself (1.5, 3, ...). Everything else -- `false`, nil, 1 or less, a
+--- string -- is "off": a factor that would shrink the image only makes
+--- recognition worse, so it is not passed on.
+---@param value boolean|number|nil
+---@return number|nil factor
+function M.upscale_factor(value)
+  if value == true then return 2 end
+  if type(value) == "number" and value > 1 then return value end
+  return nil
+end
+
+--- Enlarge `input` into a temporary PNG with ImageMagick, asynchronously.
+---
+--- `on_ready(path, cleanup, notice)`: `path` is the image tesseract should
+--- read -- the enlarged copy, or `input` itself when the upscale could not be
+--- done, in which case `notice` says why. `cleanup` removes the temporary file
+--- and is safe to call either way.
+---@param input string
+---@param factor number
+---@param on_ready fun(path: string, cleanup: fun(), notice: string|nil)
+---@return nil
+local function upscale(input, factor, on_ready)
+  local function noop() end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    return on_ready(input, noop, "`ocr.upscale` needs ImageMagick (`magick` not found); the image was read at its original size")
+  end
+
+  local out = vim.fn.tempname() .. ".png"
+  local function cleanup()
+    os.remove(out)
+  end
+  local percent = ("%d%%"):format(math.floor(factor * 100 + 0.5))
+  vim.system({ "magick", input, "-resize", percent, out }, { text = true }, function(result)
+    vim.schedule(function()
+      if result.code ~= 0 or not vim.uv.fs_stat(out) then
+        cleanup()
+        local stderr = vim.trim(result.stderr or "")
+        local why = stderr ~= "" and stderr or ("exit code " .. tostring(result.code))
+        return on_ready(input, noop, ("upscaling for OCR failed (%s); the image was read at its original size"):format(why))
+      end
+      on_ready(out, cleanup, nil)
+    end)
+  end)
+end
+
+--- Turn tesseract's process result into `done(text, err)`.
+---@param result vim.SystemCompleted
+---@param lang string
+---@param done fun(text: string|nil, err: string|nil)
+---@return nil
+local function finish(result, lang, done)
+  if result.code ~= 0 then
+    local stderr = vim.trim(result.stderr or "")
+    -- A wrong `-l` is the one failure worth translating into advice: the
+    -- language data is a separate download from the binary, so "not
+    -- installed" is a routine state rather than a typo, and the list of
+    -- what IS installed answers the question the error raises.
+    if stderr:find("Failed loading language") or stderr:find("Could not initialize tesseract") then
+      local have = M.languages()
+      local available = #have > 0 and table.concat(have, ", ") or "none"
+      return done(nil, ("OCR language '%s' is not installed (available: %s)"):format(lang, available))
+    end
+    return done(nil, "OCR failed: " .. (stderr ~= "" and stderr or ("exit code " .. tostring(result.code))))
+  end
+
+  local text = vim.trim(result.stdout or "")
+  if text == "" then return done(nil, "no text found in the image") end
+  done(text, nil)
+end
+
 --- Read the text out of an image.
 ---
 --- Asynchronous throughout: OCR on a full-screen screenshot is a second or
@@ -138,16 +226,19 @@ end
 --- `convert.redact` asynchronous.
 ---
 --- `on_done` is the only route to the result, and is called exactly once on
---- every path, failures included.
+--- every path, failures included. Its third argument, `notice`, is set when
+--- the run succeeded in a reduced form the user should hear about -- today
+--- only "`ocr.upscale` was asked for but could not be done".
 ---@param path string absolute path to an image file
----@param opts { lang?: string, args?: string[] }|nil  nil = the configured language and extra arguments
----@param on_done fun(text: string|nil, err: string|nil)
+---@param opts { lang?: string, args?: string[], upscale?: boolean|number }|nil  nil = the configured language, extra arguments and upscale
+---@param on_done fun(text: string|nil, err: string|nil, notice: string|nil)
 ---@return nil
 function M.run(path, opts, on_done)
   opts = opts or {}
 
+  local notice = nil
   local function done(text, err)
-    if on_done then on_done(text, err) end
+    if on_done then on_done(text, err, notice) end
   end
 
   local bin = M.bin()
@@ -168,34 +259,32 @@ function M.run(path, opts, on_done)
 
   local ocr_cfg = cfg().ocr or {}
   local lang = opts.lang or ocr_cfg.lang or "eng"
+  local upscale_opt = opts.upscale
+  if upscale_opt == nil then upscale_opt = ocr_cfg.upscale end
+  local factor = M.upscale_factor(upscale_opt)
 
-  local args = { bin, input, "stdout", "-l", lang }
-  for _, extra in ipairs(opts.args or ocr_cfg.args or {}) do
-    args[#args + 1] = extra
+  local function recognize(image, cleanup)
+    local args = { bin, image, "stdout", "-l", lang }
+    for _, extra in ipairs(opts.args or ocr_cfg.args or {}) do
+      args[#args + 1] = extra
+    end
+
+    vim.system(args, { text = true }, function(result)
+      -- vim.system callbacks run outside the main loop; every caller's
+      -- `on_done` ends up in a buffer, notify or vim.fn.
+      vim.schedule(function()
+        cleanup()
+        finish(result, lang, done)
+      end)
+    end)
   end
 
-  vim.system(args, { text = true }, function(result)
-    -- vim.system callbacks run outside the main loop; every caller's `on_done`
-    -- ends up in a buffer, notify or vim.fn.
-    vim.schedule(function()
-      if result.code ~= 0 then
-        local stderr = vim.trim(result.stderr or "")
-        -- A wrong `-l` is the one failure worth translating into advice: the
-        -- language data is a separate download from the binary, so "not
-        -- installed" is a routine state rather than a typo, and the list of
-        -- what IS installed answers the question the error raises.
-        if stderr:find("Failed loading language") or stderr:find("Could not initialize tesseract") then
-          local have = M.languages()
-          local available = #have > 0 and table.concat(have, ", ") or "none"
-          return done(nil, ("OCR language '%s' is not installed (available: %s)"):format(lang, available))
-        end
-        return done(nil, "OCR failed: " .. (stderr ~= "" and stderr or ("exit code " .. tostring(result.code))))
-      end
-
-      local text = vim.trim(result.stdout or "")
-      if text == "" then return done(nil, "no text found in the image") end
-      done(text, nil)
-    end)
+  if not factor then
+    return recognize(input, function() end)
+  end
+  upscale(input, factor, function(image, cleanup, why)
+    notice = why
+    recognize(image, cleanup)
   end)
 end
 
