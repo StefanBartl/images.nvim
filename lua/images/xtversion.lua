@@ -34,12 +34,13 @@ M.TIMEOUT_MS = 1500
 
 ---@class Images.XtversionEntry
 ---@field name string canonical name, shown to the user
----@field match string lowercase prefix of the reply's name part
+---@field match string the reply's name part, lowercased (matched exactly)
 ---@field osc1337 boolean whether it draws OSC 1337 inline images
 ---@field evidence string why the entry is here
 
---- Terminals the reply is matched against, by the lowercase name prefix the
---- reply starts with. Only terminals with evidence for OSC 1337 are marked
+--- Terminals the reply is matched against, by the reply's whole name part
+--- (lowercased). Exact, not a prefix: `xterm.js(5.3.0)` (VS Code and other
+--- Electron terminals) must not count as XTerm. Only terminals with evidence for OSC 1337 are marked
 --- `osc1337 = true`; an unlisted name has no opinion and leaves the decision
 --- to the environment. Rio, Warp, Tabby and Hyper are deliberately absent:
 --- neither their XTVERSION reply nor their OSC 1337 support is evidenced yet.
@@ -61,7 +62,8 @@ M.KNOWN = {
     name = "Konsole",
     match = "konsole",
     osc1337 = true,
-    evidence = "already on the environment list (OSC 1337 since Konsole 22.04); reply name assumed",
+    evidence = "already on the environment list (OSC 1337 since Konsole 22.04); "
+      .. "reply name NOT evidenced yet (assumed `Konsole <version>`, open follow-up)",
   },
   {
     name = "mintty",
@@ -108,7 +110,7 @@ function M.parse(seq)
     return answer
   end
   for _, entry in ipairs(M.KNOWN) do
-    if lname:sub(1, #entry.match) == entry.match then
+    if lname == entry.match then
       answer.terminal, answer.osc1337 = entry.name, entry.osc1337
       break
     end
@@ -126,8 +128,11 @@ local answer = nil
 local skipped_why = nil
 ---@type integer|nil
 local autocmd_id = nil
----@type fun(answer: Images.XtversionAnswer)[]
+---@type table<string, fun(answer: Images.XtversionAnswer)>
 local listeners = {}
+--- Bumped by every `M.start` and `M.reset`, so a timeout armed by an earlier
+--- probe cannot end a later one.
+local generation = 0
 
 ---@return nil
 local function stop_listening()
@@ -147,18 +152,21 @@ function M.on_response(seq)
   if not parsed then return false end
   answer, state = parsed, "answered"
   stop_listening()
-  for _, fn in ipairs(listeners) do
+  for _, fn in pairs(listeners) do
     pcall(fn, parsed)
   end
   return true
 end
 
 --- Call `fn` once the terminal has answered (or right away, if it already has).
----@param fn fun(answer: Images.XtversionAnswer)
+--- Listeners are keyed: registering the same `key` again replaces the earlier
+--- listener (repeated `setup()` calls), and `fn = nil` removes it.
+---@param key string
+---@param fn fun(answer: Images.XtversionAnswer)|nil
 ---@return nil
-function M.on_answer(fn)
-  listeners[#listeners + 1] = fn
-  if answer then pcall(fn, answer) end
+function M.on_answer(key, fn)
+  listeners[key] = fn
+  if fn and answer then pcall(fn, answer) end
 end
 
 --- Send the query and listen for the reply. Idempotent while pending or
@@ -184,6 +192,8 @@ function M.start(env)
   end
 
   state, skipped_why = "pending", nil
+  generation = generation + 1
+  local my_generation = generation
   autocmd_id = vim.api.nvim_create_autocmd("TermResponse", {
     group = vim.api.nvim_create_augroup("images.xtversion", { clear = true }),
     callback = function(ev)
@@ -192,7 +202,7 @@ function M.start(env)
     end,
   })
   vim.defer_fn(function()
-    if state == "pending" then
+    if my_generation == generation and state == "pending" then
       state = "silent"
       stop_listening()
     end
@@ -222,6 +232,7 @@ end
 ---@return nil
 function M.reset()
   stop_listening()
+  generation = generation + 1
   state, answer, skipped_why, listeners = "unsent", nil, nil, {}
 end
 

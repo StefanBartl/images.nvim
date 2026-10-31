@@ -620,6 +620,8 @@ At startup the terminal is also asked its name with XTVERSION (`CSI > q`,
 `display.terminal_probe`, default `true`). Its reply arrives through
 |TermResponse| and, when it names a known terminal, overrides the environment:
 it holds over SSH and against variables inherited from another terminal.
+The whole name must match (`xterm.js` from VS Code is not XTerm); an
+unlisted name has no opinion and leaves the decision to the environment.
 Nothing is sent under tmux, which would answer for itself. The reply is a
 name, not a capability: only an image appearing proves OSC 1337 gets through.
 

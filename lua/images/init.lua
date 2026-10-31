@@ -776,9 +776,13 @@ function M.setup(opts)
   -- Ask the terminal its name (XTVERSION) once the UI is up: the reply
   -- refines the environment heuristic, see images.xtversion. A new answer
   -- drops the memoized capability, so the next draw decides with it.
-  if conf.display.terminal_probe ~= false then
-    local xtversion = require("images.xtversion")
-    xtversion.on_answer(function()
+  -- Keyed, so repeated setup() calls replace the listener rather than stack
+  -- it, and switching the probe off removes it.
+  local xtversion = require("images.xtversion")
+  if conf.display.terminal_probe == false then
+    xtversion.on_answer("images.capability", nil)
+  else
+    xtversion.on_answer("images.capability", function()
       require("images.terminal").reset_capability()
     end)
     if vim.v.vim_did_enter == 1 then

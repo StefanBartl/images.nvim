@@ -33,6 +33,14 @@ return function(H)
   H.eq(a and a.terminal, nil, "...but is not matched")
   H.eq(a and a.osc1337, nil, "...and has no verdict")
 
+  a = xtversion.parse("\27P>|xterm.js(5.3.0)")
+  H.eq(a and a.name, "xterm.js", "xterm.js (VS Code) parses")
+  H.eq(a and a.terminal, nil, "...but is not XTerm: names match exactly, not by prefix")
+  H.eq(a and a.osc1337, nil, "...and has no verdict")
+
+  a = xtversion.parse("\27P>|XTerm(390)")
+  H.eq(a and a.terminal, "XTerm", "XTerm itself still matches")
+
   a = xtversion.parse("\27P>|tmux 3.4")
   H.ok(a and a.tmux, "tmux answering for itself is recognised")
 
@@ -70,7 +78,11 @@ return function(H)
 
     xtversion.reset()
     local heard
-    xtversion.on_answer(function(ans)
+    local stale = 0
+    xtversion.on_answer("spec", function()
+      stale = stale + 1
+    end)
+    xtversion.on_answer("spec", function(ans)
       heard = ans
     end)
     H.ok(xtversion.start({}), "with a UI the query is sent")
@@ -85,8 +97,39 @@ return function(H)
     vim.api.nvim_exec_autocmds("TermResponse", { data = { sequence = WEZTERM } })
     H.eq(xtversion.status().state, "answered", "the XTVERSION reply answers it")
     H.eq(heard and heard.terminal, "WezTerm", "...and listeners hear about it")
+    H.eq(stale, 0, "...a listener registered again under the same key replaces the old one")
+    local late = 0
+    xtversion.on_answer("late", function()
+      late = late + 1
+    end)
+    H.eq(late, 1, "a listener added after the answer hears it right away")
+    xtversion.on_answer("late", nil)
     H.falsy(xtversion.on_response("\27P>|kitty(1)"), "a later reply is ignored")
     H.eq(xtversion.status().answer.terminal, "WezTerm", "...the first answer stands")
+  end)
+
+  -- A timeout armed by an earlier probe must not end a later one.
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.api.nvim_list_uis = function()
+    return { {} }
+  end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.api.nvim_ui_send = function() end
+  with_ui(function()
+    local real_timeout = xtversion.TIMEOUT_MS
+    xtversion.TIMEOUT_MS = 50
+    xtversion.reset()
+    xtversion.start({})
+    xtversion.reset()
+    xtversion.TIMEOUT_MS = 100000
+    xtversion.start({})
+    xtversion.TIMEOUT_MS = real_timeout
+    vim.wait(300, function()
+      return false
+    end)
+    H.eq(xtversion.status().state, "pending", "an old probe's timeout leaves the new probe pending")
+    H.ok(xtversion.on_response(WEZTERM), "...so its reply is still heard")
+    xtversion.reset()
   end)
 
   -- ── capability: the reply refines the environment ────────────────────────
@@ -100,6 +143,9 @@ return function(H)
     "KITTY_LISTEN_ON",
     "WT_SESSION",
     "TMUX",
+    -- lib.nvim detects Kitty from TERM too; a suite run inside kitty would
+    -- otherwise see a Kitty environment.
+    "TERM",
   }
   local saved = {}
   for _, k in ipairs(keys) do
@@ -169,6 +215,11 @@ return function(H)
   H.eq(cap.source, "assumed", "...as assumed")
   H.eq(cap.terminal, nil, "...without naming kitty as a capable terminal")
 
+  cap = stubbed_cap("\27P>|kitty(0.35.2)", { KITTY_LISTEN_ON = "unix:/tmp/kitty" })
+  H.eq(cap.conflict, nil, "environment `Kitty` and reply `kitty` agree: no conflict")
+  cap = stubbed_cap("\27P>|kitty(0.35.2)", { TERM = "xterm-kitty" })
+  H.eq(cap.conflict, nil, "...also when TERM names kitty")
+
   cap = stubbed_cap("\27P>|Rio 0.2.1", { WEZTERM_PANE = "0" })
   H.eq(cap.source, "environment", "an unlisted reply has no opinion: the environment decides")
   H.ok(cap.ok, "...and stays ok")
@@ -184,6 +235,21 @@ return function(H)
   H.contains(text, "terminal's own reply", "describe names the reply as the source")
   H.contains(text, "WezTerm 20240203", "...with the reply text")
   H.falsy(text:find("not on the list", 1, true), "...and does not call a listed reply unlisted")
+
+  cap = stubbed_cap("\27P>|kitty(0.35.2)", nil, true)
+  text = terminal.describe(cap, xtversion.status())
+  H.contains(text, "assume_supported", "assumed over a listed negative reply: describe says so")
+  H.contains(text, "listed", "...calls the reply listed")
+  H.falsy(text:find("not on the list", 1, true), "...not unlisted")
+  H.falsy(text:find("environment decides", 1, true), "...and does not credit the environment")
+
+  text = terminal.describe(cap, { state = "answered", answer = xtversion.parse("\27P>|tmux 3.4") })
+  H.contains(text, "tmux answered", "a tmux reply is named as tmux answering for itself")
+  H.falsy(text:find("not on the list", 1, true), "...not as an unlisted terminal")
+
+  cap = stubbed_cap("\27P>|Rio 0.2.1", { WEZTERM_PANE = "0" })
+  text = terminal.describe(cap, xtversion.status())
+  H.contains(text, "not on the list", "an unlisted reply is called unlisted")
 
   cap = stubbed_cap(nil, { WEZTERM_PANE = "0" })
   text = terminal.describe(cap, { state = "silent" })

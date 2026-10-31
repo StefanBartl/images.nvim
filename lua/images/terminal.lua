@@ -145,7 +145,8 @@ function M.capability(force)
 
   result.env_terminal = host.name
   result.reply = reply and reply.raw or nil
-  if reply and reply.terminal and host.name and reply.terminal ~= host.name then
+  -- Case-insensitive: lib.nvim names it `Kitty`, its reply says `kitty`.
+  if reply and reply.terminal and host.name and reply.terminal:lower() ~= host.name:lower() then
     result.conflict = ("the environment names %s, the terminal answered `%s`; the answer decides"):format(host.name, reply.raw)
   end
 
@@ -181,10 +182,19 @@ function M.describe(cap, probe)
   local probe_line
   if state == "answered" then
     -- When the reply decided, the verdict line already quotes it.
-    if cap.source ~= "terminal" then
-      probe_line = ("terminal answered `%s` (not on the list, the environment decides)"):format(
-        cap.reply or (probe.answer and probe.answer.raw) or "?"
+    local ans = probe.answer
+    local raw = cap.reply or (ans and ans.raw) or "?"
+    if ans and ans.tmux then
+      probe_line = ("tmux answered `%s` for itself -- ignored"):format(ans.raw or "?")
+    elseif cap.source == "terminal" then
+      probe_line = nil
+    elseif ans and ans.terminal ~= nil then
+      probe_line = ("terminal answered `%s` (listed, OSC 1337 %s), overridden by `display.assume_supported`"):format(
+        raw,
+        ans.osc1337 and "known to work" or "not supported"
       )
+    else
+      probe_line = ("terminal answered `%s` (not on the list, the environment decides)"):format(raw)
     end
   elseif state == "pending" then
     probe_line = "terminal query (XTVERSION) pending -- run `:Image check` again"
