@@ -297,7 +297,9 @@ Calling |images.setup()| is optional when using `opts`.
                         `ocr.upscale` (off by default; `true` = 2x) enlarges
                         the image with ImageMagick before recognition, which
                         helps markedly on screenshots of small text. Without
-                        `magick` the image is read as it is, with a warning.
+                        `magick` the image is read as it is, with a warning;
+                        so is a factor above 8 (`200` is a percentage typo).
+                        Animated images are read by their first frame.
 
 :Image orphans          Find image files in `paste.dir` that no link in the
                         buffer points to anymore, and offer to delete one.
@@ -500,7 +502,7 @@ under the same key).
         lang = "eng",
         args = {},
         bin = nil,
-        upscale = false,  -- true = 2x, or a factor > 1
+        upscale = false,  -- true = 2x, or a factor > 1 and <= 8 (not a percentage)
       },
       pdf = {
         enabled = true,

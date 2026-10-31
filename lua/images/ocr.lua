@@ -144,19 +144,36 @@ function M.languages()
   return langs
 end
 
+--- The largest factor `ocr.upscale` accepts. Beyond 4x tesseract gains
+--- nothing on screen text; 8 leaves room without letting a typo explode.
+M.MAX_UPSCALE = 8
+
 --- The resize factor `ocr.upscale` (or `opts.upscale`) asks for, or nil when
 --- the image is to be read as it is.
 ---
---- `true` means the measured default, 2x; a number above 1 is taken as the
---- factor itself (1.5, 3, ...). Everything else -- `false`, nil, 1 or less, a
---- string -- is "off": a factor that would shrink the image only makes
---- recognition worse, so it is not passed on.
+--- `true` means the measured default, 2x; a number above 1 and up to
+--- `M.MAX_UPSCALE` is taken as the factor itself (1.5, 3, ...). Everything
+--- else -- `false`, nil, 1 or less, a string -- is "off": a factor that would
+--- shrink the image only makes recognition worse, so it is not passed on.
+---
+--- A number above `M.MAX_UPSCALE` is off too, but with a `problem` to report:
+--- the docs speak of `-resize 200%`, so `upscale = 200` (a percentage where a
+--- factor belongs) is the likely typo, and taken literally it would have
+--- magick build a 384000x216000 image from a 1920x1080 screenshot.
 ---@param value boolean|number|nil
 ---@return number|nil factor
+---@return string|nil problem  set when `value` was rejected as implausible
 function M.upscale_factor(value)
   if value == true then return 2 end
-  if type(value) == "number" and value > 1 then return value end
-  return nil
+  if type(value) ~= "number" or value ~= value or value <= 1 then return nil end
+  if value > M.MAX_UPSCALE then
+    return nil,
+      ("`ocr.upscale` = %s looks like a percentage; a factor up to %d is expected (2 = 200%%)"):format(
+        tostring(value),
+        M.MAX_UPSCALE
+      )
+  end
+  return value
 end
 
 --- Enlarge `input` into a temporary PNG with ImageMagick, asynchronously.
@@ -180,7 +197,11 @@ local function upscale(input, factor, on_ready)
     os.remove(out)
   end
   local percent = ("%d%%"):format(math.floor(factor * 100 + 0.5))
-  vim.system({ "magick", input, "-resize", percent, out }, { text = true }, function(result)
+  -- `[0]`: only the first frame. An animated GIF/WebP otherwise becomes
+  -- `out-0.png`, `out-1.png`, ... with exit 0 and no `out` at all (the trap
+  -- convert.discard_temp exists for); tesseract reads only the first frame
+  -- of such a file anyway.
+  vim.system({ "magick", input .. "[0]", "-resize", percent, out }, { text = true }, function(result)
     vim.schedule(function()
       if result.code ~= 0 or not vim.uv.fs_stat(out) then
         cleanup()
@@ -261,7 +282,7 @@ function M.run(path, opts, on_done)
   local lang = opts.lang or ocr_cfg.lang or "eng"
   local upscale_opt = opts.upscale
   if upscale_opt == nil then upscale_opt = ocr_cfg.upscale end
-  local factor = M.upscale_factor(upscale_opt)
+  local factor, problem = M.upscale_factor(upscale_opt)
 
   local function recognize(image, cleanup)
     local args = { bin, image, "stdout", "-l", lang }
@@ -280,6 +301,7 @@ function M.run(path, opts, on_done)
   end
 
   if not factor then
+    if problem then notice = problem .. "; the image was read at its original size" end
     return recognize(input, function() end)
   end
   upscale(input, factor, function(image, cleanup, why)

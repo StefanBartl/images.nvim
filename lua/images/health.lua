@@ -135,6 +135,28 @@ local function check_imagemagick()
   end
 end
 
+---`ocr.upscale` is only an improvement (see images.ocr), so a missing
+---`magick` or an implausible factor is a warning here, not an error -- but it
+---belongs next to the other OCR dependencies rather than only surfacing as a
+---notice on every `:Image ocr`.
+---@return nil
+function M.check_ocr_upscale()
+  local value = require("images.config").get().ocr.upscale
+  local factor, problem = require("images.ocr").upscale_factor(value)
+  if problem then
+    vim.health.warn(problem .. "; images are read at their original size")
+    return
+  end
+  if not factor then return end
+  if not require("lib.nvim.cross.executable").exists("magick") then
+    vim.health.warn("`ocr.upscale` is set but `magick` is missing; images are read at their original size", {
+      "install ImageMagick, or set `ocr.upscale = false`",
+    })
+    return
+  end
+  vim.health.ok(("`ocr.upscale` = %s — images are enlarged %sx with `magick` before OCR"):format(tostring(value), factor))
+end
+
 ---@return nil
 local function check_ocr()
   local ocr = require("images.ocr")
@@ -153,6 +175,7 @@ local function check_ocr()
   -- images.ocr), and "found" alone would hide that the shell still cannot run
   -- `tesseract` -- which is exactly the confusion the probe exists to defuse.
   vim.health.ok(("`%s` found — `:Image ocr` available"):format(bin))
+  M.check_ocr_upscale()
 
   local langs = ocr.languages()
   if #langs == 0 then

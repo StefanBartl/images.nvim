@@ -69,6 +69,47 @@ return function(H)
   H.eq(ocr.upscale_factor(1), nil, "1 is off: nothing to enlarge")
   H.eq(ocr.upscale_factor(0.5), nil, "a shrinking factor is off, never passed on")
   H.eq(ocr.upscale_factor("2"), nil, "a string is off")
+  H.eq(ocr.upscale_factor(8), 8, "the cap itself is accepted")
+  local f200, why200 = ocr.upscale_factor(200)
+  H.eq(f200, nil, "200 (a percentage) is rejected")
+  H.contains(why200 or "", "percentage", "…with a reason")
+  H.eq(ocr.upscale_factor(math.huge), nil, "math.huge is rejected")
+  H.eq(ocr.upscale_factor(0 / 0), nil, "NaN is off")
+
+  -- ── health: ocr.upscale is reported next to the other OCR dependencies ───
+  do
+    local exe = require("lib.nvim.cross.executable")
+    local real_exists, real_health = exe.exists, vim.health
+    local saved_cfg = vim.deepcopy(config.get().ocr)
+    local seen, has_magick = {}, true
+    ---@diagnostic disable-next-line: duplicate-set-field
+    exe.exists = function(name)
+      if name == "magick" then return has_magick end
+      return real_exists(name)
+    end
+    local function spy(level)
+      return function(msg)
+        seen[#seen + 1] = level .. ": " .. tostring(msg)
+      end
+    end
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.health = { ok = spy("ok"), warn = spy("warn"), info = spy("info"), error = spy("error") }
+    local function check(upscale, magick)
+      seen, has_magick = {}, magick
+      config.setup({ ocr = { upscale = upscale } })
+      require("images.health").check_ocr_upscale()
+      return table.concat(seen, "\n")
+    end
+    local ok_h, h_err = pcall(function()
+      H.eq(check(false, false), "", "health: upscale off says nothing")
+      H.contains(check(true, false), "warn: `ocr.upscale` is set but `magick` is missing", "health: warns without magick")
+      H.contains(check(true, true), "ok: ", "health: ok with magick")
+      H.contains(check(200, true), "warn: ", "health: warns about a percentage")
+    end)
+    vim.health, exe.exists = real_health, real_exists
+    config.setup({ ocr = saved_cfg })
+    if not ok_h then error(h_err, 0) end
+  end
 
   -- ── run with upscale: the pipeline, with both processes stubbed ───────────
   -- Neither tesseract nor ImageMagick is needed here (CI has neither): the
@@ -94,7 +135,16 @@ return function(H)
       local result
       if argv[1] == "magick" then
         if magick_fails then
+          -- magick may leave a half-written output behind and still fail.
+          H.write(argv[#argv], "partial")
           result = { code = 1, stdout = "", stderr = "magick: boom" }
+        elseif not argv[2]:find("%[0%]$") then
+          -- Like the real magick on a multi-frame input (animated GIF/WebP)
+          -- without a frame selector: numbered files, exit 0, no `out`.
+          local stem = argv[#argv]:gsub("%.png$", "")
+          H.write(stem .. "-0.png", "frame 0")
+          H.write(stem .. "-1.png", "frame 1")
+          result = { code = 0, stdout = "", stderr = "" }
         else
           H.write(argv[#argv], "enlarged")
           result = { code = 0, stdout = "", stderr = "" }
@@ -142,7 +192,7 @@ return function(H)
       go(nil)
       H.eq(#calls, 2, "upscale: magick, then tesseract")
       H.eq(calls[1][1], "magick", "upscale: magick runs first")
-      H.eq(calls[1][2], input, "…on the original")
+      H.eq(calls[1][2], input .. "[0]", "…on the original's first frame only")
       H.eq(calls[1][3], "-resize", "…with -resize")
       H.eq(calls[1][4], "200%", "…by 200% for upscale = true")
       local copy = calls[1][5]
@@ -153,6 +203,8 @@ return function(H)
       H.contains(text or "", copy, "the text comes from the enlarged read")
       H.eq(err, nil, "upscale: no error")
       H.eq(notice, nil, "upscale: no notice when it worked")
+      local stem = copy:gsub("%.png$", "")
+      H.falsy(vim.uv.fs_stat(stem .. "-0.png"), "no numbered per-frame copies are left behind")
 
       -- opts.upscale overrides the configuration, both ways.
       reset(false)
@@ -180,6 +232,18 @@ return function(H)
       H.eq(calls[2][2], input, "…on the original")
       H.ok(text ~= nil, "…and the text arrives")
       H.contains(notice or "", "boom", "…with magick's own error in the notice")
+      H.falsy(vim.uv.fs_stat(calls[1][5]), "a failed upscale leaves no temp file")
+
+      -- A percentage where a factor belongs: no magick run, a notice instead.
+      for _, typo in ipairs({ 200, math.huge }) do
+        reset(typo)
+        go(nil)
+        H.ok(fired, ("upscale = %s still calls back"):format(tostring(typo)))
+        H.eq(#calls, 1, ("upscale = %s: magick never runs"):format(tostring(typo)))
+        H.eq(calls[1][2], input, "…tesseract reads the original")
+        H.eq(err, nil, "…with no error")
+        H.contains(notice or "", "percentage", "…but a notice about the implausible factor")
+      end
     end)
 
     vim.system, exe.exists = real_system, real_exists
