@@ -72,6 +72,7 @@ local KNOWN = {
   },
   paste = {
     dir = true,
+    confirm_create_dir = true,
     existing_dir_names = true,
     name_template = true,
     link_template = true,

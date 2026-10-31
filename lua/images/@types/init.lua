@@ -80,6 +80,7 @@
 
 ---@class ImagesNvim.PasteConfig : ImagesNvim.PasteOpts
 ---@field dir string target directory relative to the document ("" = alongside it)
+---@field confirm_create_dir boolean ask (ui.kit.create_on_missing) before creating a missing target directory; false creates it silently
 ---@field existing_dir_names string[] existing folder names (case-insensitive) used instead of `dir` when present in the document's directory
 ---@field name_template string file name; %s = document name, %d = timestamp
 ---@field link_template string text to insert without alt text; %s = relative path
@@ -220,6 +221,7 @@
 
 ---@class ImagesNvim.PasteOpts
 ---@field dir?                string target directory relative to the document ("" = alongside it)
+---@field confirm_create_dir? boolean ask (ui.kit.create_on_missing) before creating a missing target directory; false creates it silently
 ---@field existing_dir_names? string[] existing folder names (case-insensitive) used instead of `dir` when present in the document's directory
 ---@field name_template?      string file name; %s = document name, %d = timestamp
 ---@field link_template?      string text to insert without alt text; %s = relative path

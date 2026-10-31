@@ -17,7 +17,19 @@
 ---@param H table harness from TESTS/run.lua
 return function(H)
   local paste = require("images.paste")
-  require("images.config").setup(nil) -- default paste.dir = "assets"
+
+  --- `images.config.setup` with `paste.confirm_create_dir` off unless `opts`
+  --- sets it: these specs paste into fresh directories and check the result
+  --- right away, so the "create the missing directory?" question (covered by
+  --- paste_create_dir_spec.lua) must not stand in the way.
+  ---@param opts table|nil
+  local function setup(opts)
+    opts = vim.deepcopy(opts or {})
+    opts.paste = opts.paste or {}
+    if opts.paste.confirm_create_dir == nil then opts.paste.confirm_create_dir = false end
+    return require("images.config").setup(opts)
+  end
+  setup(nil) -- default paste.dir = "assets"
 
   ---@param root string
   ---@return integer buf
@@ -182,8 +194,7 @@ return function(H)
   --      the position taken from that window means nothing in the document
   --      buffer: no link is inserted (a warning says where the image is) ────
   do
-    local config = require("images.config")
-    config.setup({ paste = { link_cursor = { startinsert = false } } })
+    setup({ paste = { link_cursor = { startinsert = false } } })
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
     local buf = make_buf(root)
@@ -206,7 +217,7 @@ return function(H)
     H.eq(vim.fn.filereadable(root .. "/assets/shot.png"), 1, "…but the image file is on disk")
     H.eq(vim.api.nvim_win_get_cursor(win)[2], 7, "the window now showing another buffer keeps its cursor")
 
-    config.setup(nil)
+    setup(nil)
     pcall(vim.api.nvim_buf_delete, other_buf, { force = true })
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
@@ -301,7 +312,6 @@ return function(H)
   -- ── 6b. "env" mode: the link is rooted at an environment variable when the
   --      file sits under a known root, else it falls back to relative ──────
   do
-    local config = require("images.config")
     local resolve_link_path = paste.resolve_link_path
     local saved_repos, saved_gopath = vim.env.REPOS_DIR, package.loaded["gopath.env_shorten"]
     local saved_preload = package.preload["gopath.env_shorten"]
@@ -323,7 +333,7 @@ return function(H)
     package.preload["gopath.env_shorten"] = function()
       error("gopath.nvim is absent (stubbed by paste_target_spec)")
     end
-    config.setup(nil)
+    setup(nil)
     vim.env.REPOS_DIR = D .. "/work/repos"
     H.eq(
       resolve_link_path(D .. "/work/repos/notes/assets/shot.png", doc_rel, "env"),
@@ -354,7 +364,7 @@ return function(H)
     )
 
     -- the user's own roots: first, longest directory wins, functions allowed
-    config.setup({
+    setup({
       paste = {
         env_roots = {
           WIKI_DIR = D .. "/work/repos/wiki",
@@ -392,7 +402,7 @@ return function(H)
     package.preload["gopath.env_shorten"] = function()
       error("gopath.nvim is absent (stubbed by paste_target_spec)")
     end
-    config.setup(nil)
+    setup(nil)
     local unregister = require("lib.nvim.fs.roots").register("IMAGES_SPEC_ROOT", D .. "/work/registered")
     H.eq(
       resolve_link_path(D .. "/work/registered/a/shot.png", doc_rel, "env"),
@@ -409,13 +419,12 @@ return function(H)
     package.loaded["gopath.env_shorten"] = saved_gopath
     package.preload["gopath.env_shorten"] = saved_preload
     vim.env.REPOS_DIR = saved_repos
-    config.setup(nil)
+    setup(nil)
   end
 
   -- ── 6c. after inserting, the cursor sits where the link needs typing ─────
   do
-    local config = require("images.config")
-    config.setup({ paste = { link_cursor = { startinsert = false } } })
+    setup({ paste = { link_cursor = { startinsert = false } } })
     local root = vim.fn.tempname()
     vim.fn.mkdir(root, "p")
     local buf = make_buf(root)
@@ -429,7 +438,7 @@ return function(H)
     -- alt text already given: the path is what is left to edit
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
-    config.setup({ paste = { ask_alt_text = false, link_template = "![alt](%s)", link_cursor = { startinsert = false } } })
+    setup({ paste = { ask_alt_text = false, link_template = "![alt](%s)", link_cursor = { startinsert = false } } })
     paste.paste_with_name(buf, "two.png", fake_capture(true), "relative")
     H.eq(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1], "![alt](assets/two.png)", "link with alt text")
     H.eq(vim.api.nvim_win_get_cursor(0)[2], 21, "cursor at the end of the path (before the closing paren)")
@@ -437,12 +446,12 @@ return function(H)
     -- opt-out: cursor behind the link, as before
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
     vim.api.nvim_win_set_cursor(0, { 1, 0 })
-    config.setup({ paste = { link_cursor = { enable = false, startinsert = false } } })
+    setup({ paste = { link_cursor = { enable = false, startinsert = false } } })
     paste.paste_with_name(buf, "three.png", fake_capture(true), "relative")
     local l3 = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1]
     H.eq(vim.api.nvim_win_get_cursor(0)[2], #l3, "link_cursor.enable = false: cursor stays behind the link")
 
-    config.setup(nil)
+    setup(nil)
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
 
@@ -451,10 +460,9 @@ return function(H)
   --      TESTS/run.lua's own note on that) ─────────────────────────────────
   do
     local resolve_path_mode = paste.resolve_path_mode
-    local config = require("images.config")
 
     -- An explicit mode wins outright, regardless of config.
-    config.setup({ paste = { default_path_mode = "relative" } })
+    setup({ paste = { default_path_mode = "relative" } })
     local got
     resolve_path_mode("absolute", function(mode)
       got = mode
@@ -467,7 +475,7 @@ return function(H)
     vim.ui.select = function()
       error("vim.ui.select must not be called when paste.default_path_mode is set")
     end
-    config.setup({ paste = { default_path_mode = "repos" } })
+    setup({ paste = { default_path_mode = "repos" } })
     got = nil
     resolve_path_mode(nil, function(mode)
       got = mode
@@ -477,7 +485,7 @@ return function(H)
 
     -- default_path_mode = false: no explicit arg, no default -> the
     -- interactive choice fires (ui.kit unavailable here, so vim.ui.select).
-    config.setup({ paste = { default_path_mode = false } })
+    setup({ paste = { default_path_mode = false } })
 
     vim.ui.select = function(items, _opts, on_choice)
       for _, item in ipairs(items) do
@@ -527,7 +535,7 @@ return function(H)
 
     vim.ui.select = original_select
     dialog.input = original_input
-    config.setup({}) -- restore the plain default for any spec running after this one
+    require("images.config").setup({}) -- restore the plain default for any spec running after this one
   end
 
   -- ── 8. paste.windows_persistent_helper: the opt-out gate, forced onto the
@@ -540,7 +548,6 @@ return function(H)
   -- at call time, so replacing the cached module works even though
   -- `images.paste` itself was already loaded above.
   do
-    local config = require("images.config")
     local original_is_windows = package.loaded["lib.nvim.cross.platform.is_windows"]
     local original_worker = package.loaded["images.win_clipboard_worker"]
     local original_system = vim.system
@@ -563,7 +570,7 @@ return function(H)
       error("windows_persistent_helper defaults to true -- vim.system must not be called directly")
     end
 
-    config.setup({})
+    setup({})
     local done1, ok1, err1
     paste.clipboard_to_file(vim.fn.tempname() .. ".png", function(ok, err)
       done1, ok1, err1 = true, ok, err
@@ -590,7 +597,7 @@ return function(H)
       return { pid = -1 }
     end
 
-    config.setup({ paste = { windows_persistent_helper = false } })
+    setup({ paste = { windows_persistent_helper = false } })
     local done2, ok2, err2
     paste.clipboard_to_file(vim.fn.tempname() .. ".png", function(ok, err)
       done2, ok2, err2 = true, ok, err
@@ -602,7 +609,7 @@ return function(H)
     vim.system = original_system
     package.loaded["images.win_clipboard_worker"] = original_worker
     package.loaded["lib.nvim.cross.platform.is_windows"] = original_is_windows
-    config.setup({}) -- restore the plain default for any spec running after this one
+    require("images.config").setup({}) -- restore the plain default for any spec running after this one
 
     H.eq(
       spawned_cmd and spawned_cmd[1],

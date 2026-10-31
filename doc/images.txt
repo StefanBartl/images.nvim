@@ -480,6 +480,7 @@ under the same key).
       },
       paste = {
         dir = "assets",
+        confirm_create_dir = true,
         existing_dir_names = { "Resources", "Ressourcen" },
         name_template = "%s-%d.png",
         link_template = "![](%s)",
@@ -692,6 +693,14 @@ second, parallel `assets` next to it. Set it to `{}` to disable the check and
 always use `paste.dir`. Either way, the target directory is only created (or
 reused) once the image is actually written — a clipboard without an image, or
 a cancelled `:Image screenshot`, leaves no directory behind.
+
+A target directory that does not exist yet is not created silently: lib.nvim's
+`create_on_missing` dialog (ui.nvim's `ui.kit.create_on_missing`) asks first,
+naming the directory — Create makes it (with any missing parents) and the
+paste goes on; Open in filetree (only with filetree.nvim set up) shows the
+nearest existing directory; Cancel, <Esc> or closing the dialog saves nothing
+and inserts no link. `paste.confirm_create_dir = false` creates the directory
+without asking, as before the question existed.
 
 `paste.ask_alt_text = true` prompts for alt text before inserting the link
 (via lib.nvim's UI kit when available, |vim.fn.input()| otherwise), using

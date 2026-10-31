@@ -324,16 +324,17 @@ end
 -- Exposed for tests: a pure function, no filesystem or terminal needed.
 M.resolve_link_path = resolve_link_path
 
---- Determine the target path for a new image and create the directory. Runs
---- only AFTER a successful capture (see `paste_with_name`) — otherwise an empty
---- clipboard, for instance, would still create an `assets` directory with
---- nothing written into it.
+--- Determine the target path for a new image. Creates nothing: the directory
+--- is made by `ensure_dir`, and only AFTER a successful capture (see
+--- `paste_with_name`) — otherwise an empty clipboard, for instance, would
+--- still create an `assets` directory with nothing written into it.
 ---@param buf integer
 ---@param filename_override string|nil an already sanitised name; nil = template
 ---@param path_mode string|nil see `resolve_link_path`; nil = "relative"
 ---@return string|nil absolute path
 ---@return string|nil link path to use in the markdown link
 ---@return string|nil err
+---@return string|nil dir the directory `abs` goes into (may not exist yet)
 local function target_paths(buf, filename_override, path_mode)
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then return nil, nil, "the buffer has no file name — save it first" end
@@ -344,10 +345,6 @@ local function target_paths(buf, filename_override, path_mode)
 
   local sub = find_existing_resource_dir(doc_dir) or c.dir or ""
   local dir = (sub ~= "") and (doc_dir .. "/" .. sub) or doc_dir
-  if vim.fn.isdirectory(dir) == 0 then
-    local ok = pcall(vim.fn.mkdir, dir, "p")
-    if not ok then return nil, nil, "could not create the directory: " .. dir end
-  end
 
   local file = filename_override or c.name_template:format(doc_stem, os.time())
   local abs = dir .. "/" .. file
@@ -355,7 +352,44 @@ local function target_paths(buf, filename_override, path_mode)
 
   local link_path, mode_err = resolve_link_path(abs, doc_rel, path_mode)
   if not link_path then return nil, nil, mode_err end
-  return abs, link_path, nil
+  return abs, link_path, nil, dir
+end
+
+--- lib.nvim's "this path does not exist" dialog (the module behind ui.nvim's
+--- `ui.kit.create_on_missing`), or nil on a lib.nvim that predates it.
+--- Required from lib.nvim, not through `ui.kit`: lib.nvim is a hard dependency,
+--- ui.nvim is not (see `kit()`).
+---@return Lib.UI.Kit.CreateOnMissingModule|nil
+local function create_on_missing_mod()
+  local ok, mod = pcall(require, "lib.nvim.ui.kit.create_on_missing")
+  return ok and type(mod) == "table" and type(mod.open) == "function" and mod or nil
+end
+
+--- Make sure the target directory exists. Awaited inside `paste_with_name`'s
+--- coroutine. A missing directory is offered through `kit.create_on_missing`
+--- (Create / Open in filetree / Cancel) unless `paste.confirm_create_dir` is
+--- `false`, or the dialog is not available — then it is created silently, as
+--- before the question existed.
+---@param dir string
+---@return boolean ok true: the directory exists now
+---@return string|nil why on false: "cancelled" | "filetree" | "error" | an error message
+local function ensure_dir(dir)
+  if vim.fn.isdirectory(dir) == 1 then return true end
+
+  local com = cfg().paste.confirm_create_dir ~= false and create_on_missing_mod() or nil
+  if not com then
+    local ok = pcall(vim.fn.mkdir, dir, "p")
+    if not ok or vim.fn.isdirectory(dir) == 0 then return false, "could not create the directory: " .. dir end
+    return true
+  end
+
+  local res = async_mod().await(function(resume)
+    -- A trailing "/" asks for a directory; `open = false`: nothing is opened,
+    -- the paste goes on with the new directory.
+    com.open({ path = dir .. "/", open = false, on_done = resume })
+  end)
+  if res and (res.action == "created" or res.action == "exists") then return true end
+  return false, res and res.action or "cancelled"
 end
 
 --- Move `src` to `dst`. `fs_rename` fails across drive boundaries (EXDEV, the
@@ -532,10 +566,23 @@ local function paste_with_name(buf, filename_override, capture, path_mode)
       return
     end
 
-    local abs, rel, err = target_paths(buf, filename_override, path_mode)
-    if not abs or not rel then
+    local abs, rel, err, dir = target_paths(buf, filename_override, path_mode)
+    if not abs or not rel or not dir then
       pcall(vim.uv.fs_unlink, tmp)
       notify().error(err or "cannot determine the target path")
+      return
+    end
+
+    local dir_ok, why = ensure_dir(dir)
+    if not dir_ok then
+      -- Declined (or revealed in the file tree instead): nothing is written,
+      -- nothing inserted. "error" was already reported by the dialog itself.
+      pcall(vim.uv.fs_unlink, tmp)
+      if why == "cancelled" or why == "filetree" then
+        notify().info("cancelled — the image was not saved")
+      elseif why ~= "error" then
+        notify().error(why or ("could not create the directory: " .. dir))
+      end
       return
     end
 

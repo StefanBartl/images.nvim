@@ -203,8 +203,14 @@ return {
 
   paste = {
     -- An empty string puts the image next to the document. "assets" or "img"
-    -- are the usual alternatives; the directory is created when needed.
+    -- are the usual alternatives; the directory is created when needed (see
+    -- `confirm_create_dir`).
     dir = "assets",
+    -- When the target directory does not exist yet, ask before creating it
+    -- (lib.nvim's `ui.kit.create_on_missing` dialog: Create / Open in
+    -- filetree / Cancel; anything but Create saves nothing and inserts no
+    -- link). `false` creates it silently, as before this option existed.
+    confirm_create_dir = true,
     -- If the document's directory already holds a folder with one of these
     -- names (case-insensitive), that one is used instead of `dir` and no
     -- separate one (e.g. "assets") is created alongside it. An empty list
