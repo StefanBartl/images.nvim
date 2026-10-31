@@ -17,10 +17,21 @@
 --- the answer arrives asynchronously some milliseconds later, and a terminal
 --- that does not implement XTVERSION simply never answers (`silent`).
 ---
---- Not under tmux: tmux answers XTVERSION itself (`tmux 3.4`), so the reply
---- names the multiplexer rather than the terminal, and with `extended-keys` on
---- the reply leaks into the buffer as typed text instead of reaching
---- `TermResponse` (folke/snacks.nvim#2332).
+--- Under tmux the query is not sent: tmux answers XTVERSION itself
+--- (`tmux 3.4`), so the reply names the multiplexer rather than the terminal,
+--- and with `extended-keys` on the reply leaks into the buffer as typed text
+--- instead of reaching `TermResponse` (folke/snacks.nvim#2332). tmux asks the
+--- outer terminal itself, though, and keeps its reply: `#{client_termtype}`
+--- holds the outer terminal's XTVERSION reply verbatim, so under tmux that
+--- format is read with `tmux display-message` instead (`M.TMUX_FORMAT`).
+---
+--- Measured on 2026-10-31 with tmux 3.7c (WSL Arch) under a fake outer
+--- terminal that answered `WezTerm 20240203-110809-5046fc22`:
+--- `#{client_termtype}` was exactly that reply, `#{client_termname}` was
+--- `xterm-256color` (only `$TERM`, which WezTerm, Rio, Alacritty and most
+--- others share, so it is no source; snacks.nvim reads it nevertheless). A
+--- terminal that does not answer leaves `#{client_termtype}` empty, as does a
+--- session without an attached client.
 
 local M = {}
 
@@ -31,6 +42,20 @@ M.QUERY = "\27[>q"
 --- A terminal that implements XTVERSION answers within one round trip; the
 --- margin covers SSH latency.
 M.TIMEOUT_MS = 1500
+
+--- Under tmux: the format that holds the outer terminal's XTVERSION reply.
+M.TMUX_FORMAT = "#{client_termtype}"
+
+--- The command reading `M.TMUX_FORMAT`. `-t $TMUX_PANE` picks this pane's
+--- session, so the client is one attached to it.
+---@param env table environment to read
+---@return string[]
+function M.tmux_argv(env)
+  local argv = { "tmux", "display-message", "-p" }
+  if type(env.TMUX_PANE) == "string" and env.TMUX_PANE ~= "" then vim.list_extend(argv, { "-t", env.TMUX_PANE }) end
+  argv[#argv + 1] = M.TMUX_FORMAT
+  return argv
+end
 
 ---@class Images.XtversionEntry
 ---@field name string canonical name, shown to the user
@@ -84,6 +109,7 @@ M.KNOWN = {
 ---@field terminal string|nil canonical name from `M.KNOWN`, nil when unlisted
 ---@field osc1337 boolean|nil `M.KNOWN`'s verdict, nil when unlisted
 ---@field tmux boolean whether tmux answered instead of the terminal
+---@field via "tmux"|nil `tmux` when read from tmux's `#{client_termtype}`
 
 --- Parse an XTVERSION reply. Pure.
 ---
@@ -142,6 +168,17 @@ local function stop_listening()
   end
 end
 
+--- Record the answer and tell the listeners.
+---@param parsed Images.XtversionAnswer
+---@return nil
+local function accept(parsed)
+  answer, state = parsed, "answered"
+  stop_listening()
+  for _, fn in pairs(listeners) do
+    pcall(fn, parsed)
+  end
+end
+
 --- Feed one `TermResponse` sequence. Exposed for the spec; the autocmd
 --- created by `M.start` calls it for every reply while the probe is pending.
 ---@param seq string|nil
@@ -150,12 +187,35 @@ function M.on_response(seq)
   if state ~= "pending" then return false end
   local parsed = M.parse(seq)
   if not parsed then return false end
-  answer, state = parsed, "answered"
-  stop_listening()
-  for _, fn in pairs(listeners) do
-    pcall(fn, parsed)
-  end
+  accept(parsed)
   return true
+end
+
+--- Feed the result of `tmux display-message -p '#{client_termtype}'`.
+--- Exposed for the spec; `M.start` calls it under tmux.
+---@param code integer exit code
+---@param stdout string|nil
+---@return boolean answered
+function M.on_tmux(code, stdout)
+  if state ~= "pending" then return false end
+  local text = vim.trim(stdout or "")
+  local why
+  if code ~= 0 then
+    why = ("under tmux, and `tmux display-message` failed (exit %d)"):format(code)
+  elseif text == "" then
+    why = "under tmux, which knows no outer terminal (`#{client_termtype}` is empty: "
+      .. "the terminal did not answer tmux, or tmux is older than 3.3)"
+  else
+    local parsed = M.parse("\27P>|" .. text)
+    if parsed then
+      parsed.via = "tmux"
+      accept(parsed)
+      return true
+    end
+    why = ("under tmux, which reported `%s` as the outer terminal (not a name)"):format(text)
+  end
+  state, skipped_why = "skipped", why
+  return false
 end
 
 --- Call `fn` once the terminal has answered (or right away, if it already has).
@@ -169,7 +229,7 @@ function M.on_answer(key, fn)
   if fn and answer then pcall(fn, answer) end
 end
 
---- Send the query and listen for the reply. Idempotent while pending or
+--- Send the query and listen for the reply (under tmux: ask tmux). Idempotent while pending or
 --- answered; a `silent` or `skipped` probe is sent again (that is what
 --- `:Image check` relies on).
 ---@param env table|nil environment to read (default `vim.env`), for the spec
@@ -183,8 +243,6 @@ function M.start(env)
     why = "`nvim_ui_send` is missing"
   elseif #vim.api.nvim_list_uis() == 0 then
     why = "no UI attached"
-  elseif type(env.TMUX) == "string" and env.TMUX ~= "" then
-    why = "under tmux, which answers for itself"
   end
   if why then
     state, skipped_why = "skipped", why
@@ -194,13 +252,6 @@ function M.start(env)
   state, skipped_why = "pending", nil
   generation = generation + 1
   local my_generation = generation
-  autocmd_id = vim.api.nvim_create_autocmd("TermResponse", {
-    group = vim.api.nvim_create_augroup("images.xtversion", { clear = true }),
-    callback = function(ev)
-      -- Returning true deletes the autocmd; `stop_listening` already did.
-      if M.on_response(ev.data and ev.data.sequence) then autocmd_id = nil end
-    end,
-  })
   vim.defer_fn(function()
     if my_generation == generation and state == "pending" then
       state = "silent"
@@ -208,6 +259,27 @@ function M.start(env)
     end
   end, M.TIMEOUT_MS)
 
+  if type(env.TMUX) == "string" and env.TMUX ~= "" then
+    -- tmux would answer for itself: ask tmux what the outer terminal said.
+    local ok = pcall(vim.system, M.tmux_argv(env), { text = true }, function(res)
+      vim.schedule(function()
+        if my_generation == generation then M.on_tmux(res.code, res.stdout) end
+      end)
+    end)
+    if not ok then
+      state, skipped_why = "skipped", "under tmux, and `tmux` could not be run"
+      return false
+    end
+    return true
+  end
+
+  autocmd_id = vim.api.nvim_create_autocmd("TermResponse", {
+    group = vim.api.nvim_create_augroup("images.xtversion", { clear = true }),
+    callback = function(ev)
+      -- Returning true deletes the autocmd; `stop_listening` already did.
+      if M.on_response(ev.data and ev.data.sequence) then autocmd_id = nil end
+    end,
+  })
   local ok = pcall(vim.api.nvim_ui_send, M.QUERY)
   if not ok then
     state, skipped_why = "skipped", "`nvim_ui_send` failed"

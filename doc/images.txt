@@ -631,7 +631,11 @@ At startup the terminal is also asked its name with XTVERSION (`CSI > q`,
 it holds over SSH and against variables inherited from another terminal.
 The whole name must match (`xterm.js` from VS Code is not XTerm); an
 unlisted name has no opinion and leaves the decision to the environment.
-Nothing is sent under tmux, which would answer for itself. The reply is a
+Under tmux nothing is sent, because tmux would answer for itself; instead
+tmux is asked what the outer terminal answered it
+(`tmux display-message -p '#{client_termtype}'`), and `:Image check` says
+so. An empty value (tmux older than 3.3, or a terminal that did not answer
+tmux) leaves the environment to decide. The reply is a
 name, not a capability: only an image appearing proves OSC 1337 gets through.
 
                                                         *images-ascii-config*

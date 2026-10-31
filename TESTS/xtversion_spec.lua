@@ -73,8 +73,75 @@ return function(H)
 
   with_ui(function()
     xtversion.reset()
-    H.falsy(xtversion.start({ TMUX = "/tmp/tmux-1/default,1,0" }), "under tmux nothing is sent")
-    H.contains(xtversion.status().why or "", "tmux", "...and the reason names tmux")
+    -- Under tmux the query is not sent; tmux is asked instead (stubbed).
+    local real_system = vim.system
+    local calls = {}
+    local system_fails = false
+    ---@diagnostic disable-next-line: duplicate-set-field
+    vim.system = function(argv, _, on_exit)
+      if system_fails then error("ENOENT: no such file or directory (cmd): 'tmux'") end
+      calls[#calls + 1] = { argv = argv, on_exit = on_exit }
+      return {}
+    end
+    local TMUX_ENV = { TMUX = "/tmp/tmux-1/default,1,0", TMUX_PANE = "%3" }
+    --- Start under the stubbed tmux and let it print `stdout` with exit `code`.
+    local function tmux_says(code, stdout)
+      xtversion.reset()
+      calls = {}
+      local started = xtversion.start(TMUX_ENV)
+      if calls[1] then calls[1].on_exit({ code = code, stdout = stdout, stderr = "" }) end
+      vim.wait(1000, function()
+        return xtversion.status().state ~= "pending"
+      end)
+      return started
+    end
+    local ok_tmux, err_tmux = pcall(function()
+      local before = #sent
+      H.ok(tmux_says(0, "WezTerm 20240203-110809-5046fc22\n"), "under tmux tmux is asked")
+      H.eq(#sent, before, "...and nothing is sent to the terminal")
+      H.eq(
+        calls[1] and table.concat(calls[1].argv, " "),
+        "tmux display-message -p -t %3 #{client_termtype}",
+        "...for this pane's client_termtype"
+      )
+      local st = xtversion.status()
+      H.eq(st.state, "answered", "tmux's record of the outer terminal answers the probe")
+      H.eq(st.answer and st.answer.terminal, "WezTerm", "...naming the outer terminal")
+      H.eq(st.answer and st.answer.via, "tmux", "...read through tmux")
+      H.falsy(st.answer and st.answer.tmux, "...not tmux answering for itself")
+
+      tmux_says(0, "\n")
+      H.eq(xtversion.status().state, "skipped", "an empty client_termtype: skipped")
+      H.contains(xtversion.status().why or "", "client_termtype", "...and the reason names the format")
+
+      tmux_says(1, "")
+      H.eq(xtversion.status().state, "skipped", "tmux failing: skipped")
+      H.contains(xtversion.status().why or "", "failed", "...and the reason says so")
+
+      tmux_says(0, "tmux 3.4\n")
+      H.ok(xtversion.status().answer and xtversion.status().answer.tmux, "a nested tmux is recognised as tmux")
+
+      system_fails = true
+      H.falsy(tmux_says(0, ""), "tmux not runnable: nothing started")
+      H.contains(xtversion.status().why or "", "could not be run", "...and the reason says so")
+      system_fails = false
+
+      -- A late tmux result from an earlier probe must not answer a later one.
+      xtversion.reset()
+      calls = {}
+      xtversion.start(TMUX_ENV)
+      local stale_exit = calls[1].on_exit
+      xtversion.reset()
+      xtversion.start(TMUX_ENV)
+      stale_exit({ code = 0, stdout = "kitty(0.35.2)", stderr = "" })
+      vim.wait(100, function()
+        return false
+      end)
+      H.eq(xtversion.status().state, "pending", "a stale tmux result is dropped")
+      xtversion.reset()
+    end)
+    vim.system = real_system
+    if not ok_tmux then error(err_tmux, 0) end
 
     xtversion.reset()
     local heard
@@ -250,6 +317,48 @@ return function(H)
   cap = stubbed_cap("\27P>|Rio 0.2.1", { WEZTERM_PANE = "0" })
   text = terminal.describe(cap, xtversion.status())
   H.contains(text, "not on the list", "an unlisted reply is called unlisted")
+
+  -- Under tmux: the outer terminal's reply as tmux recorded it decides, and
+  -- `:Image check` names tmux as where it came from.
+  local via = xtversion.parse(WEZTERM)
+  via.via = "tmux"
+  cap = { ok = true, terminal = "WezTerm", source = "terminal", reply = via.raw, reply_via = "tmux" }
+  text = terminal.describe(cap, { state = "answered", answer = via })
+  H.contains(text, "client_termtype", "a reply read through tmux names client_termtype as the source")
+  H.contains(text, "WezTerm 20240203", "...with the reply text")
+  via = xtversion.parse("\27P>|Rio 0.2.1")
+  via.via = "tmux"
+  text = terminal.describe({ ok = false }, { state = "answered", answer = via })
+  H.contains(text, "tmux reports the outer terminal", "an unlisted reply through tmux says tmux reported it")
+  via = xtversion.parse("\27P>|tmux 3.4")
+  via.via = "tmux"
+  text = terminal.describe({ ok = false }, { state = "answered", answer = via })
+  H.contains(text, "nested tmux", "a tmux reported by tmux is a nested tmux")
+
+  -- capability carries where the reply came from.
+  xtversion.reset()
+  local real_system = vim.system
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.system = function(_, _, on_exit)
+    on_exit({ code = 0, stdout = "WezTerm 20240203-110809-5046fc22\n", stderr = "" })
+    return {}
+  end
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.api.nvim_list_uis = function()
+    return { {} }
+  end
+  local ok_cap, err_cap = pcall(function()
+    xtversion.start({ TMUX = "/tmp/tmux-1/default,1,0" })
+    vim.wait(1000, function()
+      return xtversion.status().state ~= "pending"
+    end)
+    terminal.reset_capability()
+    cap = terminal.capability(false)
+    H.eq(cap.source, "terminal", "the reply read through tmux decides the capability")
+    H.eq(cap.reply_via, "tmux", "...and the capability says it came through tmux")
+  end)
+  vim.system, vim.api.nvim_list_uis = real_system, real_uis
+  if not ok_cap then error(err_cap, 0) end
 
   cap = stubbed_cap(nil, { WEZTERM_PANE = "0" })
   text = terminal.describe(cap, { state = "silent" })

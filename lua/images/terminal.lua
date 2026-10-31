@@ -73,6 +73,7 @@ end
 ---@field source "environment"|"terminal"|"assumed"|nil what decided `ok`: the environment heuristic, the terminal's own XTVERSION reply, or `display.assume_supported`
 ---@field env_terminal string|nil the terminal the environment names
 ---@field reply string|nil the terminal's XTVERSION reply (name and version), once it arrived
+---@field reply_via "tmux"|nil `tmux` when the reply was read from tmux's `#{client_termtype}`
 ---@field conflict string|nil set when the environment and the reply name different terminals
 
 --- Results of the capability check, determined once per session and per `force`
@@ -145,6 +146,7 @@ function M.capability(force)
 
   result.env_terminal = host.name
   result.reply = reply and reply.raw or nil
+  result.reply_via = reply and reply.via or nil
   -- Case-insensitive: lib.nvim names it `Kitty`, its reply says `kitty`.
   if reply and reply.terminal and host.name and reply.terminal:lower() ~= host.name:lower() then
     result.conflict = ("the environment names %s, the terminal answered `%s`; the answer decides"):format(host.name, reply.raw)
@@ -166,8 +168,9 @@ end
 function M.describe(cap, probe)
   local verdict
   if cap.source == "terminal" then
-    verdict = ("`%s` decided by the terminal's own reply (XTVERSION: `%s`) -- OSC 1337 %s"):format(
+    verdict = ("`%s` decided by the terminal's own reply (XTVERSION%s: `%s`) -- OSC 1337 %s"):format(
       cap.terminal or "?",
+      cap.reply_via == "tmux" and ", as tmux recorded it in `#{client_termtype}`" or "",
       cap.reply or "?",
       cap.ok and "known to work" or "not supported"
     )
@@ -184,17 +187,22 @@ function M.describe(cap, probe)
     -- When the reply decided, the verdict line already quotes it.
     local ans = probe.answer
     local raw = cap.reply or (ans and ans.raw) or "?"
-    if ans and ans.tmux then
+    local via_tmux = ans and ans.via == "tmux"
+    local who = via_tmux and "tmux reports the outer terminal (`#{client_termtype}`) as" or "terminal answered"
+    if ans and ans.tmux and via_tmux then
+      probe_line = ("tmux reports the outer terminal as `%s` (nested tmux) -- ignored"):format(ans.raw or "?")
+    elseif ans and ans.tmux then
       probe_line = ("tmux answered `%s` for itself -- ignored"):format(ans.raw or "?")
     elseif cap.source == "terminal" then
       probe_line = nil
     elseif ans and ans.terminal ~= nil then
-      probe_line = ("terminal answered `%s` (listed, OSC 1337 %s), overridden by `display.assume_supported`"):format(
+      probe_line = ("%s `%s` (listed, OSC 1337 %s), overridden by `display.assume_supported`"):format(
+        who,
         raw,
         ans.osc1337 and "known to work" or "not supported"
       )
     else
-      probe_line = ("terminal answered `%s` (not on the list, the environment decides)"):format(raw)
+      probe_line = ("%s `%s` (not on the list, the environment decides)"):format(who, raw)
     end
   elseif state == "pending" then
     probe_line = "terminal query (XTVERSION) pending -- run `:Image check` again"

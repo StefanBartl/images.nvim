@@ -136,7 +136,10 @@ not forwarded, and against variables inherited from another terminal. An
 unlisted reply, or none at all, leaves the environment's verdict standing. The
 environment stays the synchronous path: the reply arrives a moment later and
 drops the memoized result, so the next draw uses it. Under tmux nothing is sent,
-because tmux answers XTVERSION itself. `display.terminal_probe = false` switches
+because tmux answers XTVERSION itself; tmux asks the outer terminal on its own
+and keeps the reply in `#{client_termtype}`, so `images.xtversion` reads that
+with `tmux display-message` instead (`#{client_termname}` is only `$TERM`,
+mostly `xterm-256color`, and names no terminal). `display.terminal_probe = false` switches
 the query off. This is still a name, not a capability: a listed name that draws
 nothing is possible, and only an image appearing proves the protocol gets
 through.

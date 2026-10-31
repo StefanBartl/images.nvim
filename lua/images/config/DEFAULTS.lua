@@ -53,7 +53,8 @@ return {
     -- Ask the terminal its name with XTVERSION (`CSI > q`) once at startup.
     -- The reply refines the environment heuristic -- it holds over SSH and
     -- outlives inherited variables -- and `:Image check` shows which of the
-    -- two decided. Skipped under tmux, which answers for itself.
+    -- two decided. Under tmux, which answers for itself, tmux is asked for
+    -- the outer terminal's reply (`#{client_termtype}`) instead.
     terminal_probe = true,
     clear_events = { "CursorMoved", "CursorMovedI", "InsertEnter", "BufLeave", "WinScrolled" },
     -- Directory names `:Image pickers` skips while scanning, in addition to
